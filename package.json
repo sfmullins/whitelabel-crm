@@ -5,7 +5,8 @@
   "workspaces": [
     "shared",
     "backend",
-    "frontend"
+    "frontend",
+    "desktop"
   ],
   "scripts": {
     "install:all": "npm install",
@@ -14,7 +15,10 @@
     "test": "npm run test -w backend && npm run test -w frontend",
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend",
-    "db:seed": "npm run db:seed -w backend"
+    "db:seed": "npm run db:seed -w backend",
+    "desktop:start": "npm run build && npm run start -w desktop",
+    "desktop:package": "npm run build && npm run package -w desktop",
+    "desktop:make": "npm run build && npm run make -w desktop"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

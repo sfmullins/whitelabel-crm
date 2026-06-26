@@ -60,14 +60,95 @@ export default function SettingsPage() {
     }
   });
 
+  // Desktop Application Info
+  const [appInfo, setAppInfo] = useState<{ version: string; userDataPath: string } | null>(null);
+
+  // Backup Configuration State (persisted in localStorage)
+  const [externalDir, setExternalDir] = useState(localStorage.getItem('backup_external_dir') || '');
+  const [externalEnabled, setExternalEnabled] = useState(localStorage.getItem('backup_external_enabled') === 'true');
+  
+  const [encryptionEnabled, setEncryptionEnabled] = useState(localStorage.getItem('backup_encryption_enabled') === 'true');
+  const [backupPassword, setBackupPassword] = useState(localStorage.getItem('backup_password') || '');
+
+  const [s3Enabled, setS3Enabled] = useState(localStorage.getItem('backup_s3_enabled') === 'true');
+  const [s3Endpoint, setS3Endpoint] = useState(localStorage.getItem('backup_s3_endpoint') || '');
+  const [s3Region, setS3Region] = useState(localStorage.getItem('backup_s3_region') || '');
+  const [s3Bucket, setS3Bucket] = useState(localStorage.getItem('backup_s3_bucket') || '');
+  const [s3Prefix, setS3Prefix] = useState(localStorage.getItem('backup_s3_prefix') || '');
+  const [s3AccessKey, setS3AccessKey] = useState(localStorage.getItem('backup_s3_access_key') || '');
+  const [s3SecretKey, setS3SecretKey] = useState(localStorage.getItem('backup_s3_secret_key') || '');
+
+  const [dailyCount, setDailyCount] = useState(Number(localStorage.getItem('backup_daily_count') || '7'));
+  const [weeklyCount, setWeeklyCount] = useState(Number(localStorage.getItem('backup_weekly_count') || '4'));
+  const [monthlyCount, setMonthlyCount] = useState(Number(localStorage.getItem('backup_monthly_count') || '12'));
+
+  useEffect(() => {
+    if ((window as any).desktop) {
+      (window as any).desktop.getApplicationInfo().then((info: any) => {
+        setAppInfo(info);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('backup_external_dir', externalDir);
+    localStorage.setItem('backup_external_enabled', String(externalEnabled));
+    localStorage.setItem('backup_encryption_enabled', String(encryptionEnabled));
+    localStorage.setItem('backup_password', backupPassword);
+    localStorage.setItem('backup_s3_enabled', String(s3Enabled));
+    localStorage.setItem('backup_s3_endpoint', s3Endpoint);
+    localStorage.setItem('backup_s3_region', s3Region);
+    localStorage.setItem('backup_s3_bucket', s3Bucket);
+    localStorage.setItem('backup_s3_prefix', s3Prefix);
+    localStorage.setItem('backup_s3_access_key', s3AccessKey);
+    localStorage.setItem('backup_s3_secret_key', s3SecretKey);
+    localStorage.setItem('backup_daily_count', String(dailyCount));
+    localStorage.setItem('backup_weekly_count', String(weeklyCount));
+    localStorage.setItem('backup_monthly_count', String(monthlyCount));
+  }, [externalDir, externalEnabled, encryptionEnabled, backupPassword, s3Enabled, s3Endpoint, s3Region, s3Bucket, s3Prefix, s3AccessKey, s3SecretKey, dailyCount, weeklyCount, monthlyCount]);
+
   // Backup mutations
   const createBackupMutation = useMutation({
-    mutationFn: () => fetch('/api/backups', { method: 'POST' }).then(res => res.json()),
+    mutationFn: async () => {
+      let keyHex: string | undefined;
+      if (encryptionEnabled && backupPassword) {
+        const msgBuffer = new TextEncoder().encode(backupPassword);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        keyHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+
+      const res = await fetch('/api/backups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          externalDirectory: externalEnabled ? externalDir : undefined,
+          encryptionKeyHex: keyHex,
+          s3Config: s3Enabled ? {
+            endpoint: s3Endpoint,
+            region: s3Region,
+            bucket: s3Bucket,
+            prefix: s3Prefix,
+            accessKeyId: s3AccessKey,
+            secretAccessKey: s3SecretKey
+          } : undefined,
+          dailyRetentionCount: dailyCount,
+          weeklyRetentionCount: weeklyCount,
+          monthlyRetentionCount: monthlyCount
+        })
+      });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      return res.json();
+    },
     onSuccess: () => {
       refetchBackups();
       alert('Database backup created successfully!');
     },
-    onError: () => alert('Failed to create database backup.')
+    onError: (err: any) => {
+      alert(`Failed to create database backup: ${err.message || err}`);
+    }
   });
 
   const deleteBackupMutation = useMutation({
@@ -79,18 +160,37 @@ export default function SettingsPage() {
   });
 
   const restoreBackupMutation = useMutation({
-    mutationFn: (filename: string) => fetch('/api/backups/restore', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename }),
-    }).then(res => res.json()),
+    mutationFn: async (filename: string) => {
+      let keyHex: string | undefined;
+      if (filename.endsWith('.crmbackup') && encryptionEnabled && backupPassword) {
+        const msgBuffer = new TextEncoder().encode(backupPassword);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        keyHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+
+      const res = await fetch('/api/backups/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, encryptionKeyHex: keyHex }),
+      });
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+      return res.json();
+    },
     onSuccess: (res) => {
-      alert(res.message || 'Database state restored successfully! Reloading...');
-      window.location.reload();
+      alert(res.message || 'Database state restored successfully!');
+      if ((window as any).desktop) {
+        alert('Restarting application to apply changes...');
+        (window as any).desktop.restartApplication();
+      } else {
+        window.location.reload();
+      }
     },
     onError: (err: any) => {
       console.error(err);
-      alert('Failed to restore database from backup file.');
+      alert(`Failed to restore database: ${err.message || err}`);
     }
   });
 
@@ -377,6 +477,203 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-lg font-semibold">Database Backups & Portability</h3>
                   <p className="text-sm text-muted-foreground mt-0.5">Export, restore, or create database backups of your SQLite database.</p>
+                </div>
+
+                {/* Desktop environment system info */}
+                {appInfo && (
+                  <div className="p-4 bg-slate-50 border rounded-lg flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-semibold text-slate-700 block">Desktop App v{appInfo.version}</span>
+                      <span className="text-muted-foreground font-mono block mt-0.5">UserData: {appInfo.userDataPath}</span>
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => (window as any).desktop.openPath(appInfo.userDataPath)}
+                      className="text-[10px] py-1 px-2 border-slate-300 hover:bg-slate-100"
+                    >
+                      Open Folder
+                    </Button>
+                  </div>
+                )}
+
+                {/* Backup Settings Panel */}
+                <div className="border rounded-lg p-5 space-y-4 bg-white shadow-sm">
+                  <span className="font-semibold text-sm block border-b pb-2 text-slate-800">Backup Configuration</span>
+                  
+                  {/* External Drive Backup */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                      <input 
+                        type="checkbox" 
+                        checked={externalEnabled} 
+                        onChange={(e) => setExternalEnabled(e.target.checked)} 
+                        className="rounded border-slate-300"
+                      />
+                      Enable External Drive Backup Location
+                    </label>
+                    {externalEnabled && (
+                      <div className="flex gap-2 items-center">
+                        <Input 
+                          placeholder="Select an external storage path" 
+                          value={externalDir} 
+                          onChange={(e) => setExternalDir(e.target.value)}
+                          className="text-xs h-8 flex-1"
+                        />
+                        {(window as any).desktop && (
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={async () => {
+                              const path = await (window as any).desktop.chooseBackupDirectory();
+                              if (path) setExternalDir(path);
+                            }}
+                            className="text-xs h-8 px-3 border-slate-300"
+                          >
+                            Browse...
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Archive Encryption */}
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                      <input 
+                        type="checkbox" 
+                        checked={encryptionEnabled} 
+                        onChange={(e) => setEncryptionEnabled(e.target.checked)} 
+                        className="rounded border-slate-300"
+                      />
+                      Encrypt Backup Archives (AES-256-GCM)
+                    </label>
+                    {encryptionEnabled && (
+                      <div className="max-w-md">
+                        <Input 
+                          type="password" 
+                          placeholder="Enter archive encryption password" 
+                          value={backupPassword} 
+                          onChange={(e) => setBackupPassword(e.target.value)}
+                          className="text-xs h-8"
+                        />
+                        <span className="text-[10px] text-amber-600 block mt-1">
+                          ⚠️ Make sure to remember this password. You will need it to restore this backup.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* GFS Retention Policy */}
+                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                    <span className="text-xs font-semibold text-slate-700 block">GFS Retention Schedule Counts</span>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block">Daily Snapshots</label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          value={dailyCount} 
+                          onChange={(e) => setDailyCount(Number(e.target.value))}
+                          className="text-xs h-8 mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block">Weekly Snapshots</label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          value={weeklyCount} 
+                          onChange={(e) => setWeeklyCount(Number(e.target.value))}
+                          className="text-xs h-8 mt-0.5"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block">Monthly Snapshots</label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          value={monthlyCount} 
+                          onChange={(e) => setMonthlyCount(Number(e.target.value))}
+                          className="text-xs h-8 mt-0.5"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* S3 Remote Sync */}
+                  <div className="space-y-3 pt-2 border-t border-slate-100">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                      <input 
+                        type="checkbox" 
+                        checked={s3Enabled} 
+                        onChange={(e) => setS3Enabled(e.target.checked)} 
+                        className="rounded border-slate-300"
+                      />
+                      Enable S3-Compatible Remote Sync
+                    </label>
+                    {s3Enabled && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block">S3 Endpoint</label>
+                          <Input 
+                            placeholder="https://s3.amazonaws.com" 
+                            value={s3Endpoint} 
+                            onChange={(e) => setS3Endpoint(e.target.value)}
+                            className="text-xs h-8 mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block">S3 Region</label>
+                          <Input 
+                            placeholder="us-east-1" 
+                            value={s3Region} 
+                            onChange={(e) => setS3Region(e.target.value)}
+                            className="text-xs h-8 mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block">Bucket Name</label>
+                          <Input 
+                            placeholder="my-crm-backups" 
+                            value={s3Bucket} 
+                            onChange={(e) => setS3Bucket(e.target.value)}
+                            className="text-xs h-8 mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block">Path Prefix</label>
+                          <Input 
+                            placeholder="backups/" 
+                            value={s3Prefix} 
+                            onChange={(e) => setS3Prefix(e.target.value)}
+                            className="text-xs h-8 mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block">Access Key ID</label>
+                          <Input 
+                            placeholder="AKIA..." 
+                            value={s3AccessKey} 
+                            onChange={(e) => setS3AccessKey(e.target.value)}
+                            className="text-xs h-8 mt-0.5"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block">Secret Access Key</label>
+                          <Input 
+                            type="password"
+                            placeholder="••••••••••••••••" 
+                            value={s3SecretKey} 
+                            onChange={(e) => setS3SecretKey(e.target.value)}
+                            className="text-xs h-8 mt-0.5"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
