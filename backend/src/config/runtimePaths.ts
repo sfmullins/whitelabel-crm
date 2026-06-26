@@ -35,6 +35,9 @@ export function configureRuntimePaths(paths: Partial<RuntimePaths>): void {
   ];
 
   for (const dir of dirs) {
+    if (dir.includes('app.asar')) {
+      continue;
+    }
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }

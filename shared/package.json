@@ -2,10 +2,18 @@
   "name": "shared",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/types.js",
-  "types": "dist/types.d.ts",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/cjs/types.js",
+  "module": "./dist/types.js",
+  "types": "./dist/types.d.ts",
+  "exports": {
+    "import": "./dist/types.js",
+    "require": "./dist/cjs/types.js"
+  },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc && tsc -p tsconfig.cjs.json"
   },
   "dependencies": {
     "zod": "^3.23.8"

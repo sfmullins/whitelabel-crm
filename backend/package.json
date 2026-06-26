@@ -2,7 +2,12 @@
   "name": "backend",
   "version": "1.0.0",
   "private": true,
-  "main": "src/index.ts",
+  "files": [
+    "dist",
+    "drizzle"
+  ],
+  "main": "dist/embed.js",
+  "types": "dist/embed.d.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",

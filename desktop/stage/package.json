@@ -12,7 +12,8 @@
     "make": "node stage.js make"
   },
   "dependencies": {
-    "backend": "*"
+    "backend": "./backend-1.0.0.tgz",
+    "shared": "./shared-1.0.0.tgz"
   },
   "devDependencies": {
     "electron": "^29.3.0",

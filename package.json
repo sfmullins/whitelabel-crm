@@ -17,8 +17,9 @@
     "db:migrate": "npm run db:migrate -w backend",
     "db:seed": "npm run db:seed -w backend",
     "desktop:start": "npm run build && npm run start -w desktop",
-    "desktop:package": "npm run build && npm run package -w desktop",
-    "desktop:make": "npm run build && npm run make -w desktop"
+    "desktop:package": "npm run package -w desktop",
+    "desktop:make": "npm run make -w desktop",
+    "desktop:smoke": "node scratch/desktop-smoke.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
