@@ -48,12 +48,49 @@ function resolveDependencyFromWorkspace(dep, workspacePackagePath) {
   }
 }
 
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function normalizeText(text) {
   return text.replace(/\r\n?/g, '\n').split('\n').map(line => line.trimEnd()).join('\n').trim();
 }
 
 function formatLicense(license) {
   return typeof license === 'string' ? license : JSON.stringify(license);
+}
+
+function getLicensePriority(file) {
+  const upper = file.toUpperCase();
+  const priorities = new Map([
+    ['LICENSE', 1],
+    ['LICENSE.TXT', 2],
+    ['LICENSE.MD', 3],
+    ['LICENCE', 4],
+    ['LICENCE.TXT', 5],
+    ['LICENCE.MD', 6]
+  ]);
+
+  if (priorities.has(upper)) {
+    return priorities.get(upper);
+  }
+  if (upper.startsWith('LICENSE') && upper !== 'LICENSES.JSON') {
+    return 7;
+  }
+  if (upper.startsWith('LICENCE')) {
+    return 8;
+  }
+  if (upper.startsWith('COPYING')) {
+    return 9;
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
+function findLicenseFile(files) {
+  return files
+    .map(file => ({ file, priority: getLicensePriority(file) }))
+    .filter(candidate => Number.isFinite(candidate.priority))
+    .sort((a, b) => (a.priority - b.priority) || compareText(a.file, b.file))[0]?.file;
 }
 
 function compareVersions(a, b) {
@@ -68,7 +105,7 @@ function compareVersions(a, b) {
     if (aNum !== null && bNum !== null && aNum !== bNum) {
       return aNum - bNum;
     }
-    const comparison = aPart.localeCompare(bPart);
+    const comparison = compareText(aPart, bPart);
     if (comparison !== 0) {
       return comparison;
     }
@@ -94,11 +131,11 @@ for (const workspace of workspaces) {
     const key = `${name}@${version}`;
 
     if (!entries.has(key)) {
-      const files = fs.readdirSync(depDir).sort((a, b) => a.localeCompare(b));
-      const licenseFile = files.find(file => {
-        const upper = file.toUpperCase();
-        return upper.startsWith('LICENSE') || upper.startsWith('LICENCE') || upper.startsWith('COPYING');
-      });
+      const files = fs.readdirSync(depDir, { withFileTypes: true })
+        .filter(dirent => dirent.isFile())
+        .map(dirent => dirent.name)
+        .sort(compareText);
+      const licenseFile = findLicenseFile(files);
 
       entries.set(key, {
         name,
@@ -114,7 +151,7 @@ for (const workspace of workspaces) {
 }
 
 const sortedEntries = Array.from(entries.values()).sort((a, b) => {
-  const nameComparison = a.name.localeCompare(b.name);
+  const nameComparison = compareText(a.name, b.name);
   return nameComparison || compareVersions(a.version, b.version);
 });
 
