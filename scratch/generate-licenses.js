@@ -138,6 +138,10 @@ for (const entry of sortedEntries) {
   lines.push('');
 }
 
+while (lines.length > 0 && lines[lines.length - 1] === '') {
+  lines.pop();
+}
+
 const outputText = `${lines.join('\n').replace(/[ \t]+$/gm, '')}\n`;
 fs.writeFileSync(path.join(rootDir, 'THIRD_PARTY_LICENSES.txt'), outputText, 'utf8');
 console.log('Successfully generated THIRD_PARTY_LICENSES.txt!');
