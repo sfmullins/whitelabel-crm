@@ -21,8 +21,6 @@ jobs:
     timeout-minutes: 20
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-      GIT_CONFIG_GLOBAL: /dev/null
-      GIT_CONFIG_NOSYSTEM: "1"
 
     steps:
       - name: Check out repository
@@ -51,6 +49,11 @@ jobs:
 
       - name: Clean repository verification
         run: |
-          git status --short
-          git diff --exit-code
-          test -z "$(git status --porcelain --untracked-files=all)"
+          status="$(git status --porcelain --untracked-files=all)"
+          if [ -n "$status" ]; then
+            echo "Repository changed during CI:"
+            printf '%s\n' "$status"
+            git diff --stat
+            git diff
+            exit 1
+          fi

@@ -1,14 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+const { createRequire } = require('module');
 
 const rootDir = path.resolve(__dirname, '../');
-const workspacePackagePaths = [
-  path.join(rootDir, 'shared/package.json'),
-  path.join(rootDir, 'backend/package.json'),
-  path.join(rootDir, 'frontend/package.json'),
-  path.join(rootDir, 'desktop/package.json')
+const workspaces = [
+  { name: 'shared', packagePath: path.join(rootDir, 'shared/package.json') },
+  { name: 'backend', packagePath: path.join(rootDir, 'backend/package.json') },
+  { name: 'frontend', packagePath: path.join(rootDir, 'frontend/package.json') },
+  { name: 'desktop', packagePath: path.join(rootDir, 'desktop/package.json') }
 ];
-const internalPackages = new Set(['shared', 'backend', 'frontend', 'desktop']);
+const internalPackages = new Set(workspaces.map(workspace => workspace.name));
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -22,64 +23,121 @@ function getDirectDependencies(pkgPath) {
   ];
 }
 
-function findDependencyDir(dep) {
-  const candidates = [
-    path.join(rootDir, 'node_modules', dep),
-    path.join(rootDir, 'shared', 'node_modules', dep),
-    path.join(rootDir, 'backend', 'node_modules', dep),
-    path.join(rootDir, 'frontend', 'node_modules', dep),
-    path.join(rootDir, 'desktop', 'node_modules', dep)
-  ];
-  return candidates.find(candidate => fs.existsSync(path.join(candidate, 'package.json')));
+function findPackageRoot(resolvedPath) {
+  let current = fs.statSync(resolvedPath).isDirectory() ? resolvedPath : path.dirname(resolvedPath);
+  while (current !== path.dirname(current)) {
+    const pkgPath = path.join(current, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      return current;
+    }
+    current = path.dirname(current);
+  }
+  throw new Error(`Unable to find package root for ${resolvedPath}`);
 }
 
-const dependencies = new Set();
-for (const pkg of workspacePackagePaths) {
-  if (fs.existsSync(pkg)) {
-    for (const dep of getDirectDependencies(pkg)) {
-      if (!internalPackages.has(dep)) {
-        dependencies.add(dep);
-      }
+function resolveDependencyFromWorkspace(dep, workspacePackagePath) {
+  const workspaceRequire = createRequire(workspacePackagePath);
+  try {
+    return findPackageRoot(workspaceRequire.resolve(`${dep}/package.json`));
+  } catch (pkgJsonError) {
+    try {
+      return findPackageRoot(workspaceRequire.resolve(dep));
+    } catch (mainError) {
+      throw new Error(`Unable to resolve ${dep} from ${workspacePackagePath}: ${mainError.message}`);
     }
   }
 }
 
-let outputText = '========================================================================\n';
-outputText += 'THIRD-PARTY SOFTWARE LICENSE NOTICES AND DISCLAIMERS\n';
-outputText += '========================================================================\n\n';
-outputText += 'This software makes use of direct third-party open-source workspace dependencies.\n';
-outputText += 'Below is a compilation of direct dependency licenses and disclaimers; it is not a complete transitive legal audit.\n\n';
+function normalizeText(text) {
+  return text.replace(/\r\n?/g, '\n').split('\n').map(line => line.trimEnd()).join('\n').trim();
+}
 
-for (const dep of Array.from(dependencies).sort()) {
-  const depDir = findDependencyDir(dep);
-  if (!depDir) {
-    throw new Error(`Unable to locate installed dependency package.json for ${dep}`);
+function formatLicense(license) {
+  return typeof license === 'string' ? license : JSON.stringify(license);
+}
+
+function compareVersions(a, b) {
+  const aParts = String(a).split(/[^0-9A-Za-z]+/);
+  const bParts = String(b).split(/[^0-9A-Za-z]+/);
+  const length = Math.max(aParts.length, bParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const aPart = aParts[index] || '';
+    const bPart = bParts[index] || '';
+    const aNum = /^\d+$/.test(aPart) ? Number(aPart) : null;
+    const bNum = /^\d+$/.test(bPart) ? Number(bPart) : null;
+    if (aNum !== null && bNum !== null && aNum !== bNum) {
+      return aNum - bNum;
+    }
+    const comparison = aPart.localeCompare(bPart);
+    if (comparison !== 0) {
+      return comparison;
+    }
+  }
+  return 0;
+}
+
+const entries = new Map();
+for (const workspace of workspaces) {
+  if (!fs.existsSync(workspace.packagePath)) {
+    continue;
   }
 
-  const pkgInfo = readJson(path.join(depDir, 'package.json'));
-  const license = pkgInfo.license || pkgInfo.licenses || 'UNKNOWN';
-  const author = pkgInfo.author ? (typeof pkgInfo.author === 'string' ? pkgInfo.author : pkgInfo.author.name) : 'Various Authors';
-  const version = pkgInfo.version || '0.0.0';
+  for (const dep of getDirectDependencies(workspace.packagePath)) {
+    if (internalPackages.has(dep)) {
+      continue;
+    }
 
-  outputText += '------------------------------------------------------------------------\n';
-  outputText += `Package: ${dep} (v${version})\n`;
-  outputText += `License: ${typeof license === 'string' ? license : JSON.stringify(license)}\n`;
-  outputText += `Author: ${author}\n`;
-  outputText += '------------------------------------------------------------------------\n';
+    const depDir = resolveDependencyFromWorkspace(dep, workspace.packagePath);
+    const pkgInfo = readJson(path.join(depDir, 'package.json'));
+    const name = pkgInfo.name || dep;
+    const version = pkgInfo.version || '0.0.0';
+    const key = `${name}@${version}`;
 
-  const files = fs.readdirSync(depDir);
-  const licenseFile = files.find(f => {
-    const upper = f.toUpperCase();
-    return upper.startsWith('LICENSE') || upper.startsWith('LICENCE') || upper.startsWith('COPYING');
-  });
+    if (!entries.has(key)) {
+      const files = fs.readdirSync(depDir).sort((a, b) => a.localeCompare(b));
+      const licenseFile = files.find(file => {
+        const upper = file.toUpperCase();
+        return upper.startsWith('LICENSE') || upper.startsWith('LICENCE') || upper.startsWith('COPYING');
+      });
 
-  if (licenseFile) {
-    const licContent = fs.readFileSync(path.join(depDir, licenseFile), 'utf8');
-    outputText += licContent.trim().split(/\r?\n/).map(line => line.trimEnd()).join('\n') + '\n\n';
-  } else {
-    outputText += 'Refer to package documentation or public registry for license text.\n\n';
+      entries.set(key, {
+        name,
+        version,
+        license: pkgInfo.license || pkgInfo.licenses || 'UNKNOWN',
+        author: pkgInfo.author ? (typeof pkgInfo.author === 'string' ? pkgInfo.author : pkgInfo.author.name) : 'Various Authors',
+        licenseText: licenseFile
+          ? normalizeText(fs.readFileSync(path.join(depDir, licenseFile), 'utf8'))
+          : 'Refer to package documentation or public registry for license text.'
+      });
+    }
   }
 }
 
-fs.writeFileSync(path.join(rootDir, 'THIRD_PARTY_LICENSES.txt'), outputText);
+const sortedEntries = Array.from(entries.values()).sort((a, b) => {
+  const nameComparison = a.name.localeCompare(b.name);
+  return nameComparison || compareVersions(a.version, b.version);
+});
+
+const lines = [
+  '========================================================================',
+  'THIRD-PARTY SOFTWARE LICENSE NOTICES AND DISCLAIMERS',
+  '========================================================================',
+  '',
+  'This software makes use of direct third-party open-source workspace dependencies.',
+  'Below is a compilation of direct dependency licenses and disclaimers; it is not a complete transitive legal audit.',
+  ''
+];
+
+for (const entry of sortedEntries) {
+  lines.push('------------------------------------------------------------------------');
+  lines.push(`Package: ${entry.name} (v${entry.version})`);
+  lines.push(`License: ${formatLicense(entry.license)}`);
+  lines.push(`Author: ${entry.author}`);
+  lines.push('------------------------------------------------------------------------');
+  lines.push(entry.licenseText);
+  lines.push('');
+}
+
+const outputText = `${lines.join('\n').replace(/[ \t]+$/gm, '')}\n`;
+fs.writeFileSync(path.join(rootDir, 'THIRD_PARTY_LICENSES.txt'), outputText, 'utf8');
 console.log('Successfully generated THIRD_PARTY_LICENSES.txt!');
