@@ -20,7 +20,7 @@
     "desktop:package": "npm run package -w desktop",
     "desktop:make": "npm run make -w desktop",
     "desktop:smoke": "node scratch/desktop-smoke.js",
-    "db:smoke": "tsx scratch/db-smoke.ts",
+    "db:smoke": "npm exec -w backend -- tsx ../scratch/db-smoke.ts",
     "desktop:preflight": "node scratch/desktop-preflight.js",
     "ci:verify": "npm run build && npm test && npm run db:smoke && npm run desktop:preflight"
   },

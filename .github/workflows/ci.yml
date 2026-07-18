@@ -19,6 +19,8 @@ jobs:
     name: Governance quality gates
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
     steps:
       - name: Check out repository
@@ -33,7 +35,7 @@ jobs:
       - name: Dependency installation
         run: npm ci
 
-      - name: Build shared backend and frontend
+      - name: Build all workspaces and generate licence notices
         run: npm run build
 
       - name: Run backend and frontend tests
@@ -44,3 +46,9 @@ jobs:
 
       - name: Desktop packaging preflight
         run: npm run desktop:preflight
+
+      - name: Clean repository verification
+        run: |
+          git status --short
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"

@@ -4,7 +4,7 @@
 - Clean dependency installation using the committed lockfile: `npm ci`.
 - Shared, backend, and frontend build/type-check: `npm run build`.
 - Backend and frontend tests: `npm test`.
-- Licence-policy check through the existing build/license generation path.
+- Licence-policy check covering direct third-party dependencies and devDependencies declared by the shared, backend, frontend, and desktop workspaces.
 - Isolated migration smoke test: `npm run db:smoke`.
 - Desktop packaging preflight: `npm run desktop:preflight`.
 - Verify no generated runtime database, backup, build, packaging, log, or local environment artifacts are accidentally committed.
@@ -27,5 +27,7 @@
 - Run the packaged executable smoke test.
 - Verify fresh-profile startup.
 - Verify upgrade and restore checks where applicable.
+
+The automated licence-policy check is not a complete transitive dependency legal audit; deeper transitive legal review remains a release-hardening concern.
 
 The full packaged Electron launch smoke test remains a local/release gate until PR7 unless it can be made reliable in GitHub Actions without broad product changes. CI uses the deterministic desktop preflight instead of launching Electron.

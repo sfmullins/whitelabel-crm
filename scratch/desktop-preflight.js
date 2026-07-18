@@ -9,7 +9,6 @@ const requiredPaths = [
   'frontend/dist/index.html',
   'desktop/dist/main.js',
   'desktop/dist/preload.js',
-  'backend/drizzle/0000_perpetual_whizzer.sql',
   'backend/drizzle/meta/_journal.json',
 ];
 
@@ -25,6 +24,18 @@ for (const relativePath of requiredPaths) {
   if (!fs.existsSync(path.join(root, relativePath))) {
     fail(`Missing required packaging artifact or source asset: ${relativePath}`);
   }
+}
+
+const migrationsDir = path.join(root, 'backend/drizzle');
+const migrationFiles = fs.readdirSync(migrationsDir).filter((file) => file.endsWith('.sql'));
+if (migrationFiles.length === 0) {
+  fail('Drizzle migration directory must contain at least one SQL migration');
+}
+
+const migrationMetaDir = path.join(migrationsDir, 'meta');
+const migrationMetaFiles = fs.readdirSync(migrationMetaDir).filter((file) => file.endsWith('.json'));
+if (!migrationMetaFiles.includes('_journal.json') || migrationMetaFiles.length < 2) {
+  fail('Drizzle migration metadata must include _journal.json and at least one snapshot JSON file');
 }
 
 const frontendAssets = path.join(root, 'frontend/dist/assets');

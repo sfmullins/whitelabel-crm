@@ -45,7 +45,7 @@ SQLite is the local runtime database. Drizzle defines typed tables, relations th
 `backend/src/config/runtimePaths.ts` defines the active data directory, SQLite database path, internal backup directory, temporary directory, and log directory. Defaults are under the backend data directory for development. Desktop runtime configuration may override these paths for a user profile. Tests and smoke checks must open explicit temporary databases and never use the normal user or development database path.
 
 ### Build and packaging flow
-The root build runs shared, backend, and frontend builds, then generates license data. Desktop packaging separately stages compiled assets and invokes Electron Forge. The packaged launch smoke test is local/release-oriented because it launches a packaged binary and may require package and display support.
+The root build runs, in order: the shared build, backend build, frontend build, desktop TypeScript build, and licence-notice generation. Desktop packaging remains distinct from this compile/build process: packaging stages compiled assets and invokes Electron Forge. The packaged launch smoke test is local/release-oriented because it launches a packaged binary and may require package and display support.
 
 ## Target hardening direction
 - Keep CI focused on deterministic, headless quality gates.
