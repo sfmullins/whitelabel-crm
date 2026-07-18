@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gates:
+    name: Governance quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dependency installation
+        run: npm ci
+
+      - name: Build shared backend and frontend
+        run: npm run build
+
+      - name: Run backend and frontend tests
+        run: npm test
+
+      - name: Isolated migration smoke test
+        run: npm run db:smoke
+
+      - name: Desktop packaging preflight
+        run: npm run desktop:preflight

@@ -11,7 +11,7 @@
   "scripts": {
     "install:all": "npm install",
     "dev": "concurrently --kill-others \"npm run dev -w backend\" \"npm run dev -w frontend\"",
-    "build": "npm run build -w shared && npm run build -w backend && npm run build -w frontend && node scratch/generate-licenses.js",
+    "build": "npm run build -w shared && npm run build -w backend && npm run build -w frontend && npm run build -w desktop && node scratch/generate-licenses.js",
     "test": "npm run test -w backend && npm run test -w frontend",
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend",
@@ -19,7 +19,10 @@
     "desktop:start": "npm run build && npm run start -w desktop",
     "desktop:package": "npm run package -w desktop",
     "desktop:make": "npm run make -w desktop",
-    "desktop:smoke": "node scratch/desktop-smoke.js"
+    "desktop:smoke": "node scratch/desktop-smoke.js",
+    "db:smoke": "tsx scratch/db-smoke.ts",
+    "desktop:preflight": "node scratch/desktop-preflight.js",
+    "ci:verify": "npm run build && npm test && npm run db:smoke && npm run desktop:preflight"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -43,3 +43,18 @@ yarn-debug.log*
 yarn-error.log*
 logs/
 *.log
+
+# Generated backups and local runtime scratch
+backups/
+*.backup
+*.bak
+tmp/
+temp/
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+
+# Electron staging/package output
+desktop/out/
+desktop/.webpack/
