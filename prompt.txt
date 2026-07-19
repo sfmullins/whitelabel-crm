@@ -1,103 +1,55 @@
-# PR2 — Add organisations, contacts and engagements
-
 You are working in:
 
 ```text
 Repository: sfmullins/whitelabel-crm
+Pull request: #2
+PR title: PR2: Add organisations, contacts and engagements
 Base branch: main
+Existing PR branch: codex/complete-all-corrections-from-prompt.txt
 ```
 
-Create and work on:
+Continue working on the existing PR branch.
 
-```text
-codex/add-organisations-contacts-engagements
-```
+Do not create a new pull request.
 
-Open a pull request against `main` with the exact title:
+Do not merge the pull request.
 
-```text
-PR2: Add organisations, contacts and engagements
-```
+CI is currently green, but the implementation does not yet meet the PR2 acceptance standard. Correct the substantive defects below, add the missing test coverage, rerun the full validation suite, and push the fixes to the existing branch.
 
-Leave the pull request open and ready for human review.
-
-**Do not merge it. Do not enable auto-merge. Do not convert it into a broader refactor.**
+This is a correction pass, not a redesign of the entire application.
 
 ---
 
-# 1. Mission
+# 1. Objective
 
-Implement the first-class B2B consulting CRM domain for:
+Bring PR #2 to production-safe quality by correcting:
 
-1. organisations;
-2. contacts;
-3. engagements.
+1. the broken primary-contact transaction;
+2. invalid primary/status transition handling;
+3. raw and untyped persistence code;
+4. missing HTTP integration coverage;
+5. missing staged migration-upgrade coverage;
+6. incomplete error translation;
+7. insufficient test depth.
 
-This PR must provide the production-safe foundation required by later PRs:
+Preserve all valid work already present in the PR:
 
-- shared TypeScript contracts;
-- shared Zod validation;
-- additive SQLite/Drizzle schema and migration;
-- repository interfaces and implementations;
-- a small application/service layer for cross-entity business rules;
-- REST endpoints;
-- isolated automated tests;
-- domain documentation.
+- shared organisation/contact/engagement schemas;
+- additive migration structure;
+- controlled enums;
+- REST endpoint structure;
+- soft archive model;
+- legacy-customer isolation;
+- organisation/contact/engagement documentation;
+- existing green CI behaviour.
 
-The result must be complete enough that later activity, notes and UI work can depend on these entities without redesigning their basic contracts.
-
-This is an implementation task, not an architecture proposal. Inspect the repository, make the changes, run the required validation, push the branch and open the pull request.
-
----
-
-# 2. Non-negotiable boundaries
-
-Keep this PR narrow.
-
-Do **not** add or redesign:
-
-- activities;
-- notes;
-- tasks;
-- reminders;
-- documents or uploads;
-- delivery milestones;
-- invoicing links;
-- billing schedules;
-- payments;
-- accounting ledgers;
-- financial calculations;
-- bank reconciliation;
-- Stripe;
-- authentication;
-- authorisation;
-- role-based access;
-- tenant IDs;
-- multi-tenancy;
-- cloud sync;
-- account ownership;
-- sales scoring;
-- AI-generated classifications;
-- portals;
-- substantial frontend UI;
-- desktop packaging;
-- Electron behaviour;
-- legacy customer migration;
-- existing financial-table relationships.
-
-Do not delete, rename, repurpose or migrate the existing `customers` table.
-
-Existing invoices, bookings and custom records must continue to use `customers` exactly as they do before this PR.
-
-Do not connect invoices to organisations or engagements.
-
-Avoid dependency upgrades unless a small dependency addition is demonstrably required for the tests. Do not perform incidental formatting or unrelated cleanup.
+Do not remove valid functionality merely to simplify the fixes.
 
 ---
 
-# 3. Mandatory repository inspection
+# 2. Mandatory repository inspection
 
-Before changing code, read the current implementation rather than assuming the repository matches a generic architecture.
+Before modifying code, inspect the current PR branch and the existing application patterns.
 
 At minimum inspect:
 
@@ -105,943 +57,442 @@ At minimum inspect:
 AGENTS.md
 docs/ARCHITECTURE.md
 docs/DOMAIN.md
-docs/QUALITY-GATES.md
-docs/RELEASE-CHECKLIST.md
-
-package.json
-backend/package.json
-shared/package.json
 
 shared/src/types.ts
 
-backend/src/presentation/app.ts
-backend/src/presentation/routes/customers.ts
-backend/src/presentation/routes/services.ts
-backend/src/presentation/routes/bookings.ts
-
+backend/src/application/errors.ts
 backend/src/application/interfaces/IRepositories.ts
+backend/src/application/services/CrmDomainServices.ts
 
 backend/src/infrastructure/database/connection.ts
 backend/src/infrastructure/database/schema.ts
 backend/src/infrastructure/database/migrate.ts
-backend/src/infrastructure/database/repositories/
-backend/src/infrastructure/database/repositories/utils.ts
 
-backend/drizzle/
-backend/drizzle/meta/_journal.json
-backend/drizzle.config.ts
+backend/src/infrastructure/database/repositories/CustomerRepository.ts
+backend/src/infrastructure/database/repositories/ContactRepository.ts
+backend/src/infrastructure/database/repositories/OrganisationRepository.ts
+backend/src/infrastructure/database/repositories/EngagementRepository.ts
 
-scratch/db-smoke.ts
+backend/src/presentation/app.ts
+backend/src/presentation/routes/organisations.ts
+backend/src/presentation/routes/contacts.ts
+backend/src/presentation/routes/engagements.ts
+
+backend/src/server.ts
 
 backend/src/test/
-```
-
-Also inspect:
-
-- how UUIDs are generated;
-- how ISO timestamps are generated and stored;
-- how SQLite booleans are represented;
-- how repositories map nullable database fields;
-- how route validation errors are shaped;
-- how the Express app is started for tests;
-- how tests open and close temporary databases;
-- how generated Drizzle migration metadata is handled;
-- how the root build and desktop staging consume the shared and backend workspaces.
-
-Record material architectural findings in the final implementation report and PR body.
-
-Do not introduce a second competing persistence or routing style. Where this specification is more rigorous than the existing code, add the smallest safe pattern needed for these three resources without refactoring unrelated resources.
-
----
-
-# 4. Architectural approach
-
-The intended dependency direction for this PR is:
-
-```text
-Express route
-    ↓
-application/domain service
-    ↓
-repository interface
-    ↓
-Drizzle repository
-    ↓
-SQLite
-```
-
-Use the existing repository interface location:
-
-```text
-backend/src/application/interfaces/
-```
-
-Add a small service layer for these entities, preferably under:
-
-```text
-backend/src/application/services/
-```
-
-unless repository inspection reveals a more appropriate existing location.
-
-The service layer is necessary because several rules span multiple tables or multiple writes:
-
-- an organisation must exist before a child is created;
-- an archived organisation must not accept new contacts or engagements;
-- a primary engagement contact must belong to the engagement organisation;
-- a primary engagement contact must be active and non-archived when assigned;
-- only one active, non-archived organisation-level primary contact may exist;
-- changing a primary contact requires an atomic transaction;
-- engagement date ordering requires domain validation;
-- archive operations have state semantics.
-
-Do not add a dependency-injection framework, mediator library, ORM abstraction framework or generic command bus.
-
-Simple constructor injection or direct construction in the route module is sufficient.
-
-Do not refactor existing customer, invoice, service or booking routes into services as part of this PR.
-
----
-
-# 5. Canonical conventions
-
-Use these conventions unless the existing repository has a stronger compatible convention.
-
-## IDs
-
-Use UUID strings generated using the repository’s current canonical mechanism:
-
-```ts
-randomUUID()
-```
-
-IDs are:
-
-- generated by the backend;
-- immutable;
-- never accepted in create request bodies;
-- never accepted in update request bodies.
-
-Route parameters representing IDs must be validated as UUIDs before repository access.
-
-## Timestamps
-
-Use the current timestamp storage convention:
-
-```ts
-new Date().toISOString()
-```
-
-The database stores timestamps as ISO-8601 UTC text.
-
-The backend owns:
-
-- `createdAt`;
-- `updatedAt`;
-- `archivedAt`.
-
-Clients must not be able to submit or overwrite these fields.
-
-## Date-only values
-
-Engagement `startDate` and `endDate` are calendar dates, stored as:
-
-```text
-YYYY-MM-DD
-```
-
-Validate both the format and actual calendar validity. Do not accept impossible dates such as `2026-02-31`.
-
-Because valid ISO calendar dates are lexicographically sortable, date ordering may be compared after strict validation.
-
-Do not convert date-only fields through local timezone-dependent JavaScript date formatting.
-
-## Optional database values
-
-Use SQL `NULL` for absent optional values.
-
-For API contracts:
-
-- omitted update field = retain the current value;
-- explicit `null` = clear an optional field;
-- whitespace-only optional strings should normalize to `null`;
-- required strings must reject `null`, empty strings and whitespace-only strings.
-
-Do not use an update schema produced by blindly calling `.partial()` on a full response/entity schema, because that would permit immutable fields.
-
-## Boolean values
-
-Use the established Drizzle SQLite boolean representation:
-
-```ts
-integer('is_primary', { mode: 'boolean' })
-```
-
-## Hard deletion
-
-Do not expose hard-delete endpoints for these entities.
-
-Foreign keys must not cascade-delete organisations, contacts or engagements.
-
-Use `RESTRICT` or the equivalent established SQLite/Drizzle behaviour for business-record relationships.
-
----
-
-# 6. Domain invariants
-
-The following rules are mandatory and must be enforced in application code and tests. Add database constraints where practical and compatible.
-
-## Organisation invariants
-
-- `name` is required after trimming.
-- Archived organisations are excluded from normal lists and normal lookup operations.
-- New contacts and engagements cannot be added to an archived organisation.
-- Archived organisations cannot be edited through the ordinary update operation.
-- Archiving an organisation does not delete or automatically archive its contacts or engagements.
-- Repeated archive requests are idempotent.
-- Organisation archive must not alter legacy customer records.
-
-## Contact invariants
-
-- Every contact belongs to exactly one organisation.
-- `organisationId` is immutable after creation.
-- At least one of `firstName`, `lastName` or `email` must remain populated after trimming.
-- Email is optional but valid when supplied.
-- Email is not globally unique.
-- A contact cannot be primary if it is inactive or archived.
-- At most one contact per organisation may simultaneously satisfy:
-
-```text
-isPrimary = true
-status = active
-archivedAt IS NULL
-```
-
-- Setting one eligible contact as primary must clear `isPrimary` from every other non-archived contact in that organisation in the same transaction.
-- Setting `isPrimary` to `false` affects only that contact.
-- Changing a primary contact to `inactive` must also set its `isPrimary` value to `false` atomically.
-- Archiving a primary contact must also set its `isPrimary` value to `false` atomically.
-- Archiving a contact must not delete the contact or mutate historical engagement records.
-- An ordinary update cannot move a contact between organisations.
-- Archived contacts cannot be edited by the ordinary update operation.
-
-## Engagement invariants
-
-- Every engagement belongs to exactly one organisation.
-- `organisationId` is immutable after creation.
-- `primaryContactId` is optional.
-- When assigned, the primary contact must:
-  - exist;
-  - belong to the same organisation;
-  - have `status = active`;
-  - have `archivedAt = null`.
-- An engagement can exist without a primary contact.
-- `name` is required after trimming.
-- `endDate`, when supplied, cannot precede `startDate`.
-- Changing `startDate` or `endDate` must validate the resulting complete date pair, not merely the incoming patch fields.
-- Archived engagements cannot be edited through the ordinary update operation.
-- Archiving an engagement does not delete it.
-- Archiving a contact later does not erase that contact ID from historical engagement records. Eligibility is checked when assigning or changing the primary contact.
-- An ordinary update cannot move an engagement between organisations.
-
----
-
-# 7. Controlled values
-
-Define these values once in the shared package and derive TypeScript types from the Zod enums.
-
-Do not reproduce string unions separately in routes, services and repositories.
-
-## Organisation status
-
-```ts
-[
-  'prospect',
-  'active_client',
-  'past_client',
-  'partner',
-  'inactive',
-]
-```
-
-## Employee band
-
-```ts
-[
-  '1_9',
-  '10_24',
-  '25_49',
-  '50_74',
-  '75_149',
-  '150_249',
-  '250_plus',
-]
-```
-
-## Annual revenue band
-
-```ts
-[
-  'under_1m',
-  '1m_5m',
-  '5m_20m',
-  '20m_50m',
-  '50m_plus',
-]
-```
-
-## Contact status
-
-```ts
-[
-  'active',
-  'inactive',
-]
-```
-
-## Engagement type
-
-```ts
-[
-  'diagnostic',
-  'sounding_board',
-  'guardrail',
-  'redesign',
-  'implementation',
-  'other',
-]
-```
-
-## Engagement status
-
-```ts
-[
-  'proposed',
-  'active',
-  'paused',
-  'completed',
-  'cancelled',
-]
-```
-
----
-
-# 8. Organisation data model
-
-Add an `organisations` table with the following logical contract.
-
-| Field | Database | Required | Rules |
-|---|---|---:|---|
-| `id` | text primary key | yes | Backend-generated UUID |
-| `name` | text | yes | Trimmed and non-empty |
-| `legalName` | text nullable | no | Trimmed; blank becomes null |
-| `website` | text nullable | no | Valid absolute URL; blank becomes null |
-| `industry` | text nullable | no | Trimmed; blank becomes null |
-| `employeeBand` | text nullable | no | Controlled value |
-| `annualRevenueBand` | text nullable | no | Controlled value |
-| `country` | text nullable | no | Uppercase two-letter country code |
-| `status` | text | yes | Controlled value; default `prospect` where appropriate |
-| `source` | text nullable | no | Trimmed free text; blank becomes null |
-| `createdAt` | text | yes | Backend ISO timestamp |
-| `updatedAt` | text | yes | Backend ISO timestamp |
-| `archivedAt` | text nullable | no | Soft archive timestamp |
-
-Country validation should accept omitted or null values. When supplied:
-
-- trim it;
-- normalize it to uppercase;
-- require exactly two ASCII letters.
-
-Do not introduce a country catalogue or country dependency.
-
-Do not silently prepend `https://` to a website. Invalid URLs must fail validation rather than be guessed.
-
----
-
-# 9. Contact data model
-
-Add a `contacts` table.
-
-| Field | Database | Required | Rules |
-|---|---|---:|---|
-| `id` | text primary key | yes | Backend-generated UUID |
-| `organisationId` | text foreign key | yes | References `organisations.id`; immutable |
-| `firstName` | text nullable | conditional | Trimmed; blank becomes null |
-| `lastName` | text nullable | conditional | Trimmed; blank becomes null |
-| `jobTitle` | text nullable | no | Trimmed; blank becomes null |
-| `email` | text nullable | conditional | Trimmed, normalized to lowercase and validated |
-| `phone` | text nullable | no | Trimmed free text; blank becomes null |
-| `isPrimary` | SQLite boolean | yes | Default `false` |
-| `status` | text | yes | `active` or `inactive`; default `active` |
-| `createdAt` | text | yes | Backend ISO timestamp |
-| `updatedAt` | text | yes | Backend ISO timestamp |
-| `archivedAt` | text nullable | no | Soft archive timestamp |
-
-At least one of the following must be populated after normalization:
-
-```text
-firstName
-lastName
-email
-```
-
-Do not make `email` unique.
-
-An index on email is required, but it must be a non-unique index.
-
----
-
-# 10. Engagement data model
-
-Add an `engagements` table.
-
-| Field | Database | Required | Rules |
-|---|---|---:|---|
-| `id` | text primary key | yes | Backend-generated UUID |
-| `organisationId` | text foreign key | yes | References `organisations.id`; immutable |
-| `primaryContactId` | text nullable foreign key | no | References `contacts.id`; service validates same organisation |
-| `name` | text | yes | Trimmed and non-empty |
-| `type` | text | yes | Controlled value |
-| `status` | text | yes | Controlled value; default `proposed` where appropriate |
-| `summary` | text nullable | no | Trimmed; blank becomes null |
-| `startDate` | text | yes | Valid `YYYY-MM-DD` date |
-| `endDate` | text nullable | no | Valid `YYYY-MM-DD`; not before start |
-| `createdAt` | text | yes | Backend ISO timestamp |
-| `updatedAt` | text | yes | Backend ISO timestamp |
-| `archivedAt` | text nullable | no | Soft archive timestamp |
-
-Do not denormalize contact names or organisation names onto the engagement table.
-
-Do not add financial, delivery or task fields.
-
----
-
-# 11. Shared contracts and Zod validation
-
-Extend the shared package following its existing export conventions.
-
-Create and export at least:
-
-```ts
-OrganisationStatusSchema
-EmployeeBandSchema
-AnnualRevenueBandSchema
-ContactStatusSchema
-EngagementTypeSchema
-EngagementStatusSchema
-
-OrganisationCreateSchema
-OrganisationUpdateSchema
-OrganisationResponseSchema
-
-ContactCreateSchema
-ContactCreateBodySchema
-ContactUpdateSchema
-ContactResponseSchema
-
-EngagementCreateSchema
-EngagementCreateBodySchema
-EngagementUpdateSchema
-EngagementResponseSchema
-```
-
-Also export the inferred TypeScript types.
-
-Use explicit schemas for create, update and response contracts.
-
-Do not use one permissive entity schema for every context.
-
-## Suggested validation helpers
-
-The following illustrates the intended behaviour. Adapt naming and placement to the repository; do not copy it blindly if a shared helper pattern already exists.
-
-```ts
-import { z } from 'zod';
-
-const requiredTrimmedString = (label: string) =>
-  z.string()
-    .trim()
-    .min(1, `${label} is required`);
-
-const nullableTrimmedString = z.preprocess(
-  (value) => {
-    if (value === null || value === undefined) return value;
-    if (typeof value !== 'string') return value;
-
-    const trimmed = value.trim();
-    return trimmed === '' ? null : trimmed;
-  },
-  z.string().nullable().optional(),
-);
-
-const isoDateSchema = z.string().superRefine((value, ctx) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Date must use YYYY-MM-DD',
-    });
-    return;
-  }
-
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Date is not a valid calendar date',
-    });
-  }
-});
-```
-
-## Organisation create example
-
-An illustrative shape is:
-
-```ts
-export const OrganisationCreateSchema = z.object({
-  name: requiredTrimmedString('Organisation name'),
-  legalName: nullableTrimmedString,
-  website: nullableTrimmedString.pipe(
-    z.string().url('Website must be a valid absolute URL').nullable().optional(),
-  ),
-  industry: nullableTrimmedString,
-  employeeBand: EmployeeBandSchema.nullable().optional(),
-  annualRevenueBand: AnnualRevenueBandSchema.nullable().optional(),
-  country: z.preprocess(
-    (value) => {
-      if (value === null || value === undefined) return value;
-      if (typeof value !== 'string') return value;
-      const normalized = value.trim().toUpperCase();
-      return normalized === '' ? null : normalized;
-    },
-    z.string().regex(/^[A-Z]{2}$/, 'Country must be a two-letter code')
-      .nullable()
-      .optional(),
-  ),
-  status: OrganisationStatusSchema.default('prospect'),
-  source: nullableTrimmedString,
-}).strict();
-```
-
-Check the exact Zod composition to ensure blank optional website values normalize correctly before URL validation. Add focused tests for this rather than relying on the illustrative code alone.
-
-## Contact identifying-field rule
-
-Implement the rule on both create and update results.
-
-For create:
-
-```ts
-const ContactFieldsSchema = z.object({
-  organisationId: z.string().uuid(),
-  firstName: nullableTrimmedString,
-  lastName: nullableTrimmedString,
-  jobTitle: nullableTrimmedString,
-  email: /* nullable, trimmed, lowercased and validated */,
-  phone: nullableTrimmedString,
-  isPrimary: z.boolean().default(false),
-  status: ContactStatusSchema.default('active'),
-});
-
-export const ContactCreateSchema = ContactFieldsSchema
-  .strict()
-  .superRefine((value, ctx) => {
-    if (!value.firstName && !value.lastName && !value.email) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['firstName'],
-        message: 'At least one of firstName, lastName or email is required',
-      });
-    }
-
-    if (value.isPrimary && value.status !== 'active') {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['isPrimary'],
-        message: 'An inactive contact cannot be primary',
-      });
-    }
-  });
-```
-
-For update, schema validation alone cannot know whether the resulting stored record still has an identifying field. The service must:
-
-1. load the current contact;
-2. apply the validated patch;
-3. validate the resulting complete contact;
-4. reject a patch that would clear all identifying fields.
-
-## Engagement date rule
-
-Validate date order in both places:
-
-- the shared create schema when both dates are present;
-- the service after merging an update patch with the stored engagement.
-
-For valid ISO date strings:
-
-```ts
-if (endDate !== null && endDate < startDate) {
-  // Return the established validation/domain error.
-}
-```
-
-## Update schemas
-
-Update schemas must:
-
-- be `.strict()`;
-- omit immutable and backend-owned fields;
-- support explicit `null` only for nullable fields;
-- reject empty patches;
-- not permit:
-  - `id`;
-  - `organisationId`;
-  - `createdAt`;
-  - `updatedAt`;
-  - `archivedAt`.
-
-An illustrative pattern is:
-
-```ts
-export const OrganisationUpdateSchema = z.object({
-  name: requiredTrimmedString('Organisation name').optional(),
-  legalName: nullableTrimmedString,
-  website: /* optional nullable URL */,
-  industry: nullableTrimmedString,
-  employeeBand: EmployeeBandSchema.nullable().optional(),
-  annualRevenueBand: AnnualRevenueBandSchema.nullable().optional(),
-  country: /* optional nullable country code */,
-  status: OrganisationStatusSchema.optional(),
-  source: nullableTrimmedString,
-})
-  .strict()
-  .refine(
-    (patch) => Object.keys(patch).length > 0,
-    { message: 'At least one field must be supplied' },
-  );
-```
-
-Do not use `ResponseSchema.partial()` for updates.
-
-## Nested route body schemas
-
-Contacts and engagements are created under an organisation route.
-
-The organisation ID must come from the validated route parameter, not from user-controlled body data.
-
-Create body schemas should omit `organisationId`:
-
-```ts
-export const ContactCreateBodySchema =
-  ContactCreateSchema.omit({ organisationId: true }).strict();
-
-export const EngagementCreateBodySchema =
-  EngagementCreateSchema.omit({ organisationId: true }).strict();
-```
-
-The route then constructs the application input:
-
-```ts
-const input = ContactCreateSchema.parse({
-  ...parsedBody,
-  organisationId: parsedParams.organisationId,
-});
-```
-
-Because the body schema is strict, a body-supplied `organisationId` must be rejected rather than silently overriding the route.
-
-## Response contracts
-
-Response schemas must require:
-
-- `id`;
-- backend timestamps;
-- required status/type values;
-- explicit nullable fields consistent with the database mapper.
-
-Do not expose database-only structures or raw Drizzle rows.
-
----
-
-# 12. Drizzle schema
-
-Extend:
-
-```text
-backend/src/infrastructure/database/schema.ts
-```
-
-Use existing naming conventions:
-
-- TypeScript properties in camelCase;
-- SQLite columns in snake_case;
-- explicit named indexes.
-
-An indicative structure is:
-
-```ts
-export const organisations = sqliteTable(
-  'organisations',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    legalName: text('legal_name'),
-    website: text('website'),
-    industry: text('industry'),
-    employeeBand: text('employee_band'),
-    annualRevenueBand: text('annual_revenue_band'),
-    country: text('country'),
-    status: text('status').notNull().default('prospect'),
-    source: text('source'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-    archivedAt: text('archived_at'),
-  },
-  (table) => ({
-    statusIdx: index('organisation_status_idx').on(table.status),
-    nameIdx: index('organisation_name_idx').on(table.name),
-  }),
-);
-```
-
-Contacts should use an organisation foreign key that does not cascade:
-
-```ts
-organisationId: text('organisation_id')
-  .notNull()
-  .references(() => organisations.id, { onDelete: 'restrict' }),
-```
-
-Engagement organisation foreign keys must also restrict hard deletion.
-
-The `primaryContactId` foreign key must preserve business-record integrity. Prefer `restrict`, since the application uses soft archival and exposes no hard-delete endpoint.
-
-## One-primary-contact database protection
-
-The service transaction is mandatory.
-
-Also add a partial unique index if supported by the installed Drizzle and SQLite versions:
-
-```sql
-CREATE UNIQUE INDEX contact_one_active_primary_per_org_idx
-ON contacts (organisation_id)
-WHERE is_primary = 1
-  AND status = 'active'
-  AND archived_at IS NULL;
-```
-
-Prefer expressing this in the Drizzle schema so generation and metadata remain aligned. For example, verify whether the installed Drizzle version supports:
-
-```ts
-uniqueIndex('contact_one_active_primary_per_org_idx')
-  .on(table.organisationId)
-  .where(
-    sql`${table.isPrimary} = 1
-        AND ${table.status} = 'active'
-        AND ${table.archivedAt} IS NULL`,
-  )
-```
-
-Do not guess that this API is supported. Confirm it against the installed version by generating and building.
-
-If the installed Drizzle version cannot represent a partial index safely:
-
-- retain the transaction-based enforcement;
-- document the limitation in the PR;
-- do not perform a dependency upgrade merely for this feature;
-- do not hand-edit snapshot metadata into an inconsistent state.
-
----
-
-# 13. Required indexes
-
-Create useful, deliberately limited indexes.
-
-## Organisations
-
-```text
-organisation_status_idx
-organisation_name_idx
-```
-
-## Contacts
-
-```text
-contact_organisation_idx
-contact_email_idx
-contact_organisation_primary_idx
-```
-
-The organisation-primary index should cover:
-
-```text
-organisation_id, is_primary
-```
-
-Also add the partial unique primary-contact index where supported.
-
-Do not make the email index unique.
-
-## Engagements
-
-```text
-engagement_organisation_idx
-engagement_status_idx
-engagement_start_date_idx
-```
-
-Do not index every optional descriptive field.
-
-Use deterministic, collision-free names consistent with existing migrations.
-
----
-
-# 14. Migration
-
-Generate exactly one new additive Drizzle migration after changing the schema.
-
-Use:
-
-```bash
-npm run db:generate
-```
-
-The migration must:
-
-- create only the three new domain tables and their indexes;
-- preserve every existing table and row;
-- not rebuild or rewrite legacy tables;
-- not alter customer, booking, invoice, invoice-item or payment relationships;
-- not import or transform existing customers;
-- not create runtime data;
-- apply through the existing migration runner;
-- be tracked through the Drizzle journal;
-- be safe when the existing `0000` migration has already been applied;
-- be a no-op when the normal migration runner sees it has already been applied;
-- pass foreign-key and integrity checks.
-
-“Idempotent” here means the existing migration runner can be invoked repeatedly without attempting to reapply an already-recorded migration. Do not add broad `IF NOT EXISTS` statements merely to conceal migration-state errors.
-
-Update generated migration metadata using the repository’s normal Drizzle generation process.
-
-Do not manually edit generated snapshot or journal files unless that is demonstrably required by the established repository process. If generated SQL requires review, keep SQL and metadata mutually consistent.
-
-Inspect the migration diff carefully. Reject and regenerate it if it unexpectedly drops, renames or recreates existing tables.
-
----
-
-# 15. Migration smoke coverage
-
-Update:
-
-```text
 scratch/db-smoke.ts
+
+backend/drizzle/0000_*.sql
+backend/drizzle/0001_acoustic_sentinel.sql
+backend/drizzle/meta/_journal.json
 ```
 
-Add the expected tables:
+Also inspect the exact installed versions and APIs for:
 
 ```text
-organisations
-contacts
-engagements
+drizzle-orm
+better-sqlite3
+vitest
+zod
 ```
 
-Also verify the required indexes exist.
+Confirm:
 
-Retain and extend the checks for:
+- how Drizzle transactions are invoked with the installed version;
+- whether transaction callbacks are synchronous;
+- how affected-row counts are returned;
+- how raw SQLite constraint errors are represented;
+- how existing tests start the Express server;
+- how migration execution is tracked;
+- how a specific migration can be applied in stages for upgrade testing.
 
-```sql
-PRAGMA foreign_key_check;
-PRAGMA integrity_check;
-```
-
-Explicitly verify that foreign-key enforcement is enabled:
-
-```sql
-PRAGMA foreign_keys;
-```
-
-The result must be `1`.
-
-The smoke test must:
-
-1. create a temporary directory;
-2. create a temporary SQLite database;
-3. run the complete migration set;
-4. verify all legacy and new tables;
-5. verify the required new indexes;
-6. invoke the migration runner a second time;
-7. verify no failure or duplicate migration;
-8. run foreign-key and integrity checks;
-9. close the database;
-10. remove the temporary directory in `finally`.
-
-Never point this test at:
-
-```text
-backend/data/crm.db
-```
-
-or any normal runtime database.
+Do not assume APIs from a newer Drizzle version.
 
 ---
 
-# 16. Repository interfaces
+# 3. Keep the scope controlled
 
-Add explicit repository interfaces under the current application interface structure.
+Do not add:
 
-Do not use full response types as unrestricted persistence input types.
+- frontend pages;
+- authentication;
+- multi-tenancy;
+- activities;
+- notes;
+- tasks;
+- documents;
+- billing;
+- invoice relationships;
+- customer migration;
+- restore endpoints;
+- hard-delete endpoints;
+- dependency-injection frameworks;
+- query-builder abstractions;
+- generic repository frameworks;
+- unrelated formatting passes across the repository.
 
-Prefer narrow interfaces similar to:
+Do not alter existing customer, invoice, booking or payment behaviour except where required to prove migration compatibility.
+
+Do not change the migration unless a real correctness problem is identified.
+
+Do not squash or rewrite unrelated history.
+
+---
+
+# 4. Critical defect: broken primary-contact transaction
+
+The current implementation in:
+
+```text
+backend/src/infrastructure/database/repositories/ContactRepository.ts
+```
+
+runs a synchronous `better-sqlite3` transaction callback but calls the asynchronous repository method `this.update()` inside it.
+
+The current pattern is substantively similar to:
 
 ```ts
-export interface OrganisationListOptions {
-  status?: OrganisationStatus;
-  search?: string;
-  includeArchived?: boolean;
-  limit: number;
-  offset: number;
-}
+sqlite.transaction(() => {
+  sqlite.prepare('update contacts ...').run(...);
 
-export interface IOrganisationRepository {
-  create(input: OrganisationCreateInput): Promise<Organisation>;
-  getById(
-    id: string,
-    options?: { includeArchived?: boolean },
-  ): Promise<Organisation | null>;
-  list(options: OrganisationListOptions): Promise<Organisation[]>;
-  update(
-    id: string,
-    patch: OrganisationUpdateInput,
-  ): Promise<Organisation | null>;
-  archive(id: string, archivedAt: string): Promise<Organisation | null>;
+  this.update(id, {
+    ...patch,
+    isPrimary: true,
+  });
+})();
+```
+
+This is unsafe.
+
+Because `this.update()` is an `async` function, failures become rejected promises rather than synchronous exceptions visible to the transaction callback.
+
+The transaction may therefore:
+
+1. clear the existing primary contact;
+2. fail to set the candidate contact as primary;
+3. commit the first update;
+4. leave the organisation without its previous primary.
+
+This violates the required atomicity and rollback guarantee.
+
+## Required correction
+
+Both writes must execute synchronously inside the same database transaction callback.
+
+Do not call an `async` repository method from inside a synchronous `better-sqlite3` transaction.
+
+Use one of these valid approaches:
+
+### Preferred approach
+
+Create private synchronous repository helpers that accept the active transaction connection or use the same raw SQLite connection synchronously.
+
+For example:
+
+```ts
+private updateContactSync(
+  connection: SqliteConnection,
+  id: string,
+  patch: ContactUpdate,
+  now: string,
+): ContactUpdateResult {
+  // Build and execute the update synchronously.
 }
 ```
 
-Add equivalent contact and engagement interfaces.
+Then:
 
-Repository methods should report absence using `null`, not by manufacturing generic errors containing IDs or SQL details.
+```ts
+const transaction = sqlite.transaction(() => {
+  const candidate = sqlite.prepare(`
+    SELECT *
+    FROM contacts
+    WHERE id = ?
+      AND archived_at IS NULL
+  `).get(id) as ContactRow | undefined;
 
-Application services decide whether absence is a `404`, conflict or another domain result.
+  if (!candidate) {
+    throw new ContactPrimaryEligibilityError('Contact not found');
+  }
+
+  const resultingStatus = patch.status ?? candidate.status;
+
+  if (resultingStatus !== 'active') {
+    throw new ContactPrimaryEligibilityError(
+      'An inactive contact cannot be primary',
+    );
+  }
+
+  const now = new Date().toISOString();
+
+  sqlite.prepare(`
+    UPDATE contacts
+    SET is_primary = 0,
+        updated_at = @now
+    WHERE organisation_id = @organisationId
+      AND id <> @id
+      AND archived_at IS NULL
+      AND is_primary = 1
+  `).run({
+    organisationId: candidate.organisation_id,
+    id,
+    now,
+  });
+
+  const result = sqlite.prepare(`
+    UPDATE contacts
+    SET
+      status = @status,
+      is_primary = 1,
+      updated_at = @now
+    WHERE id = @id
+      AND archived_at IS NULL
+  `).run({
+    id,
+    status: resultingStatus,
+    now,
+  });
+
+  if (result.changes !== 1) {
+    throw new ContactPrimaryEligibilityError(
+      'Primary contact could not be updated',
+    );
+  }
+});
+
+transaction();
+```
+
+The actual implementation must support every supplied mutable field, not just status and `isPrimary`.
+
+### Drizzle transaction alternative
+
+A Drizzle transaction is acceptable if the installed SQLite driver executes it synchronously and affected-row counts can be verified reliably.
+
+Do not use an asynchronous callback with `better-sqlite3` unless the installed Drizzle adapter explicitly supports and safely waits for it.
+
+## Required guarantees
+
+The corrected implementation must prove that:
+
+- candidate validation happens before clearing the existing primary;
+- the old primary is not cleared if the candidate is invalid;
+- clearing the old primary and setting the new primary are one transaction;
+- any exception rolls back both writes;
+- the candidate update affects exactly one row;
+- a partial unique-index conflict is translated into a controlled domain conflict;
+- no raw SQLite message reaches the client;
+- creating a new primary contact follows the same atomic principle;
+- making an existing inactive contact active and primary in one update works correctly;
+- making an active primary contact inactive clears its primary status atomically;
+- archiving a primary contact clears its primary status atomically.
 
 ---
 
-# 17. Repository implementations
+# 5. Correct primary-contact state-transition semantics
 
-Add implementations following the existing location and naming style:
+The current service mutates this contradictory patch:
 
-```text
-backend/src/infrastructure/database/repositories/
+```json
+{
+  "status": "inactive",
+  "isPrimary": true
+}
 ```
 
-Likely files are:
+into:
+
+```json
+{
+  "status": "inactive",
+  "isPrimary": false
+}
+```
+
+That is incorrect.
+
+The API must not silently reinterpret contradictory client intent.
+
+## Required behaviour
+
+### Reject this request
+
+```json
+{
+  "status": "inactive",
+  "isPrimary": true
+}
+```
+
+Return a controlled `409 Conflict` or `400 Validation Error`, consistently with the domain-error policy.
+
+Preferred response:
+
+```json
+{
+  "error": "CONFLICT",
+  "message": "An inactive contact cannot be primary"
+}
+```
+
+### Accept this request
+
+For an existing inactive contact:
+
+```json
+{
+  "status": "active",
+  "isPrimary": true
+}
+```
+
+This must atomically:
+
+1. change the contact to active;
+2. clear any other primary contact in the organisation;
+3. set the candidate as primary.
+
+Do not validate eligibility solely against the contact’s old stored status.
+
+Validation must use the resulting merged state:
+
+```ts
+const merged = {
+  ...current,
+  ...patch,
+};
+
+if (merged.isPrimary && merged.status !== 'active') {
+  throw new ConflictError('An inactive contact cannot be primary');
+}
+```
+
+The repository transaction must also apply the resulting state atomically.
+
+### Inactivation rule
+
+For:
+
+```json
+{
+  "status": "inactive"
+}
+```
+
+the final state must be:
+
+```text
+status = inactive
+isPrimary = false
+```
+
+This update must be atomic.
+
+### Explicit un-primary rule
+
+For:
+
+```json
+{
+  "isPrimary": false
+}
+```
+
+only that contact should lose primary status.
+
+Do not automatically promote another contact.
+
+---
+
+# 6. Eliminate raw generic primary-contact errors
+
+The repository currently throws:
+
+```ts
+throw new Error('CONTACT_PRIMARY_NOT_ELIGIBLE');
+```
+
+This becomes an unknown server failure and therefore an HTTP `500`.
+
+Do not throw generic errors for expected business conditions.
+
+Use typed operational errors at the service boundary.
+
+A repository may return a typed result or throw a narrowly scoped internal repository error, but the application service must translate it to:
+
+- `NotFoundError`;
+- `ConflictError`;
+- `ValidationError`.
+
+For example:
+
+```ts
+export class PrimaryContactConflictError extends Error {
+  constructor(
+    public readonly reason:
+      | 'not_found'
+      | 'archived'
+      | 'inactive'
+      | 'unique_conflict',
+  ) {
+    super(reason);
+  }
+}
+```
+
+Then translate:
+
+```ts
+try {
+  return await this.contacts.updatePrimary(id, patch);
+} catch (error) {
+  if (error instanceof PrimaryContactConflictError) {
+    switch (error.reason) {
+      case 'not_found':
+        throw new NotFoundError('Contact not found');
+
+      case 'archived':
+        throw new ConflictError('Archived contacts cannot be edited');
+
+      case 'inactive':
+        throw new ConflictError('An inactive contact cannot be primary');
+
+      case 'unique_conflict':
+        throw new ConflictError(
+          'The organisation already has another primary contact',
+        );
+    }
+  }
+
+  throw error;
+}
+```
+
+The exact design may differ, but expected domain conflicts must not become generic `500` responses.
+
+---
+
+# 7. Replace the new raw-SQL repository style with the established Drizzle style
+
+The current new repositories use:
+
+- `sqlite.prepare()` for almost every operation;
+- `any` row types;
+- `any` column maps;
+- dynamic SQL strings;
+- minified one-line implementations.
+
+The existing repository architecture uses:
+
+- the typed Drizzle `db`;
+- exported schema objects;
+- Drizzle query operators;
+- repository mapping functions.
+
+The new domain should follow the established architecture.
+
+Refactor:
 
 ```text
 OrganisationRepository.ts
@@ -1049,420 +500,350 @@ ContactRepository.ts
 EngagementRepository.ts
 ```
 
-Update the repository barrel export if one is used.
+to use Drizzle for normal CRUD and listing operations.
 
-## Mapping
+Raw SQLite is acceptable only where it is genuinely needed, such as:
 
-Do not expose `any` unnecessarily.
+- inspecting pragma metadata in migration tests;
+- executing a transaction operation that the installed Drizzle API cannot express safely;
+- verifying generated index SQL.
 
-Use inferred Drizzle row types where practical:
+Do not use raw SQL merely because it is shorter.
+
+## Required repository imports
+
+Use patterns such as:
+
+```ts
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  isNull,
+  like,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
+
+import { db } from '../connection';
+
+import {
+  organisations,
+  contacts,
+  engagements,
+} from '../schema';
+```
+
+Use inferred row types:
 
 ```ts
 type OrganisationRow = typeof organisations.$inferSelect;
-type NewOrganisationRow = typeof organisations.$inferInsert;
+type ContactRow = typeof contacts.$inferSelect;
+type EngagementRow = typeof engagements.$inferSelect;
 ```
 
-Map database rows into shared response contracts consistently.
-
-Decide whether nullable API fields are returned as `null` or omitted, then apply that convention consistently across all three entities and response schemas. Prefer explicit `null` for nullable response fields in this new domain rather than inheriting ambiguous `undefined` behaviour accidentally.
-
-Do not change legacy customer response mapping solely to make it match the new entities.
-
-## Organisation listing
-
-Support:
-
-- status filter;
-- case-insensitive name search;
-- archived exclusion by default;
-- explicit inclusion of archived records;
-- validated `limit`;
-- validated `offset`;
-- deterministic ordering.
-
-Default ordering should be stable, for example:
-
-```text
-lower(name) ASC, id ASC
-```
-
-Case-insensitive search must not depend accidentally on connection-specific case settings.
-
-Escape `%`, `_` and the escape character when treating user input as a literal substring. Do not allow user search text to become uncontrolled SQL wildcard syntax.
-
-An illustrative SQL pattern is:
+Avoid:
 
 ```ts
-const escaped = search.replace(/[\\%_]/g, '\\$&');
-const pattern = `%${escaped}%`;
-
-sql`lower(${organisations.name}) LIKE lower(${pattern}) ESCAPE '\\'`
+const row = (r: any) => ...
+const cols: any = ...
 ```
 
-Confirm the exact Drizzle syntax with the installed version.
+## Required mapping
 
-## Contact listing
-
-List contacts only for the requested organisation.
-
-Support:
-
-- status filter;
-- archived exclusion by default;
-- explicit inclusion of archived records;
-- deterministic ordering;
-- validated `limit` and `offset`.
-
-A suitable stable order is:
-
-```text
-isPrimary DESC,
-lower(lastName) ASC,
-lower(firstName) ASC,
-id ASC
-```
-
-Handle nullable names deterministically.
-
-## Engagement listing
-
-List engagements only for the requested organisation.
-
-Support:
-
-- status filter;
-- archived exclusion by default;
-- explicit inclusion of archived records;
-- deterministic ordering;
-- validated `limit` and `offset`.
-
-A suitable stable order is:
-
-```text
-startDate DESC,
-createdAt DESC,
-id ASC
-```
-
-## Archive operations
-
-Archive with an update, not a delete:
+Create clear mapping functions:
 
 ```ts
-{
-  archivedAt: now,
-  updatedAt: now,
+function mapOrganisation(row: OrganisationRow): Organisation {
+  return OrganisationResponseSchema.parse({
+    id: row.id,
+    name: row.name,
+    legalName: row.legalName,
+    website: row.website,
+    industry: row.industry,
+    employeeBand: row.employeeBand,
+    annualRevenueBand: row.annualRevenueBand,
+    country: row.country,
+    status: row.status,
+    source: row.source,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt,
+  });
 }
 ```
 
-Archive operations are idempotent.
+Equivalent mapping must exist for contacts and engagements.
 
-Calling archive on an already archived record should return the existing archived record or the same success shape used for the first archive. It must not produce a second archive timestamp unless there is an explicit reason documented and tested.
+Using the response schema during mapping is preferred because it detects persistence-contract drift.
 
-Do not cascade archival automatically to children.
+## Required update construction
+
+Do not dynamically build SQL column names from arbitrary object keys.
+
+Create a typed update object:
+
+```ts
+const values: Partial<typeof contacts.$inferInsert> = {
+  updatedAt: now,
+};
+
+if ('firstName' in patch) values.firstName = patch.firstName;
+if ('lastName' in patch) values.lastName = patch.lastName;
+if ('jobTitle' in patch) values.jobTitle = patch.jobTitle;
+if ('email' in patch) values.email = patch.email;
+if ('phone' in patch) values.phone = patch.phone;
+if ('status' in patch) values.status = patch.status;
+if ('isPrimary' in patch) values.isPrimary = patch.isPrimary;
+```
+
+This preserves the distinction between:
+
+- omitted property;
+- explicit `null`;
+- explicit false.
+
+Do the same for organisation and engagement updates.
 
 ---
 
-# 18. Primary-contact transaction
+# 8. Fix nullable update handling
 
-The primary-contact invariant must be implemented as one database transaction.
+Review every update implementation carefully.
 
-The transaction must cover both:
-
-1. clearing other eligible primary contacts;
-2. writing the candidate contact’s new state.
-
-The implementation should conceptually resemble:
+The current engagement repository uses logic equivalent to:
 
 ```ts
-database.transaction((tx) => {
-  tx.update(contacts)
-    .set({
-      isPrimary: false,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(contacts.organisationId, organisationId),
-        ne(contacts.id, contactId),
-        eq(contacts.isPrimary, true),
-        isNull(contacts.archivedAt),
-      ),
-    )
-    .run();
+primaryContactId: patch.primaryContactId ?? null,
+summary: patch.summary ?? null,
+endDate: patch.endDate ?? null,
+```
 
-  tx.update(contacts)
-    .set({
-      ...patch,
-      isPrimary: true,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(contacts.id, contactId),
-        eq(contacts.organisationId, organisationId),
-        eq(contacts.status, 'active'),
-        isNull(contacts.archivedAt),
-      ),
-    )
-    .run();
+This is unsafe when the property is omitted because `undefined ?? null` becomes `null`.
+
+Depending on the SQL parameter construction, an unrelated patch can accidentally clear optional fields.
+
+For example:
+
+```json
+{
+  "name": "Updated engagement name"
+}
+```
+
+must not implicitly clear:
+
+- `primaryContactId`;
+- `summary`;
+- `endDate`.
+
+## Required rule
+
+Only include a database update field when the property exists in the patch:
+
+```ts
+if ('primaryContactId' in patch) {
+  values.primaryContactId = patch.primaryContactId;
+}
+
+if ('summary' in patch) {
+  values.summary = patch.summary;
+}
+
+if ('endDate' in patch) {
+  values.endDate = patch.endDate;
+}
+```
+
+Apply this rule consistently to all optional nullable fields across:
+
+- organisations;
+- contacts;
+- engagements.
+
+Add regression tests proving that unrelated patches retain existing nullable values.
+
+---
+
+# 9. Validate service-level return values
+
+Do not use non-null assertions to hide repository failures:
+
+```ts
+const updated = await this.engagements.update(id, patch);
+return updated!;
+```
+
+Use explicit handling:
+
+```ts
+const updated = await this.engagements.update(id, patch);
+
+if (!updated) {
+  throw new NotFoundError('Engagement not found');
+}
+
+return updated;
+```
+
+Apply equivalent handling to all repository calls where a race or failed affected-row count could return `null`.
+
+---
+
+# 10. Preserve archived-parent listing behaviour deliberately
+
+The current list services call the “active organisation” validator and then suppress the archive conflict.
+
+That code is difficult to read and risks coupling listing semantics to creation semantics.
+
+Replace patterns similar to:
+
+```ts
+await this.activeOrg(id).catch((error) => {
+  if (error instanceof ConflictError) return;
+  throw error;
 });
 ```
 
-Adapt this to the installed Drizzle/better-sqlite3 API.
+with explicit parent-existence validation.
 
-Important requirements:
-
-- do not clear the old primary before validating the candidate;
-- validate candidate existence, organisation, status and archive state first;
-- execute the clear and set writes inside one transaction;
-- ensure an exception rolls back both writes;
-- ensure the candidate update affected exactly one row;
-- protect the invariant with the partial unique index where supported;
-- translate a unique-constraint race into a safe conflict response rather than exposing SQLite text.
-
-Creating a new contact with `isPrimary: true` must use the same transaction semantics.
-
-Changing a contact to inactive or archiving it must clear its own `isPrimary` flag in the same transaction.
-
-Do not use a read-then-write sequence without a transaction.
-
----
-
-# 19. Application services
-
-Add narrow services, likely:
-
-```text
-OrganisationService
-ContactService
-EngagementService
-```
-
-Do not place cross-table rules exclusively in Express routes.
-
-## Organisation service responsibilities
-
-- create;
-- get;
-- list;
-- update;
-- archive;
-- reject ordinary edits to archived organisations;
-- normalize domain errors.
-
-## Contact service responsibilities
-
-- verify parent organisation exists;
-- verify parent organisation is not archived for creation;
-- create contact;
-- list by organisation;
-- retrieve contact;
-- merge patches with stored values;
-- enforce the identifying-field rule after patching;
-- reject ordinary edits to archived contacts;
-- reject `isPrimary = true` for inactive contacts;
-- perform primary-contact changes transactionally;
-- clear primary status when making a contact inactive;
-- clear primary status while archiving;
-- prohibit organisation reassignment.
-
-## Engagement service responsibilities
-
-- verify parent organisation exists;
-- verify parent organisation is not archived for creation;
-- validate optional primary contact;
-- ensure contact belongs to the same organisation;
-- ensure assigned contact is active and non-archived;
-- validate full resulting date range;
-- reject ordinary edits to archived engagements;
-- prohibit organisation reassignment;
-- create, list, retrieve, update and archive.
-
-## Assigning an engagement primary contact
-
-Centralize this validation in one private or reusable service method, conceptually:
+Use separate methods:
 
 ```ts
-private async validatePrimaryContact(
-  organisationId: string,
-  contactId: string | null | undefined,
-): Promise<void> {
-  if (contactId === null || contactId === undefined) return;
-
-  const contact = await this.contacts.getById(contactId, {
+private async requireOrganisation(
+  id: string,
+): Promise<Organisation> {
+  const organisation = await this.orgs.getById(id, {
     includeArchived: true,
   });
 
-  if (!contact) {
-    throw new NotFoundError('Primary contact not found');
+  if (!organisation) {
+    throw new NotFoundError('Organisation not found');
   }
 
-  if (contact.organisationId !== organisationId) {
+  return organisation;
+}
+
+private async requireActiveOrganisation(
+  id: string,
+): Promise<Organisation> {
+  const organisation = await this.requireOrganisation(id);
+
+  if (organisation.archivedAt) {
     throw new ConflictError(
-      'Primary contact must belong to the engagement organisation',
+      'Archived organisations cannot receive new contacts',
     );
   }
 
-  if (contact.archivedAt || contact.status !== 'active') {
-    throw new ConflictError(
-      'Primary contact must be active and non-archived',
-    );
-  }
+  return organisation;
 }
 ```
 
-Do not duplicate this logic between create and update routes.
+Listing contacts or engagements for an archived organisation may remain permitted when the organisation exists.
+
+Creation must remain prohibited.
+
+Document and test the intended behaviour.
 
 ---
 
-# 20. Domain errors and safe HTTP mapping
+# 11. Split and format the service layer
 
-Do not expose raw SQLite, Drizzle or stack-trace details.
+The current service file is minified into extremely long single-line classes.
 
-Add a minimal typed operational-error mechanism. For example:
+Refactor it into readable, maintainable TypeScript.
 
-```ts
-export class AppError extends Error {
-  constructor(
-    public readonly statusCode: number,
-    message: string,
-    public readonly code: string,
-    public readonly details?: unknown,
-  ) {
-    super(message);
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(message: string) {
-    super(404, message, 'NOT_FOUND');
-  }
-}
-
-export class ValidationError extends AppError {
-  constructor(message: string, details?: unknown) {
-    super(400, message, 'VALIDATION_ERROR', details);
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message: string) {
-    super(409, message, 'CONFLICT');
-  }
-}
-```
-
-Adapt this to any existing error utility found during inspection.
-
-The global error middleware should return operational messages only for known application errors.
-
-Unknown failures must return a generic response:
-
-```ts
-if (err instanceof AppError) {
-  return res.status(err.statusCode).json({
-    error: err.code,
-    message: err.message,
-    ...(err.details === undefined ? {} : { details: err.details }),
-  });
-}
-
-console.error('Unhandled Server Error:', err);
-
-return res.status(500).json({
-  error: 'INTERNAL_SERVER_ERROR',
-  message: 'An unexpected error occurred',
-});
-```
-
-Do not return:
-
-- SQL statements;
-- constraint names as the only explanation;
-- stack traces;
-- arbitrary `err.message` for unknown errors;
-- database file paths.
-
-Keep this hardening small and compatible with existing routes. Do not redesign every existing error response unless needed to prevent internal-error leakage.
-
----
-
-# 21. HTTP route validation
-
-Validate separately:
-
-- route parameters;
-- query parameters;
-- request bodies.
-
-Use shared Zod schemas where the contract crosses workspace boundaries. Small HTTP-only parameter/query schemas may live in the backend.
-
-An ID parameter schema can resemble:
-
-```ts
-const IdParamSchema = z.object({
-  id: z.string().uuid('Invalid ID'),
-}).strict();
-
-const OrganisationIdParamSchema = z.object({
-  organisationId: z.string().uuid('Invalid organisation ID'),
-}).strict();
-```
-
-Do not pass unvalidated values from:
+Preferred file structure:
 
 ```text
-req.params
-req.query
-req.body
+backend/src/application/services/OrganisationService.ts
+backend/src/application/services/ContactService.ts
+backend/src/application/services/EngagementService.ts
+backend/src/application/services/index.ts
 ```
 
-to a service.
-
-## Query validation
-
-For list endpoints, support:
-
-```text
-includeArchived
-limit
-offset
-```
-
-plus the entity-specific filters.
+Keeping one file is acceptable only if it is formatted normally and remains readable.
 
 Use:
 
-```text
-default limit: 50
-maximum limit: 200
-default offset: 0
-```
+- explicit return types;
+- descriptive private helpers;
+- structured control flow;
+- no unused imports;
+- no broad `any`;
+- no non-null assertions hiding errors.
 
-Reject rather than silently accepting:
-
-- negative values;
-- non-integers;
-- invalid booleans;
-- invalid status values;
-- limits above the maximum.
-
-Preserve the existing list-response style unless repository inspection shows an established pagination envelope. Do not introduce a global API envelope as part of this PR.
+Remove the unused `ContactCreateSchema` import unless it is intentionally used.
 
 ---
 
-# 22. REST endpoints
+# 12. Add comprehensive HTTP integration tests
 
-Register new route modules in:
+The existing tests do not exercise the Express API.
 
-```text
-backend/src/presentation/app.ts
+Add proper integration tests using:
+
+```ts
+startServer({
+  host: '127.0.0.1',
+  port: 0,
+});
 ```
 
-Use the existing `/api` routing convention.
+and Node’s built-in `fetch`.
 
-## Organisation endpoints
+Do not add Supertest unless a clear repository-specific reason requires it.
+
+Use an isolated temporary SQLite database for every test or test suite.
+
+Ensure:
+
+- the database is opened before the server handles requests;
+- the server is closed after every test;
+- the database is closed after every test;
+- the temporary directory is removed in `finally` or `afterEach`;
+- no runtime database is opened or modified.
+
+A suitable helper structure is:
+
+```ts
+let tempDir: string;
+let server: Awaited<ReturnType<typeof startServer>>;
+
+beforeEach(async () => {
+  tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'whitelabel-crm-api-test-'),
+  );
+
+  const databasePath = path.join(tempDir, 'test.sqlite');
+  const database = openDatabase(databasePath);
+
+  runMigrations(database, migrationsFolder);
+
+  server = await startServer({
+    host: '127.0.0.1',
+    port: 0,
+  });
+});
+
+afterEach(async () => {
+  await server?.close();
+  closeDatabase();
+
+  fs.rmSync(tempDir, {
+    recursive: true,
+    force: true,
+  });
+});
+```
+
+Adapt this to the exact `startServer` API.
+
+## Required organisation API tests
+
+Cover:
 
 ```http
 POST /api/organisations
@@ -1472,17 +853,32 @@ PATCH /api/organisations/:id
 POST /api/organisations/:id/archive
 ```
 
-### Organisation list query
+Test:
 
-```text
-status
-search
-includeArchived
-limit
-offset
-```
+- `201` creation;
+- default status;
+- trimming and normalization;
+- invalid body returns `400`;
+- unknown field returns `400`;
+- invalid UUID returns `400`;
+- missing organisation returns `404`;
+- list ordering;
+- status filter;
+- literal wildcard search;
+- invalid query boolean;
+- invalid status;
+- negative offset;
+- non-integer limit;
+- limit above 200;
+- archive returns `200`;
+- archived record excluded normally;
+- included with `includeArchived=true`;
+- ordinary update after archive returns `409`;
+- repeated archive is idempotent.
 
-## Contact endpoints
+## Required contact API tests
+
+Cover:
 
 ```http
 POST /api/organisations/:organisationId/contacts
@@ -1492,16 +888,34 @@ PATCH /api/contacts/:id
 POST /api/contacts/:id/archive
 ```
 
-### Contact list query
+Test:
 
-```text
-status
-includeArchived
-limit
-offset
-```
+- successful creation;
+- missing parent returns `404`;
+- archived parent creation returns `409`;
+- body-supplied `organisationId` returns `400`;
+- malformed route UUID returns `400`;
+- empty identifying fields return `400`;
+- invalid email returns `400`;
+- email normalization;
+- duplicate email allowed;
+- list remains scoped to one organisation;
+- primary assignment;
+- second primary clears first;
+- `status=inactive` clears primary;
+- `status=inactive` plus `isPrimary=true` is rejected;
+- inactive → active-primary transition succeeds;
+- explicit `isPrimary=false` does not promote another contact;
+- archive clears primary;
+- ordinary archived update returns `409`;
+- missing contact returns `404`;
+- invalid query returns `400`;
+- response content type is JSON;
+- response contains no SQL details.
 
-## Engagement endpoints
+## Required engagement API tests
+
+Cover:
 
 ```http
 POST /api/organisations/:organisationId/engagements
@@ -1511,412 +925,418 @@ PATCH /api/engagements/:id
 POST /api/engagements/:id/archive
 ```
 
-### Engagement list query
+Test:
 
-```text
-status
-includeArchived
-limit
-offset
-```
+- successful creation without primary contact;
+- successful creation with eligible contact;
+- missing parent organisation returns `404`;
+- archived parent creation returns `409`;
+- body-supplied `organisationId` returns `400`;
+- missing primary contact returns `404`;
+- primary contact from another organisation returns `409`;
+- inactive primary contact returns `409`;
+- archived primary contact returns `409`;
+- malformed date returns `400`;
+- impossible date returns `400`;
+- end date before start returns `400`;
+- equal start/end date succeeds;
+- update validates merged date range;
+- explicit null clears end date;
+- explicit null clears primary contact;
+- unrelated patch retains existing optional fields;
+- archived engagement update returns `409`;
+- archive is idempotent;
+- invalid UUID returns `400`;
+- invalid query returns `400`.
 
-Do not add restore endpoints in this PR because the repository currently has no established restore API convention. Preserve `archivedAt` so restoration can be added deliberately later.
+## Required safe-500 test
 
-Do not add `DELETE` endpoints.
+Create a controlled test-only failing repository or service path.
 
----
+Do not corrupt the database.
 
-# 23. HTTP response behaviour
-
-Use these status conventions unless an established compatible repository convention requires a small adjustment.
-
-| Operation | Status |
-|---|---:|
-| Successful create | `201` |
-| Successful get/list/update/archive | `200` |
-| Invalid body, query or route parameter | `400` |
-| Missing resource | `404` |
-| Valid request conflicting with current state | `409` |
-| Unknown server failure | `500` |
-
-Examples of `409` conflicts:
-
-- updating an archived entity;
-- assigning an inactive or archived primary contact;
-- assigning a contact belonging to another organisation;
-- creating a child under an archived organisation;
-- an invariant conflict arising from concurrent primary-contact writes.
-
-Examples of `404`:
-
-- requested organisation does not exist;
-- requested contact does not exist;
-- requested engagement does not exist;
-- parent organisation in a nested route does not exist;
-- supplied engagement primary contact ID does not exist.
-
-Use a consistent error response for new routes:
+Verify an unknown exception produces:
 
 ```json
 {
-  "error": "VALIDATION_ERROR",
-  "message": "Request validation failed",
-  "details": {}
+  "error": "INTERNAL_SERVER_ERROR",
+  "message": "An unexpected error occurred"
 }
 ```
 
-or:
+Verify the response does not contain:
+
+- the thrown internal message;
+- SQL;
+- stack traces;
+- database paths;
+- constraint names.
+
+---
+
+# 13. Add explicit transaction rollback tests
+
+The existing tests verify successful primary replacement but not rollback.
+
+Add a test that proves final stored state after a failed primary change.
+
+A valid test strategy:
+
+1. create an organisation;
+2. create contact A as the current primary;
+3. create contact B as a non-primary contact;
+4. deliberately cause the candidate update to fail inside the transaction;
+5. attempt to promote B;
+6. assert the operation rejects;
+7. reload both contacts;
+8. assert A remains primary;
+9. assert B remains non-primary.
+
+The test must inspect persisted final state.
+
+Merely asserting that an exception was thrown is insufficient.
+
+Use a controlled failure mechanism, such as:
+
+- a repository test hook;
+- a transaction-local invalid update;
+- a deliberately injected repository collaborator;
+- a unique-index race simulation where deterministic.
+
+Do not weaken production code solely to make the test easy.
+
+Also test:
+
+- inactive → active-primary transition;
+- contradictory inactive-primary patch rejection;
+- partial unique-index enforcement;
+- raw uniqueness errors are translated to a controlled conflict.
+
+---
+
+# 14. Add staged migration-upgrade testing
+
+The current migration tests only apply every migration to a fresh database.
+
+Add a real upgrade-path test.
+
+## Required test sequence
+
+1. Create a temporary SQLite database.
+2. Enable foreign keys.
+3. Apply only migration `0000`.
+4. Insert representative legacy records into:
+   - `customers`;
+   - `services`;
+   - `bookings`;
+   - `invoices`;
+   - `invoice_items`;
+   - `payments`;
+   - any required parent records.
+5. Record their IDs and important values.
+6. Apply migration `0001_acoustic_sentinel.sql` through the migration mechanism or an accurately staged equivalent.
+7. Verify:
+   - all legacy records remain;
+   - foreign-key relationships remain valid;
+   - legacy table schemas remain unchanged;
+   - the three new tables exist;
+   - all required new indexes exist;
+   - no new legacy-domain columns were added;
+   - no organisation/contact/engagement records were synthesized;
+   - `PRAGMA foreign_key_check` returns no rows;
+   - `PRAGMA integrity_check` returns `ok`.
+8. Invoke the normal migration runner again.
+9. Verify no migration is reapplied and no duplicate-object error occurs.
+10. Close and remove the database.
+
+## Important
+
+Do not fake this by applying both migrations first and inserting legacy records afterwards.
+
+The test must genuinely represent:
+
+```text
+existing installed database
+    ↓
+PR2 migration
+    ↓
+preserved legacy data
+```
+
+Inspect the current migration runner and Drizzle journal format to choose the correct staging method.
+
+---
+
+# 15. Expand schema and service tests
+
+The current test file contains only six compressed tests.
+
+Split tests into focused files, for example:
+
+```text
+backend/src/test/crm-contracts.spec.ts
+backend/src/test/organisation-repository.spec.ts
+backend/src/test/contact-repository.spec.ts
+backend/src/test/engagement-repository.spec.ts
+backend/src/test/crm-services.spec.ts
+backend/src/test/crm-api.spec.ts
+backend/src/test/crm-migration-upgrade.spec.ts
+```
+
+Equivalent organization is acceptable.
+
+Avoid `as any` in tests except where a test intentionally bypasses compile-time validation to exercise a lower layer.
+
+Prefer passing data through shared schemas when testing service-level valid inputs.
+
+Use descriptive test names.
+
+---
+
+# 16. Correct query validation
+
+Review the current route query schemas.
+
+The current `limit` schema allows zero:
+
+```ts
+.min(0)
+```
+
+Use:
+
+```ts
+.min(1)
+.max(200)
+.default(50)
+```
+
+unless the application explicitly defines zero as a valid “return no rows” request.
+
+The PR2 prompt specifies:
+
+```text
+default limit: 50
+maximum limit: 200
+default offset: 0
+```
+
+A positive result limit is the expected behaviour.
+
+Also verify `z.coerce.number()` does not accept undesirable forms without review.
+
+Reject:
+
+- empty string;
+- decimals;
+- negative values;
+- `NaN`;
+- infinity;
+- values above 200.
+
+Keep:
+
+```text
+offset >= 0
+limit >= 1
+```
+
+Test all cases through HTTP.
+
+---
+
+# 17. Consolidate repeated HTTP parsing logic
+
+The three route files duplicate:
+
+```ts
+const parse = (
+  schema: z.ZodTypeAny,
+  value: unknown,
+) => {
+  const result = schema.safeParse(value);
+
+  if (!result.success) {
+    throw new ValidationError(
+      'Request validation failed',
+      result.error.format(),
+    );
+  }
+
+  return result.data as any;
+};
+```
+
+Move this to a small backend HTTP validation helper, for example:
+
+```text
+backend/src/presentation/http/validation.ts
+```
+
+Use a generic typed helper:
+
+```ts
+export function parseRequest<TSchema extends z.ZodTypeAny>(
+  schema: TSchema,
+  value: unknown,
+): z.infer<TSchema> {
+  const result = schema.safeParse(value);
+
+  if (!result.success) {
+    throw new ValidationError(
+      'Request validation failed',
+      result.error.format(),
+    );
+  }
+
+  return result.data;
+}
+```
+
+Do not use `as any`.
+
+This is a focused deduplication directly within the new route implementation, not a broad application refactor.
+
+---
+
+# 18. Validate successful response contracts
+
+Before sending new organisation/contact/engagement entities, ensure repository mapping or route/service boundaries enforce the shared response schema.
+
+Preferred approach:
+
+```ts
+return OrganisationResponseSchema.parse(mapped);
+```
+
+Equivalent for contacts and engagements.
+
+This ensures:
+
+- UUIDs are valid;
+- controlled values remain valid;
+- nullable fields have the expected shape;
+- timestamps are present;
+- raw persistence rows do not leak.
+
+Do not alter legacy endpoint response contracts.
+
+---
+
+# 19. Preserve safe error handling
+
+Keep the global unknown-error response generic:
 
 ```json
 {
-  "error": "NOT_FOUND",
-  "message": "Organisation not found"
+  "error": "INTERNAL_SERVER_ERROR",
+  "message": "An unexpected error occurred"
 }
 ```
 
-Successful responses should be the validated response object or list of response objects. Do not expose raw database result objects.
+Known operational errors must retain their appropriate statuses.
 
-Archive endpoints should return the archived entity rather than an unexplained empty response.
+Review every expected failure path and ensure none becomes an unknown `500`, including:
+
+- candidate primary contact missing;
+- primary candidate archived;
+- primary candidate inactive;
+- primary unique-index conflict;
+- failed update due to affected-row count;
+- archived ordinary updates;
+- cross-organisation engagement contact;
+- missing engagement contact;
+- missing parent organisation.
+
+Do not expose raw:
+
+- SQLite messages;
+- Drizzle messages;
+- stack traces;
+- SQL statements;
+- database paths.
 
 ---
 
-# 24. Legacy customer compatibility
+# 20. Preserve migration constraints
 
-The existing `customers` model is individual-first and remains the financial and appointment-facing customer model for now.
+Keep the migration additive.
 
-This PR must establish temporary coexistence:
+Do not change:
 
 ```text
-Legacy customers
-    ├── existing bookings
-    ├── existing invoices
-    └── existing custom-object relationships
-
-New organisations
-    ├── contacts
-    └── engagements
+customers
+services
+bookings
+invoices
+invoice_items
+payments
+custom field tables
+custom object tables
 ```
 
-There is no relationship between the two groups in PR2.
+unless a migration test fixture requires inserts.
 
-Do not:
-
-- infer organisations from `customers.company`;
-- convert customers into contacts;
-- create shadow organisation records;
-- add `organisationId` to invoices;
-- add `organisationId` to customers;
-- add `customerId` to organisations, contacts or engagements;
-- change invoice or booking routes;
-- alter existing customer cascade semantics;
-- rewrite existing seed data.
-
-Document this coexistence clearly in `docs/DOMAIN.md`.
-
----
-
-# 25. Frontend scope
-
-Do not build organisation, contact or engagement pages.
-
-Do not add:
-
-- navigation entries;
-- dashboards;
-- tables;
-- forms;
-- contact workspaces;
-- engagement workspaces;
-- frontend state stores;
-- frontend API screens.
-
-Frontend modifications are permitted only when strictly necessary to:
-
-- keep shared imports compiling;
-- accommodate a safe shared export change;
-- keep the complete monorepo build green.
-
-A frontend change must be justified in the PR body.
-
-Do not add placeholder pages.
-
----
-
-# 26. Automated test infrastructure
-
-Use Vitest and the repository’s existing backend test conventions.
-
-Every database-affecting test must use an explicit temporary SQLite database.
-
-A suitable lifecycle is:
-
-```ts
-beforeEach(() => {
-  tempDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'whitelabel-crm-test-'),
-  );
-
-  databasePath = path.join(tempDir, 'test.sqlite');
-
-  const database = openDatabase(databasePath);
-  runMigrations(database, migrationsFolder);
-});
-
-afterEach(() => {
-  closeDatabase();
-  fs.rmSync(tempDir, { recursive: true, force: true });
-});
-```
-
-Ensure cleanup also occurs when a test fails.
-
-Do not import or initialize code in an order that silently opens the normal runtime database before the temporary database has been configured.
-
-Do not use:
+The migration must continue to create:
 
 ```text
-backend/data/crm.db
+organisations
+contacts
+engagements
 ```
 
-in any automated test.
-
-For API integration tests, prefer the existing:
-
-```ts
-startServer({ host: '127.0.0.1', port: 0 })
-```
-
-and the Node runtime’s `fetch`, unless the repository already has an HTTP test helper.
-
-Do not add Supertest solely out of habit when the existing server can be tested without it.
-
-Always close the server in `finally` or `afterEach`.
-
----
-
-# 27. Required migration tests
-
-Add automated migration coverage that verifies:
-
-1. the complete migration set applies to a fresh temporary database;
-2. the new migration applies after the existing baseline migration;
-3. invoking the migration runner again succeeds;
-4. all legacy tables remain;
-5. all three new tables exist;
-6. required columns exist;
-7. required indexes exist;
-8. foreign-key enforcement is enabled;
-9. organisation foreign keys do not use cascade deletion;
-10. `PRAGMA foreign_key_check` returns no rows;
-11. `PRAGMA integrity_check` returns exactly `ok`;
-12. no normal runtime database is created or changed.
-
-Where practical, insert a legacy row before applying the new migration and prove it remains afterwards.
-
----
-
-# 28. Required organisation tests
-
-Test at repository, service or API level as appropriate:
-
-- creates a valid organisation;
-- generates a UUID;
-- generates `createdAt` and `updatedAt`;
-- defaults status correctly;
-- trims required and optional strings;
-- normalizes blank optional strings to null;
-- normalizes country to uppercase;
-- rejects an invalid country code;
-- rejects an empty or whitespace-only name;
-- rejects an invalid website;
-- rejects invalid status;
-- rejects invalid employee band;
-- rejects invalid annual revenue band;
-- gets an organisation by ID;
-- returns `404` for a missing organisation through HTTP;
-- lists organisations deterministically;
-- filters by status;
-- searches names case-insensitively;
-- treats search wildcard characters as literal input;
-- validates pagination;
-- excludes archived organisations by default;
-- includes them only when requested;
-- archives without deleting;
-- archive is idempotent;
-- ordinary update rejects an archived organisation;
-- updates only allowed mutable fields;
-- rejects immutable or unknown update fields;
-- rejects an empty patch.
-
----
-
-# 29. Required contact tests
-
-Test:
-
-- creates a contact under an existing active organisation;
-- rejects creation under a missing organisation;
-- rejects creation under an archived organisation;
-- derives organisation ID from the route;
-- rejects body-supplied `organisationId`;
-- accepts first name only;
-- accepts last name only;
-- accepts email only;
-- rejects a contact with no identifying field;
-- rejects whitespace-only identifying fields;
-- validates email format;
-- normalizes email casing consistently;
-- allows the same email in different organisations;
-- allows duplicate email records where legitimate;
-- does not create a unique email index;
-- lists contacts only for the requested organisation;
-- filters by status;
-- validates pagination;
-- excludes archived contacts by default;
-- includes archived contacts only when requested;
-- ordinary update cannot change `organisationId`;
-- update cannot clear all identifying fields;
-- inactive contact cannot be set primary;
-- setting the first primary contact succeeds;
-- setting a second primary clears the first;
-- only one active non-archived primary remains;
-- creating a new primary contact clears the existing primary;
-- setting `isPrimary: false` does not promote another contact;
-- changing a primary contact to inactive clears its primary flag;
-- archiving a primary contact clears its primary flag;
-- archiving does not delete the row;
-- archive is idempotent;
-- ordinary update rejects an archived contact;
-- primary-contact writes are transactional;
-- a failed primary change does not leave the organisation without its previous valid primary;
-- the database-level partial uniqueness protection works where implemented.
-
-For the transaction rollback test, assert the final stored state after a deliberately failed operation. Do not merely assert that an exception was thrown.
-
----
-
-# 30. Required engagement tests
-
-Test:
-
-- creates an engagement under an existing active organisation;
-- rejects creation under a missing organisation;
-- rejects creation under an archived organisation;
-- derives organisation ID from the route;
-- rejects body-supplied `organisationId`;
-- creates without a primary contact;
-- accepts an active, non-archived primary contact from the same organisation;
-- rejects a missing primary contact;
-- rejects a primary contact from another organisation;
-- rejects an inactive primary contact;
-- rejects an archived primary contact;
-- accepts a valid date-only value;
-- rejects a malformed date;
-- rejects an impossible calendar date;
-- rejects an end date before the start date;
-- accepts an end date equal to the start date;
-- accepts a null end date;
-- update validates the complete merged date range;
-- update can explicitly clear `primaryContactId` with null;
-- update can explicitly clear `endDate` with null;
-- update cannot change `organisationId`;
-- lists engagements only for the requested organisation;
-- filters by status;
-- validates pagination;
-- orders deterministically;
-- excludes archived engagements by default;
-- includes archived engagements only when requested;
-- archives without deleting;
-- archive is idempotent;
-- ordinary update rejects an archived engagement.
-
----
-
-# 31. Required API tests
-
-Exercise every new route using an isolated temporary database.
-
-At minimum cover:
-
-- successful creation;
-- successful listing;
-- successful retrieval;
-- successful patch;
-- successful archive;
-- malformed UUID route parameter;
-- invalid body;
-- unknown body field;
-- invalid list query;
-- missing record;
-- missing parent organisation;
-- nested-route/body organisation mismatch attempt;
-- cross-organisation primary-contact rejection;
-- inactive primary-contact rejection;
-- archive filtering;
-- conflict response;
-- safe `500` response without SQL or stack leakage.
-
-Verify:
-
-- status code;
-- response shape;
-- response content type;
-- persisted state;
-- absence of internal database details.
-
-A test for the unknown-error path may use a controlled failing stub or equivalent. Do not deliberately corrupt a shared or runtime database.
-
----
-
-# 32. Documentation
-
-Update:
+with:
 
 ```text
-docs/DOMAIN.md
+ON DELETE RESTRICT
 ```
 
-Document:
+for the new business-record relationships.
 
-- organisation;
-- contact;
-- engagement;
-- all relationships;
-- status and type values;
-- one-primary-contact semantics;
-- engagement primary-contact eligibility;
-- date semantics;
-- soft archival semantics;
-- absence of hard-delete endpoints;
-- temporary coexistence with legacy customers;
-- explicit absence of invoice relationships.
+Keep the partial unique index:
 
-Update:
-
-```text
-docs/ARCHITECTURE.md
+```sql
+CREATE UNIQUE INDEX contact_one_active_primary_per_org_idx
+ON contacts (organisation_id)
+WHERE is_primary = 1
+  AND status = 'active'
+  AND archived_at IS NULL;
 ```
 
-only as needed to describe:
+Confirm the generated migration and Drizzle snapshot remain aligned.
 
-- the new organisation/contact/engagement domain;
-- the small service layer used for cross-entity rules;
-- the new repositories;
-- continued legacy-customer isolation.
-
-Remove or revise statements saying that organisation/contact/engagement modelling is deferred, because PR2 implements that work.
-
-Do not rewrite unrelated documentation.
+Do not hand-edit generated metadata into an inconsistent state.
 
 ---
 
-# 33. Suggested implementation sequence
+# 21. Code-quality requirements
 
-Follow this order to reduce rework.
+The corrected code must be readable.
 
-## Step 1 — Establish baseline
+Do not retain minified one-line classes or repository methods.
 
-Run:
+Use:
+
+- normal formatting;
+- explicit imports;
+- explicit return types on public service/repository methods;
+- typed row mapping;
+- typed update objects;
+- descriptive helpers;
+- no unnecessary `any`;
+- no unused imports;
+- no non-null assertions hiding failed writes;
+- no generic `Error` for expected domain conditions.
+
+Run the repository formatter or lint tooling if present.
+
+Do not reformat unrelated files.
+
+---
+
+# 22. Required validation
+
+Run from the repository root:
 
 ```bash
 git status --short --untracked-files=all
@@ -1926,100 +1346,13 @@ node --version
 npm --version
 ```
 
-Ensure the worktree contains no unrelated local changes.
-
-Fetch `main` and create the requested branch from the current remote base without force-updating unrelated work.
-
-## Step 2 — Shared contracts
-
-Implement and test:
-
-- enums;
-- normalization helpers;
-- create schemas;
-- update schemas;
-- body schemas;
-- response schemas;
-- inferred types.
-
-Run the shared build before continuing.
-
-## Step 3 — Database schema and migration
-
-Add the three Drizzle tables and indexes.
-
-Run:
+Install dependencies from the lockfile:
 
 ```bash
-npm run db:generate
-```
-
-Inspect all generated SQL and metadata.
-
-Confirm the migration is additive.
-
-## Step 4 — Migration tests
-
-Update `scratch/db-smoke.ts` and add focused migration tests before writing routes.
-
-Run the migration smoke test.
-
-## Step 5 — Repository interfaces and implementations
-
-Add:
-
-- interfaces;
-- row mapping;
-- filters;
-- stable ordering;
-- pagination;
-- archive operations;
-- primary-contact transaction.
-
-Add repository tests.
-
-## Step 6 — Services and domain errors
-
-Add the minimum service and error structure required to centralize business rules.
-
-Add service tests.
-
-## Step 7 — Routes
-
-Add route modules and mount them in the Express app.
-
-Keep route handlers thin:
-
-```text
-validate → call service → return response
-```
-
-Add API integration tests.
-
-## Step 8 — Documentation
-
-Update only the relevant domain and architecture sections.
-
-## Step 9 — Full validation
-
-Run all required checks and fix failures before opening the PR.
-
----
-
-# 34. Validation commands
-
-Validate from a clean dependency state where practical.
-
-```bash
-rm -rf \
-  node_modules \
-  shared/node_modules \
-  backend/node_modules \
-  frontend/node_modules \
-  desktop/node_modules
-
 ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
 ```
+
+Run focused tests while developing.
 
 Then run:
 
@@ -2033,204 +1366,128 @@ git diff --check
 git status --short --untracked-files=all
 ```
 
-Also run targeted backend tests while developing, for example:
+Also run focused backend tests matching the final filenames, such as:
 
 ```bash
-npm run test -w backend -- organisations
-npm run test -w backend -- contacts
-npm run test -w backend -- engagements
-npm run test -w backend -- migration
+npm run test -w backend -- crm-contracts
+npm run test -w backend -- organisation
+npm run test -w backend -- contact
+npm run test -w backend -- engagement
+npm run test -w backend -- crm-api
+npm run test -w backend -- migration-upgrade
 ```
 
-Adapt filters to the actual test filenames and Vitest CLI.
+Adapt these filters to the actual test names.
 
-Do not claim a command passed unless it was actually run and completed successfully.
-
-If a command cannot be run, state:
-
-- the exact command;
-- why it was not run;
-- what narrower validation was performed;
-- the remaining risk.
-
-Before committing, verify:
-
-```bash
-git diff --stat
-git diff --check
-git status --short --untracked-files=all
-```
-
-Confirm that the branch does not contain:
-
-- runtime SQLite databases;
-- WAL or SHM files;
-- temporary test databases;
-- dependency directories;
-- logs;
-- coverage output unless intentionally tracked;
-- unrelated generated desktop staging changes;
-- unrelated licence-file churn;
-- editor configuration;
-- operating-system files.
+Do not claim a command passed unless it was run successfully.
 
 ---
 
-# 35. Acceptance criteria
+# 23. Acceptance criteria
 
-The PR is complete only when all of the following are true.
+The correction is complete only when all of the following are true.
 
-## Schema
+## Primary contact correctness
 
-- [ ] `organisations` exists.
-- [ ] `contacts` exists.
-- [ ] `engagements` exists.
-- [ ] All required fields and indexes exist.
-- [ ] Foreign keys are enabled.
-- [ ] Organisation deletion cannot cascade-delete contacts or engagements.
-- [ ] No existing table is dropped, renamed or rewritten.
-- [ ] Migration applies after the existing migration.
-- [ ] Re-running the migration runner is safe.
-- [ ] Integrity and foreign-key checks pass.
+- [ ] No async repository method is called inside a synchronous SQLite transaction.
+- [ ] Existing primary is not cleared before candidate validation.
+- [ ] Primary replacement is atomic.
+- [ ] Failed replacement rolls back.
+- [ ] Failed replacement leaves the previous primary intact.
+- [ ] Creating a primary contact is atomic.
+- [ ] Inactive → active-primary update succeeds atomically.
+- [ ] Inactive + primary=true is rejected.
+- [ ] Inactivation clears primary atomically.
+- [ ] Archive clears primary atomically.
+- [ ] Partial unique-index conflicts become controlled conflicts.
+- [ ] No raw repository error becomes a generic `500`.
 
-## Contracts
+## Repository quality
 
-- [ ] Controlled values are defined once in shared code.
-- [ ] Create, update and response schemas are distinct.
-- [ ] Required strings are trimmed and validated.
-- [ ] Optional clearing is unambiguous.
-- [ ] Immutable fields cannot be patched.
-- [ ] Unknown request fields are rejected.
-- [ ] Dates are valid calendar dates.
-- [ ] Response shapes match repository mapping.
+- [ ] Normal CRUD uses the established typed Drizzle style.
+- [ ] Row types are inferred from the schema.
+- [ ] Mapping functions are typed.
+- [ ] Response schemas validate mapped entities.
+- [ ] Update objects preserve omitted versus explicit-null semantics.
+- [ ] Unrelated patches do not clear optional fields.
+- [ ] No arbitrary dynamic SQL column construction remains.
+- [ ] No broad `any` maps remain.
 
-## Business rules
+## API coverage
 
-- [ ] Archived parents cannot receive new children.
-- [ ] One eligible primary contact is enforced transactionally.
-- [ ] Contact inactivity/archive clears primary status.
-- [ ] Engagement primary contact belongs to the same organisation.
-- [ ] Inactive or archived contacts cannot be assigned.
-- [ ] Engagement date ordering is enforced after updates.
-- [ ] Ordinary updates reject archived records.
-- [ ] Archive operations are idempotent.
-- [ ] No hard-delete endpoints exist.
+- [ ] Every new endpoint is exercised through HTTP.
+- [ ] Successful status codes are asserted.
+- [ ] `400`, `404`, `409` and `500` paths are asserted.
+- [ ] Malformed UUIDs are tested.
+- [ ] Invalid queries are tested.
+- [ ] Unknown body fields are tested.
+- [ ] Nested-route organisation spoofing is tested.
+- [ ] Archived filtering is tested.
+- [ ] Response content type is tested.
+- [ ] Unknown server errors do not leak internals.
 
-## API
+## Migration coverage
 
-- [ ] Every specified endpoint exists.
-- [ ] Parameters, queries and bodies are validated.
-- [ ] Status codes are consistent.
-- [ ] Raw SQL and stack traces are not exposed.
-- [ ] List ordering is deterministic.
-- [ ] Pagination is bounded.
-- [ ] Archived records are excluded by default.
+- [ ] Fresh migration coverage passes.
+- [ ] Staged `0000` → `0001` upgrade is tested.
+- [ ] Representative legacy rows survive.
+- [ ] Legacy relationships remain valid.
+- [ ] Migration rerun is safe.
+- [ ] Foreign-key check passes.
+- [ ] Integrity check passes.
+- [ ] No runtime database is touched.
 
-## Compatibility
+## General quality
 
-- [ ] Legacy customers remain unchanged.
-- [ ] Existing invoices remain linked to customers.
-- [ ] Existing bookings remain linked to customers.
-- [ ] No automatic customer migration occurs.
-- [ ] Frontend behaviour remains unchanged.
-- [ ] Desktop build and preflight remain green.
-
-## Quality
-
-- [ ] Automated tests cover repositories, services, routes and migrations.
-- [ ] Tests use temporary databases.
-- [ ] Root build passes.
-- [ ] Root tests pass.
-- [ ] Database smoke test passes.
+- [ ] Services and repositories are normally formatted.
+- [ ] Tests are separated into understandable units.
+- [ ] No unrelated files changed.
+- [ ] Build passes.
+- [ ] Full tests pass.
+- [ ] Database smoke passes.
 - [ ] Desktop preflight passes.
-- [ ] `ci:verify` passes.
-- [ ] `git diff --check` passes.
-- [ ] Worktree contains no unintended artifacts.
+- [ ] CI verification passes.
+- [ ] Git diff check passes.
+- [ ] Worktree is clean after commit.
 
 ---
 
-# 36. Commit and pull-request requirements
+# 24. Update the existing PR
 
-Use clear, scoped commits. Do not mix unrelated cleanup with domain implementation.
-
-Push:
+Push all fixes to:
 
 ```text
-codex/add-organisations-contacts-engagements
+codex/complete-all-corrections-from-prompt.txt
 ```
 
-Open a non-draft pull request against:
+Do not create a new PR.
 
-```text
-main
-```
+Do not merge PR #2.
 
-with the exact title:
+Update the existing PR description only as needed to make the validation record accurate.
 
-```text
-PR2: Add organisations, contacts and engagements
-```
+The PR must not continue claiming comprehensive API coverage unless the HTTP tests have actually been added and run.
 
-Do not merge it.
-
-The PR body must contain these headings:
-
-```markdown
-## Summary
-
-## Domain model
-
-## Database migration
-
-## API endpoints
-
-## Business rules enforced
-
-## Files changed
-
-## Validation performed
-
-## Compatibility with legacy customers
-
-## Risks and limitations
-
-## Deferred work
-```
-
-Under **Validation performed**, list every command actually run and its result.
-
-Under **Risks and limitations**, mention any invariant that could not be reinforced at database level, including partial unique-index limitations.
-
-Under **Deferred work**, explicitly include:
-
-- organisation/contact/engagement frontend;
-- activities and notes;
-- tasks;
-- documents;
-- invoice-to-organisation migration;
-- financial-state redesign;
-- restoration UI/API;
-- authentication and multi-tenancy.
-
-Do not include speculative claims or describe deferred functionality as implemented.
+Include the final test count and exact validation results.
 
 ---
 
-# 37. Final response after opening the PR
+# 25. Final response
 
-Return a concise implementation report containing:
+After pushing the fixes, report:
 
-1. branch name;
-2. pull-request number and URL;
-3. migration filename;
-4. main files added or changed;
-5. domain invariants implemented;
-6. test files added;
-7. validation commands and exact outcomes;
-8. any command not run and the reason;
-9. residual risks;
-10. confirmation that the PR remains open and unmerged.
+1. commit SHA;
+2. files changed;
+3. how the primary-contact transaction was corrected;
+4. how inactive/primary transitions now behave;
+5. how raw persistence code was replaced or constrained;
+6. HTTP integration tests added;
+7. staged migration-upgrade test added;
+8. total test count;
+9. every validation command and outcome;
+10. any remaining risk;
+11. confirmation that PR #2 remains open and unmerged.
 
-Do not finish with only “PR created”.
+Do not finish with a generic statement such as “all fixes complete”.
 
-Do not merge the pull request.
+Provide concrete evidence.
