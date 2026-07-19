@@ -10,6 +10,10 @@ import searchRouter from './routes/search';
 import customFieldsRouter from './routes/customFields';
 import customObjectsRouter from './routes/customObjects';
 import backupsRouter from './routes/backups';
+import organisationsRouter from './routes/organisations';
+import contactsRouter from './routes/contacts';
+import engagementsRouter from './routes/engagements';
+import { AppError } from '../application/errors';
 
 const app = express();
 
@@ -37,6 +41,15 @@ app.use('/api/search', searchRouter);
 app.use('/api/custom-fields', customFieldsRouter);
 app.use('/api/custom-objects', customObjectsRouter);
 app.use('/api/backups', backupsRouter);
+app.use('/api/organisations', organisationsRouter);
+app.use('/api', contactsRouter);
+app.use('/api', engagementsRouter);
+
+if (process.env.NODE_ENV === 'test') {
+  app.get('/api/__test/unknown-error', () => {
+    throw new Error('internal test database path /tmp/secret.sqlite constraint stack sqlite');
+  });
+}
 
 // Root health check
 app.get('/health', (req, res) => {
@@ -44,11 +57,19 @@ app.get('/health', (req, res) => {
 });
 
 // Global Error Handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({
+      error: err.code,
+      message: err.message,
+      ...(err.details === undefined ? {} : { details: err.details }),
+    });
+  }
+
   console.error('Unhandled Server Error:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err.message || 'An unexpected error occurred',
+  return res.status(500).json({
+    error: 'INTERNAL_SERVER_ERROR',
+    message: 'An unexpected error occurred',
   });
 });
 

@@ -199,3 +199,128 @@ export type CustomObjectRecord = z.infer<typeof CustomObjectRecordSchema>;
 export interface CustomObjectDetails extends CustomObjectDefinition {
   fields: CustomFieldDefinition[];
 }
+
+// ==========================================
+// Organisations, Contacts & Engagements
+// ==========================================
+const requiredTrimmedString = (label: string) => z.string().trim().min(1, `${label} is required`);
+
+const nullableTrimmedString = z.preprocess((value) => {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}, z.string().nullable().optional());
+
+const nullableEmailString = z.preprocess((value) => {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed === '' ? null : trimmed;
+}, z.string().email('Invalid email address').nullable().optional());
+
+const nullableUrlString = z.preprocess((value) => {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}, z.string().url('Website must be a valid absolute URL').nullable().optional());
+
+const nullableCountryString = z.preprocess((value) => {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const normalized = value.trim().toUpperCase();
+  return normalized === '' ? null : normalized;
+}, z.string().regex(/^[A-Z]{2}$/, 'Country must be a two-letter code').nullable().optional());
+
+export const IsoDateOnlySchema = z.string().superRefine((value, ctx) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Date must use YYYY-MM-DD' });
+    return;
+  }
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Date is not a valid calendar date' });
+  }
+});
+
+const nullableIsoDateOnlySchema = z.union([IsoDateOnlySchema, z.null()]).optional();
+const nonEmptyPatch = (patch: Record<string, unknown>) => Object.keys(patch).length > 0;
+
+export const OrganisationStatusSchema = z.enum(['prospect', 'active_client', 'past_client', 'partner', 'inactive']);
+export const EmployeeBandSchema = z.enum(['1_9', '10_24', '25_49', '50_74', '75_149', '150_249', '250_plus']);
+export const AnnualRevenueBandSchema = z.enum(['under_1m', '1m_5m', '5m_20m', '20m_50m', '50m_plus']);
+export const ContactStatusSchema = z.enum(['active', 'inactive']);
+export const EngagementTypeSchema = z.enum(['diagnostic', 'sounding_board', 'guardrail', 'redesign', 'implementation', 'other']);
+export const EngagementStatusSchema = z.enum(['proposed', 'active', 'paused', 'completed', 'cancelled']);
+
+export const OrganisationCreateSchema = z.object({
+  name: requiredTrimmedString('Organisation name'), legalName: nullableTrimmedString, website: nullableUrlString,
+  industry: nullableTrimmedString, employeeBand: EmployeeBandSchema.nullable().optional(), annualRevenueBand: AnnualRevenueBandSchema.nullable().optional(),
+  country: nullableCountryString, status: OrganisationStatusSchema.default('prospect'), source: nullableTrimmedString,
+}).strict();
+export const OrganisationUpdateSchema = z.object({
+  name: requiredTrimmedString('Organisation name').optional(), legalName: nullableTrimmedString, website: nullableUrlString,
+  industry: nullableTrimmedString, employeeBand: EmployeeBandSchema.nullable().optional(), annualRevenueBand: AnnualRevenueBandSchema.nullable().optional(),
+  country: nullableCountryString, status: OrganisationStatusSchema.optional(), source: nullableTrimmedString,
+}).strict().refine(nonEmptyPatch, { message: 'At least one field must be supplied' });
+export const OrganisationResponseSchema = z.object({
+  id: z.string().uuid(), name: z.string(), legalName: z.string().nullable(), website: z.string().nullable(), industry: z.string().nullable(),
+  employeeBand: EmployeeBandSchema.nullable(), annualRevenueBand: AnnualRevenueBandSchema.nullable(), country: z.string().nullable(),
+  status: OrganisationStatusSchema, source: z.string().nullable(), createdAt: z.string(), updatedAt: z.string(), archivedAt: z.string().nullable(),
+}).strict();
+
+const ContactFieldsSchema = z.object({
+  organisationId: z.string().uuid(), firstName: nullableTrimmedString, lastName: nullableTrimmedString, jobTitle: nullableTrimmedString,
+  email: nullableEmailString, phone: nullableTrimmedString, isPrimary: z.boolean().default(false), status: ContactStatusSchema.default('active'),
+});
+export const ContactCreateSchema = ContactFieldsSchema.strict().superRefine((value, ctx) => {
+  if (!value.firstName && !value.lastName && !value.email) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['firstName'], message: 'At least one of firstName, lastName or email is required' });
+  if (value.isPrimary && value.status !== 'active') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['isPrimary'], message: 'An inactive contact cannot be primary' });
+});
+export const ContactCreateBodySchema = ContactFieldsSchema.omit({ organisationId: true }).strict().superRefine((value, ctx) => {
+  if (!value.firstName && !value.lastName && !value.email) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['firstName'], message: 'At least one of firstName, lastName or email is required' });
+  if (value.isPrimary && value.status !== 'active') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['isPrimary'], message: 'An inactive contact cannot be primary' });
+});
+export const ContactUpdateSchema = z.object({
+  firstName: nullableTrimmedString, lastName: nullableTrimmedString, jobTitle: nullableTrimmedString, email: nullableEmailString,
+  phone: nullableTrimmedString, isPrimary: z.boolean().optional(), status: ContactStatusSchema.optional(),
+}).strict().refine(nonEmptyPatch, { message: 'At least one field must be supplied' });
+export const ContactResponseSchema = z.object({
+  id: z.string().uuid(), organisationId: z.string().uuid(), firstName: z.string().nullable(), lastName: z.string().nullable(), jobTitle: z.string().nullable(),
+  email: z.string().nullable(), phone: z.string().nullable(), isPrimary: z.boolean(), status: ContactStatusSchema, createdAt: z.string(), updatedAt: z.string(), archivedAt: z.string().nullable(),
+}).strict();
+
+const EngagementFieldsSchema = z.object({
+  organisationId: z.string().uuid(), primaryContactId: z.string().uuid().nullable().optional(), name: requiredTrimmedString('Engagement name'), type: EngagementTypeSchema,
+  status: EngagementStatusSchema.default('proposed'), summary: nullableTrimmedString, startDate: IsoDateOnlySchema, endDate: nullableIsoDateOnlySchema,
+}).strict();
+export const EngagementCreateSchema = EngagementFieldsSchema.superRefine((value, ctx) => { if (value.endDate !== null && value.endDate !== undefined && value.endDate < value.startDate) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endDate'], message: 'End date cannot precede start date' }); });
+export const EngagementCreateBodySchema = EngagementFieldsSchema.omit({ organisationId: true }).strict().superRefine((value, ctx) => { if (value.endDate !== null && value.endDate !== undefined && value.endDate < value.startDate) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endDate'], message: 'End date cannot precede start date' }); });
+export const EngagementUpdateSchema = z.object({
+  primaryContactId: z.string().uuid().nullable().optional(), name: requiredTrimmedString('Engagement name').optional(), type: EngagementTypeSchema.optional(),
+  status: EngagementStatusSchema.optional(), summary: nullableTrimmedString, startDate: IsoDateOnlySchema.optional(), endDate: nullableIsoDateOnlySchema,
+}).strict().refine(nonEmptyPatch, { message: 'At least one field must be supplied' });
+export const EngagementResponseSchema = z.object({
+  id: z.string().uuid(), organisationId: z.string().uuid(), primaryContactId: z.string().uuid().nullable(), name: z.string(), type: EngagementTypeSchema,
+  status: EngagementStatusSchema, summary: z.string().nullable(), startDate: z.string(), endDate: z.string().nullable(), createdAt: z.string(), updatedAt: z.string(), archivedAt: z.string().nullable(),
+}).strict();
+
+export type OrganisationStatus = z.infer<typeof OrganisationStatusSchema>;
+export type EmployeeBand = z.infer<typeof EmployeeBandSchema>;
+export type AnnualRevenueBand = z.infer<typeof AnnualRevenueBandSchema>;
+export type ContactStatus = z.infer<typeof ContactStatusSchema>;
+export type EngagementType = z.infer<typeof EngagementTypeSchema>;
+export type EngagementStatus = z.infer<typeof EngagementStatusSchema>;
+export type OrganisationCreate = z.infer<typeof OrganisationCreateSchema>;
+export type OrganisationUpdate = z.infer<typeof OrganisationUpdateSchema>;
+export type Organisation = z.infer<typeof OrganisationResponseSchema>;
+export type ContactCreate = z.infer<typeof ContactCreateSchema>;
+export type ContactCreateBody = z.infer<typeof ContactCreateBodySchema>;
+export type ContactUpdate = z.infer<typeof ContactUpdateSchema>;
+export type Contact = z.infer<typeof ContactResponseSchema>;
+export type EngagementCreate = z.infer<typeof EngagementCreateSchema>;
+export type EngagementCreateBody = z.infer<typeof EngagementCreateBodySchema>;
+export type EngagementUpdate = z.infer<typeof EngagementUpdateSchema>;
+export type Engagement = z.infer<typeof EngagementResponseSchema>;
