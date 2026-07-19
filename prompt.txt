@@ -1,4 +1,4 @@
-# PR2 — Add organisations, contacts and engagements
+# WI3 — Normalised activity and notes system
 
 You are working in:
 
@@ -10,99 +10,141 @@ Base branch: main
 Create and work on:
 
 ```text
-codex/add-organisations-contacts-engagements
+codex/wi3-normalised-activity-notes
 ```
 
-Open a pull request against `main` with the exact title:
+Open a non-draft pull request against `main` with the exact title:
 
 ```text
-PR2: Add organisations, contacts and engagements
+WI3: Normalised activity and notes system
 ```
+
+Use **WI3** or **Work Item 3** throughout the branch work, commits, implementation report and pull-request body. Do not call this work “PR3”; GitHub pull-request numbers are not the work-item sequence.
 
 Leave the pull request open and ready for human review.
 
-**Do not merge it. Do not enable auto-merge. Do not convert it into a broader refactor.**
+**Do not merge it. Do not enable auto-merge. Do not broaden it into the task, document, finance, authentication or full frontend work items.**
 
 ---
 
 # 1. Mission
 
-Implement the first-class B2B consulting CRM domain for:
+Implement a production-safe, normalised activity and notes system for the CRM.
 
-1. organisations;
-2. contacts;
-3. engagements.
+The current frontend appends timestamped note blocks into the legacy `customers.notes` text column and reconstructs a timeline by parsing that combined string. That is not an acceptable long-term data model.
 
-This PR must provide the production-safe foundation required by later PRs:
+WI3 must:
 
-- shared TypeScript contracts;
-- shared Zod validation;
-- additive SQLite/Drizzle schema and migration;
-- repository interfaces and implementations;
-- a small application/service layer for cross-entity business rules;
-- REST endpoints;
-- isolated automated tests;
-- domain documentation.
+1. add a first-class `activities` domain model;
+2. represent each note, call, email, meeting or other interaction as an independent record;
+3. link activities to an organisation and optionally to a contact and/or engagement;
+4. retain author attribution, event time, optional follow-up date and archive state;
+5. migrate existing legacy customers into explicit organisation/contact mappings without deleting or rewriting the legacy customer rows;
+6. import existing `customers.notes` content into distinct activity rows without losing text;
+7. stop the frontend from parsing or appending combined note strings;
+8. preserve all existing customers, bookings, invoices, invoice items and payments unchanged;
+9. provide shared contracts, validation, persistence, services, REST endpoints, migration/backfill tests and focused frontend integration;
+10. leave later work items with a stable foundation for tasks, reminders, documents, richer organisation workspaces and financial migration.
 
-The result must be complete enough that later activity, notes and UI work can depend on these entities without redesigning their basic contracts.
-
-This is an implementation task, not an architecture proposal. Inspect the repository, make the changes, run the required validation, push the branch and open the pull request.
+This is an implementation task, not an architecture-only proposal. Inspect the repository, implement the work, run the required validation, push the branch and open the pull request.
 
 ---
 
-# 2. Non-negotiable boundaries
+# 2. Current repository state that must be respected
 
-Keep this PR narrow.
+`main` already contains the preceding work items:
 
-Do **not** add or redesign:
+- repository governance, documentation and CI quality gates;
+- first-class `organisations`, `contacts` and `engagements` tables;
+- shared Zod schemas and TypeScript types for those entities;
+- repository interfaces and Drizzle/SQLite implementations;
+- application services for cross-entity rules;
+- Express routes;
+- additive Drizzle migrations;
+- migration smoke coverage;
+- backend integration tests.
 
-- activities;
-- notes;
+The repository still contains the original legacy customer and financial model:
+
+- `customers` remains the parent for bookings, invoices and custom object records;
+- bookings and invoices must continue to reference `customers`;
+- payments must continue to reference invoices;
+- `customers.notes` still contains historic free text and timestamped note blocks;
+- `CustomerWorkspace.tsx` currently appends strings such as:
+
+```text
+[Note logged on <localised timestamp>]:
+<body>
+```
+
+- the customer timeline currently parses those strings with a regular expression.
+
+WI3 must bridge those two domains safely. It must not pretend the financial model has already moved to organisations.
+
+---
+
+# 3. Non-negotiable boundaries
+
+Keep WI3 focused on activities, notes and the minimum legacy-customer bridge required to migrate and continue using them.
+
+Do **not** implement or redesign:
+
 - tasks;
-- reminders;
-- documents or uploads;
-- delivery milestones;
-- invoicing links;
+- task assignment;
+- reminders or notification delivery;
+- recurring activities;
+- calendars or Google Calendar integration;
+- documents, uploads or document storage;
+- engagement milestones or delivery plans;
+- invoice state machines;
+- credit notes;
 - billing schedules;
-- payments;
+- payment allocation redesign;
 - accounting ledgers;
-- financial calculations;
 - bank reconciliation;
-- Stripe;
+- Stripe or payment processors;
+- invoice-to-organisation or invoice-to-engagement migration;
+- booking-to-engagement migration;
+- customer deletion redesign;
 - authentication;
 - authorisation;
 - role-based access;
-- tenant IDs;
-- multi-tenancy;
+- tenant IDs or multi-tenancy;
 - cloud sync;
-- account ownership;
-- sales scoring;
-- AI-generated classifications;
 - portals;
-- substantial frontend UI;
-- desktop packaging;
-- Electron behaviour;
-- legacy customer migration;
-- existing financial-table relationships.
+- AI summaries, categorisation or sentiment analysis;
+- activity attachments;
+- rich text editors;
+- a complete organisation/contact/engagement frontend;
+- a broad visual redesign;
+- desktop packaging behaviour;
+- Electron runtime changes;
+- unrelated dependency upgrades;
+- unrelated formatting, renaming or cleanup.
 
-Do not delete, rename, repurpose or migrate the existing `customers` table.
+Do not delete, rename, clear or repurpose the existing `customers.notes` column.
 
-Existing invoices, bookings and custom records must continue to use `customers` exactly as they do before this PR.
+Do not delete or rewrite legacy customer, booking, invoice, invoice-item or payment rows during migration.
 
-Do not connect invoices to organisations or engagements.
+Do not change existing financial foreign keys from `customers` to organisations or contacts.
 
-Avoid dependency upgrades unless a small dependency addition is demonstrably required for the tests. Do not perform incidental formatting or unrelated cleanup.
+Do not fuzzy-match legacy company names against existing manually created organisations. Accidental account merging is worse than creating an explicit imported organisation.
+
+Do not add a generic polymorphic `entity_type`/`entity_id` relationship without database foreign keys. Activities must use explicit nullable foreign keys.
+
+Do not expose a hard-delete endpoint for activities.
 
 ---
 
-# 3. Mandatory repository inspection
+# 4. Mandatory repository inspection
 
-Before changing code, read the current implementation rather than assuming the repository matches a generic architecture.
+Before changing code, inspect the actual implementation on `main`.
 
-At minimum inspect:
+At minimum read:
 
 ```text
 AGENTS.md
+README.md
 docs/ARCHITECTURE.md
 docs/DOMAIN.md
 docs/QUALITY-GATES.md
@@ -110,16 +152,14 @@ docs/RELEASE-CHECKLIST.md
 
 package.json
 backend/package.json
+frontend/package.json
 shared/package.json
 
 shared/src/types.ts
 
-backend/src/presentation/app.ts
-backend/src/presentation/routes/customers.ts
-backend/src/presentation/routes/services.ts
-backend/src/presentation/routes/bookings.ts
-
+backend/src/application/errors.ts
 backend/src/application/interfaces/IRepositories.ts
+backend/src/application/services/CrmDomainServices.ts
 
 backend/src/infrastructure/database/connection.ts
 backend/src/infrastructure/database/schema.ts
@@ -127,1901 +167,1071 @@ backend/src/infrastructure/database/migrate.ts
 backend/src/infrastructure/database/repositories/
 backend/src/infrastructure/database/repositories/utils.ts
 
+backend/src/presentation/app.ts
+backend/src/presentation/routes/customers.ts
+backend/src/presentation/routes/organisations.ts
+backend/src/presentation/routes/contacts.ts
+backend/src/presentation/routes/engagements.ts
+backend/src/presentation/routes/crmValidation.ts
+
 backend/drizzle/
 backend/drizzle/meta/_journal.json
 backend/drizzle.config.ts
 
+backend/src/test/
 scratch/db-smoke.ts
 
-backend/src/test/
+frontend/src/pages/CustomerWorkspace.tsx
+frontend/src/lib/api.ts
 ```
 
-Also inspect:
+Also establish:
 
-- how UUIDs are generated;
+- how IDs are generated;
 - how ISO timestamps are generated and stored;
-- how SQLite booleans are represented;
-- how repositories map nullable database fields;
-- how route validation errors are shaped;
-- how the Express app is started for tests;
-- how tests open and close temporary databases;
-- how generated Drizzle migration metadata is handled;
-- how the root build and desktop staging consume the shared and backend workspaces.
+- how date-only values are validated;
+- how SQLite transactions are performed;
+- how nullable fields are mapped;
+- how repository errors are translated into application errors;
+- how list filters, limits and offsets are validated;
+- how the test app and temporary databases are constructed;
+- how migrations and Drizzle metadata are generated;
+- whether the migration runner is synchronous;
+- how the frontend timeline currently sorts mixed item types;
+- every location that reads, parses or writes `customer.notes`.
 
-Record material architectural findings in the final implementation report and PR body.
+Run a repository-wide search for at least:
 
-Do not introduce a second competing persistence or routing style. Where this specification is more rigorous than the existing code, add the smallest safe pattern needed for these three resources without refactoring unrelated resources.
+```text
+customer.notes
+notes:
+Note logged on
+logNoteMutation
+getTimelineFeed
+```
+
+Record material findings in the final implementation report and pull-request body.
+
+Do not introduce a second competing routing, persistence, error or validation style.
 
 ---
 
-# 4. Architectural approach
+# 5. Intended dependency direction
 
-The intended dependency direction for this PR is:
+Use the established dependency direction:
 
 ```text
 Express route
     ↓
-application/domain service
+application service
     ↓
 repository interface
     ↓
-Drizzle repository
+Drizzle/SQLite repository
     ↓
 SQLite
 ```
 
-Use the existing repository interface location:
+A separate infrastructure backfill may operate directly against the supplied migration database connection when required for deterministic, synchronous migration work. Keep that code isolated, tested and idempotent.
 
-```text
-backend/src/application/interfaces/
-```
+Do not add a dependency-injection framework, command bus, event bus, ORM abstraction framework or mediator library.
 
-Add a small service layer for these entities, preferably under:
-
-```text
-backend/src/application/services/
-```
-
-unless repository inspection reveals a more appropriate existing location.
-
-The service layer is necessary because several rules span multiple tables or multiple writes:
-
-- an organisation must exist before a child is created;
-- an archived organisation must not accept new contacts or engagements;
-- a primary engagement contact must belong to the engagement organisation;
-- a primary engagement contact must be active and non-archived when assigned;
-- only one active, non-archived organisation-level primary contact may exist;
-- changing a primary contact requires an atomic transaction;
-- engagement date ordering requires domain validation;
-- archive operations have state semantics.
-
-Do not add a dependency-injection framework, mediator library, ORM abstraction framework or generic command bus.
-
-Simple constructor injection or direct construction in the route module is sufficient.
-
-Do not refactor existing customer, invoice, service or booking routes into services as part of this PR.
+Simple constructor injection is sufficient.
 
 ---
 
-# 5. Canonical conventions
+# 6. Canonical activity model
 
-Use these conventions unless the existing repository has a stronger compatible convention.
+Implement one canonical `activities` table. A note is an activity whose `type` is `note`; do not create a second combined-note text store.
 
-## IDs
-
-Use UUID strings generated using the repository’s current canonical mechanism:
-
-```ts
-randomUUID()
-```
-
-IDs are:
-
-- generated by the backend;
-- immutable;
-- never accepted in create request bodies;
-- never accepted in update request bodies.
-
-Route parameters representing IDs must be validated as UUIDs before repository access.
-
-## Timestamps
-
-Use the current timestamp storage convention:
-
-```ts
-new Date().toISOString()
-```
-
-The database stores timestamps as ISO-8601 UTC text.
-
-The backend owns:
-
-- `createdAt`;
-- `updatedAt`;
-- `archivedAt`.
-
-Clients must not be able to submit or overwrite these fields.
-
-## Date-only values
-
-Engagement `startDate` and `endDate` are calendar dates, stored as:
-
-```text
-YYYY-MM-DD
-```
-
-Validate both the format and actual calendar validity. Do not accept impossible dates such as `2026-02-31`.
-
-Because valid ISO calendar dates are lexicographically sortable, date ordering may be compared after strict validation.
-
-Do not convert date-only fields through local timezone-dependent JavaScript date formatting.
-
-## Optional database values
-
-Use SQL `NULL` for absent optional values.
-
-For API contracts:
-
-- omitted update field = retain the current value;
-- explicit `null` = clear an optional field;
-- whitespace-only optional strings should normalize to `null`;
-- required strings must reject `null`, empty strings and whitespace-only strings.
-
-Do not use an update schema produced by blindly calling `.partial()` on a full response/entity schema, because that would permit immutable fields.
-
-## Boolean values
-
-Use the established Drizzle SQLite boolean representation:
-
-```ts
-integer('is_primary', { mode: 'boolean' })
-```
-
-## Hard deletion
-
-Do not expose hard-delete endpoints for these entities.
-
-Foreign keys must not cascade-delete organisations, contacts or engagements.
-
-Use `RESTRICT` or the equivalent established SQLite/Drizzle behaviour for business-record relationships.
-
----
-
-# 6. Domain invariants
-
-The following rules are mandatory and must be enforced in application code and tests. Add database constraints where practical and compatible.
-
-## Organisation invariants
-
-- `name` is required after trimming.
-- Archived organisations are excluded from normal lists and normal lookup operations.
-- New contacts and engagements cannot be added to an archived organisation.
-- Archived organisations cannot be edited through the ordinary update operation.
-- Archiving an organisation does not delete or automatically archive its contacts or engagements.
-- Repeated archive requests are idempotent.
-- Organisation archive must not alter legacy customer records.
-
-## Contact invariants
-
-- Every contact belongs to exactly one organisation.
-- `organisationId` is immutable after creation.
-- At least one of `firstName`, `lastName` or `email` must remain populated after trimming.
-- Email is optional but valid when supplied.
-- Email is not globally unique.
-- A contact cannot be primary if it is inactive or archived.
-- At most one contact per organisation may simultaneously satisfy:
-
-```text
-isPrimary = true
-status = active
-archivedAt IS NULL
-```
-
-- Setting one eligible contact as primary must clear `isPrimary` from every other non-archived contact in that organisation in the same transaction.
-- Setting `isPrimary` to `false` affects only that contact.
-- Changing a primary contact to `inactive` must also set its `isPrimary` value to `false` atomically.
-- Archiving a primary contact must also set its `isPrimary` value to `false` atomically.
-- Archiving a contact must not delete the contact or mutate historical engagement records.
-- An ordinary update cannot move a contact between organisations.
-- Archived contacts cannot be edited by the ordinary update operation.
-
-## Engagement invariants
-
-- Every engagement belongs to exactly one organisation.
-- `organisationId` is immutable after creation.
-- `primaryContactId` is optional.
-- When assigned, the primary contact must:
-  - exist;
-  - belong to the same organisation;
-  - have `status = active`;
-  - have `archivedAt = null`.
-- An engagement can exist without a primary contact.
-- `name` is required after trimming.
-- `endDate`, when supplied, cannot precede `startDate`.
-- Changing `startDate` or `endDate` must validate the resulting complete date pair, not merely the incoming patch fields.
-- Archived engagements cannot be edited through the ordinary update operation.
-- Archiving an engagement does not delete it.
-- Archiving a contact later does not erase that contact ID from historical engagement records. Eligibility is checked when assigning or changing the primary contact.
-- An ordinary update cannot move an engagement between organisations.
-
----
-
-# 7. Controlled values
-
-Define these values once in the shared package and derive TypeScript types from the Zod enums.
-
-Do not reproduce string unions separately in routes, services and repositories.
-
-## Organisation status
-
-```ts
-[
-  'prospect',
-  'active_client',
-  'past_client',
-  'partner',
-  'inactive',
-]
-```
-
-## Employee band
-
-```ts
-[
-  '1_9',
-  '10_24',
-  '25_49',
-  '50_74',
-  '75_149',
-  '150_249',
-  '250_plus',
-]
-```
-
-## Annual revenue band
-
-```ts
-[
-  'under_1m',
-  '1m_5m',
-  '5m_20m',
-  '20m_50m',
-  '50m_plus',
-]
-```
-
-## Contact status
-
-```ts
-[
-  'active',
-  'inactive',
-]
-```
-
-## Engagement type
-
-```ts
-[
-  'diagnostic',
-  'sounding_board',
-  'guardrail',
-  'redesign',
-  'implementation',
-  'other',
-]
-```
-
-## Engagement status
-
-```ts
-[
-  'proposed',
-  'active',
-  'paused',
-  'completed',
-  'cancelled',
-]
-```
-
----
-
-# 8. Organisation data model
-
-Add an `organisations` table with the following logical contract.
+Use this logical contract:
 
 | Field | Database | Required | Rules |
 |---|---|---:|---|
 | `id` | text primary key | yes | Backend-generated UUID |
-| `name` | text | yes | Trimmed and non-empty |
-| `legalName` | text nullable | no | Trimmed; blank becomes null |
-| `website` | text nullable | no | Valid absolute URL; blank becomes null |
-| `industry` | text nullable | no | Trimmed; blank becomes null |
-| `employeeBand` | text nullable | no | Controlled value |
-| `annualRevenueBand` | text nullable | no | Controlled value |
-| `country` | text nullable | no | Uppercase two-letter country code |
-| `status` | text | yes | Controlled value; default `prospect` where appropriate |
-| `source` | text nullable | no | Trimmed free text; blank becomes null |
-| `createdAt` | text | yes | Backend ISO timestamp |
-| `updatedAt` | text | yes | Backend ISO timestamp |
-| `archivedAt` | text nullable | no | Soft archive timestamp |
-
-Country validation should accept omitted or null values. When supplied:
-
-- trim it;
-- normalize it to uppercase;
-- require exactly two ASCII letters.
-
-Do not introduce a country catalogue or country dependency.
-
-Do not silently prepend `https://` to a website. Invalid URLs must fail validation rather than be guessed.
-
----
-
-# 9. Contact data model
-
-Add a `contacts` table.
-
-| Field | Database | Required | Rules |
-|---|---|---:|---|
-| `id` | text primary key | yes | Backend-generated UUID |
-| `organisationId` | text foreign key | yes | References `organisations.id`; immutable |
-| `firstName` | text nullable | conditional | Trimmed; blank becomes null |
-| `lastName` | text nullable | conditional | Trimmed; blank becomes null |
-| `jobTitle` | text nullable | no | Trimmed; blank becomes null |
-| `email` | text nullable | conditional | Trimmed, normalized to lowercase and validated |
-| `phone` | text nullable | no | Trimmed free text; blank becomes null |
-| `isPrimary` | SQLite boolean | yes | Default `false` |
-| `status` | text | yes | `active` or `inactive`; default `active` |
-| `createdAt` | text | yes | Backend ISO timestamp |
-| `updatedAt` | text | yes | Backend ISO timestamp |
-| `archivedAt` | text nullable | no | Soft archive timestamp |
-
-At least one of the following must be populated after normalization:
-
-```text
-firstName
-lastName
-email
-```
-
-Do not make `email` unique.
-
-An index on email is required, but it must be a non-unique index.
-
----
-
-# 10. Engagement data model
-
-Add an `engagements` table.
-
-| Field | Database | Required | Rules |
-|---|---|---:|---|
-| `id` | text primary key | yes | Backend-generated UUID |
-| `organisationId` | text foreign key | yes | References `organisations.id`; immutable |
-| `primaryContactId` | text nullable foreign key | no | References `contacts.id`; service validates same organisation |
-| `name` | text | yes | Trimmed and non-empty |
+| `organisationId` | text FK | yes | References `organisations.id`, immutable after create |
+| `contactId` | text FK nullable | no | References `contacts.id`; when supplied it must belong to the same organisation |
+| `engagementId` | text FK nullable | no | References `engagements.id`; when supplied it must belong to the same organisation |
 | `type` | text | yes | Controlled value |
-| `status` | text | yes | Controlled value; default `proposed` where appropriate |
-| `summary` | text nullable | no | Trimmed; blank becomes null |
-| `startDate` | text | yes | Valid `YYYY-MM-DD` date |
-| `endDate` | text nullable | no | Valid `YYYY-MM-DD`; not before start |
+| `body` | text | yes | Trimmed and non-empty |
+| `author` | text | yes | Trimmed human-readable attribution label |
+| `occurredAt` | text | yes | ISO-8601 UTC timestamp for when the interaction occurred |
+| `followUpDate` | text nullable | no | Valid calendar date in `YYYY-MM-DD` format |
+| `source` | text | yes | Backend-owned controlled value: `user`, `legacy_import` or `system` |
+| `sourceReference` | text nullable | no | Backend-owned idempotency/traceability key for imported/system records |
 | `createdAt` | text | yes | Backend ISO timestamp |
 | `updatedAt` | text | yes | Backend ISO timestamp |
-| `archivedAt` | text nullable | no | Soft archive timestamp |
+| `archivedAt` | text nullable | no | Soft-archive timestamp |
 
-Do not denormalize contact names or organisation names onto the engagement table.
+## Controlled activity types
 
-Do not add financial, delivery or task fields.
+Define the values once in the shared package and derive TypeScript types from the Zod enum:
+
+```ts
+export const ActivityTypeSchema = z.enum([
+  'note',
+  'call',
+  'email',
+  'meeting',
+  'message',
+  'other',
+]);
+```
+
+Do not duplicate string unions in routes, services or repositories.
+
+## Activity source values
+
+```ts
+export const ActivitySourceSchema = z.enum([
+  'user',
+  'legacy_import',
+  'system',
+]);
+```
+
+`source` and `sourceReference` are backend-owned. They must not be accepted from ordinary create or update request bodies.
+
+## Author handling before authentication exists
+
+The application does not yet have user identities.
+
+For WI3:
+
+- `author` remains a required, stored response field;
+- ordinary create requests may supply a trimmed author label;
+- when omitted, the application service must use the explicit fallback `Local user`;
+- imported records must use `Legacy import`;
+- system-generated records, if any are required internally, must use `System`;
+- do not add authentication or a users table in this work item.
+
+This is an interim attribution label, not an authenticated identity claim. Document that limitation.
 
 ---
 
-# 11. Shared contracts and Zod validation
+# 7. Database constraints and indexes
 
-Extend the shared package following its existing export conventions.
+Add practical database reinforcement in addition to application validation.
 
-Create and export at least:
+The `activities` table must have:
 
-```ts
-OrganisationStatusSchema
-EmployeeBandSchema
-AnnualRevenueBandSchema
-ContactStatusSchema
-EngagementTypeSchema
-EngagementStatusSchema
+- a primary key on `id`;
+- `RESTRICT` foreign keys to organisations, contacts and engagements;
+- no cascading deletion of CRM history;
+- an index supporting organisation timeline queries ordered by event time;
+- an index on `contact_id`;
+- an index on `engagement_id`;
+- an index on `type`;
+- an index on `follow_up_date`;
+- a unique partial index on non-null `source_reference`, if supported by the repository’s SQLite/Drizzle version;
+- controlled-value checks where practical and compatible with generated Drizzle migrations.
 
-OrganisationCreateSchema
-OrganisationUpdateSchema
-OrganisationResponseSchema
+A suitable indexing shape is:
 
-ContactCreateSchema
-ContactCreateBodySchema
-ContactUpdateSchema
-ContactResponseSchema
-
-EngagementCreateSchema
-EngagementCreateBodySchema
-EngagementUpdateSchema
-EngagementResponseSchema
+```text
+activity_organisation_occurred_idx (organisation_id, occurred_at)
+activity_contact_idx               (contact_id)
+activity_engagement_idx            (engagement_id)
+activity_type_idx                  (type)
+activity_follow_up_idx             (follow_up_date)
+activity_source_reference_idx      UNIQUE(source_reference) WHERE source_reference IS NOT NULL
 ```
 
-Also export the inferred TypeScript types.
+Do not rely only on indexes to enforce cross-table ownership. Contact and engagement organisation consistency must be enforced by the application service and tests.
 
-Use explicit schemas for create, update and response contracts.
+---
 
-Do not use one permissive entity schema for every context.
+# 8. Legacy customer-to-CRM mapping
 
-## Suggested validation helpers
+Existing customers must remain intact because bookings and financial records still depend on them. WI3 must create an explicit bridge rather than silently replacing those rows.
 
-The following illustrates the intended behaviour. Adapt naming and placement to the repository; do not copy it blindly if a shared helper pattern already exists.
+Add additive mapping tables with real foreign keys.
 
-```ts
-import { z } from 'zod';
+## 8.1 Legacy organisation mappings
 
-const requiredTrimmedString = (label: string) =>
-  z.string()
-    .trim()
-    .min(1, `${label} is required`);
+Create a table equivalent to:
 
-const nullableTrimmedString = z.preprocess(
-  (value) => {
-    if (value === null || value === undefined) return value;
-    if (typeof value !== 'string') return value;
-
-    const trimmed = value.trim();
-    return trimmed === '' ? null : trimmed;
-  },
-  z.string().nullable().optional(),
-);
-
-const isoDateSchema = z.string().superRefine((value, ctx) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Date must use YYYY-MM-DD',
-    });
-    return;
-  }
-
-  const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Date is not a valid calendar date',
-    });
-  }
-});
+```text
+legacy_organisation_mappings
 ```
 
-## Organisation create example
+Logical contract:
 
-An illustrative shape is:
+| Field | Required | Rules |
+|---|---:|---|
+| `sourceKey` | yes | Primary key; deterministic imported organisation key |
+| `sourceType` | yes | `company` or `individual_customer` |
+| `organisationId` | yes | Unique FK to `organisations.id`, `RESTRICT` |
+| `displayName` | yes | Original trimmed company/person label used for auditability |
+| `createdAt` | yes | ISO timestamp |
 
-```ts
-export const OrganisationCreateSchema = z.object({
-  name: requiredTrimmedString('Organisation name'),
-  legalName: nullableTrimmedString,
-  website: nullableTrimmedString.pipe(
-    z.string().url('Website must be a valid absolute URL').nullable().optional(),
-  ),
-  industry: nullableTrimmedString,
-  employeeBand: EmployeeBandSchema.nullable().optional(),
-  annualRevenueBand: AnnualRevenueBandSchema.nullable().optional(),
-  country: z.preprocess(
-    (value) => {
-      if (value === null || value === undefined) return value;
-      if (typeof value !== 'string') return value;
-      const normalized = value.trim().toUpperCase();
-      return normalized === '' ? null : normalized;
-    },
-    z.string().regex(/^[A-Z]{2}$/, 'Country must be a two-letter code')
-      .nullable()
-      .optional(),
-  ),
-  status: OrganisationStatusSchema.default('prospect'),
-  source: nullableTrimmedString,
-}).strict();
+Controlled values must be defined once in shared or infrastructure code as appropriate.
+
+## 8.2 Legacy customer mappings
+
+Create a table equivalent to:
+
+```text
+legacy_customer_crm_mappings
 ```
 
-Check the exact Zod composition to ensure blank optional website values normalize correctly before URL validation. Add focused tests for this rather than relying on the illustrative code alone.
+Logical contract:
 
-## Contact identifying-field rule
+| Field | Required | Rules |
+|---|---:|---|
+| `customerId` | yes | Primary key and FK to `customers.id`, `RESTRICT` |
+| `organisationId` | yes | FK to `organisations.id`, `RESTRICT` |
+| `contactId` | yes | Unique FK to `contacts.id`, `RESTRICT` |
+| `createdAt` | yes | ISO timestamp |
 
-Implement the rule on both create and update results.
+Add indexes required for organisation/contact lookup.
 
-For create:
+These mapping tables are infrastructure for compatibility and later migration work. Do not expose generic CRUD endpoints for them.
 
-```ts
-const ContactFieldsSchema = z.object({
-  organisationId: z.string().uuid(),
-  firstName: nullableTrimmedString,
-  lastName: nullableTrimmedString,
-  jobTitle: nullableTrimmedString,
-  email: /* nullable, trimmed, lowercased and validated */,
-  phone: nullableTrimmedString,
-  isPrimary: z.boolean().default(false),
-  status: ContactStatusSchema.default('active'),
-});
+---
 
-export const ContactCreateSchema = ContactFieldsSchema
-  .strict()
-  .superRefine((value, ctx) => {
-    if (!value.firstName && !value.lastName && !value.email) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['firstName'],
-        message: 'At least one of firstName, lastName or email is required',
-      });
-    }
+# 9. Deterministic customer mapping rules
 
-    if (value.isPrimary && value.status !== 'active') {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['isPrimary'],
-        message: 'An inactive contact cannot be primary',
-      });
-    }
-  });
+Implement an idempotent mapping operation that can be called by the migration backfill and by customer compatibility activity routes.
+
+For each legacy customer without a mapping:
+
+## 9.1 Customer with a non-empty company
+
+1. Trim the company value.
+2. Apply Unicode `NFKC` normalisation.
+3. Collapse internal whitespace runs to one space.
+4. Create a deterministic comparison key by lowercasing the normalised value.
+5. Prefix the key so namespaces cannot collide:
+
+```text
+company:<normalised-lowercase-company>
 ```
 
-For update, schema validation alone cannot know whether the resulting stored record still has an identifying field. The service must:
+6. Reuse only an organisation already referenced by `legacy_organisation_mappings` for that exact key.
+7. If no mapping exists, create a new organisation with:
+   - `name` equal to the first original trimmed display value encountered for that key;
+   - `status = active_client`;
+   - `source = legacy_customer_import`;
+   - no inferred legal name, website, industry, employee band, revenue band or country.
+8. Do not fuzzy-match or automatically merge with manually created organisations.
 
-1. load the current contact;
-2. apply the validated patch;
-3. validate the resulting complete contact;
-4. reject a patch that would clear all identifying fields.
+## 9.2 Customer without a company
 
-## Engagement date rule
+Create one dedicated imported organisation using:
 
-Validate date order in both places:
+```text
+sourceKey = individual_customer:<customerId>
+```
 
-- the shared create schema when both dates are present;
-- the service after merging an update patch with the stored engagement.
+Use the first available non-empty label in this order:
 
-For valid ISO date strings:
+1. trimmed full name;
+2. email;
+3. `Legacy customer <customerId>`.
+
+Set:
+
+```text
+status = active_client
+source = legacy_customer_import
+```
+
+Do not group unrelated individual customers into one generic organisation.
+
+## 9.3 Imported contact
+
+Create one contact for the mapped customer:
+
+- copy `firstName`;
+- copy `lastName`;
+- copy and normalise `email` using the existing contact conventions;
+- use `mobile` when non-empty, otherwise `phone`, for the single contact `phone` field;
+- set `status = active`;
+- set `jobTitle = null`;
+- do not invent missing values;
+- do not remove address, tags, alternate phone or any other values from the source customer row.
+
+Primary-contact handling must be deterministic:
+
+- when an imported organisation has exactly one mapped customer, its imported contact may be primary;
+- when an imported company organisation has multiple mapped customers, do not arbitrarily choose one as primary;
+- preserve the one-active-primary invariant established in WI2;
+- never clear or replace a manually selected primary contact on an existing organisation.
+
+Because imported organisations are not fuzzy-merged into existing manual organisations, this rule should not mutate manual CRM records.
+
+## 9.4 Idempotency
+
+Re-running the mapping operation must:
+
+- return the existing mapping;
+- not create duplicate organisations;
+- not create duplicate contacts;
+- not change legacy customer data;
+- not change an existing mapping’s organisation/contact IDs;
+- tolerate a partially completed previous run by either completing safely or failing with a precise integrity error.
+
+Use transactions for multi-row mapping creation.
+
+---
+
+# 10. Legacy note import
+
+Implement a dedicated, tested backfill that runs after the structural Drizzle migrations have completed.
+
+The backfill must scan legacy customers, ensure each relevant customer has a CRM mapping, and import non-empty `customers.notes` content into `activities`.
+
+## 10.1 Source formats
+
+The current UI has produced blocks shaped like:
+
+```text
+[Note logged on <timestamp>]:
+<body>
+```
+
+A customer notes field may contain:
+
+- one well-formed block;
+- several well-formed blocks separated by blank lines;
+- free text before the first block;
+- only unstructured free text;
+- malformed markers;
+- localised date strings that JavaScript can parse;
+- localised date strings that JavaScript cannot parse;
+- leading/trailing whitespace;
+- mixed line endings.
+
+The importer must not assume every value is perfectly formed.
+
+## 10.2 Parsing requirements
+
+For each customer with non-empty notes:
+
+1. normalise line endings for parsing only;
+2. identify every well-formed legacy marker and its following body;
+3. import each recognised block as a separate `note` activity;
+4. import any non-empty unmatched text as one or more fallback note activities so that no text is discarded;
+5. retain body text faithfully apart from trimming accidental outer whitespace;
+6. never silently drop malformed marker text;
+7. never rewrite or clear `customers.notes`.
+
+For a recognised timestamp:
+
+- attempt to parse it;
+- when valid, store `occurredAt` as `new Date(value).toISOString()`;
+- when invalid, use `customer.updatedAt`, otherwise `customer.createdAt`;
+- preserve the unparseable timestamp text in the imported body or other explicit human-readable form so that information is not lost.
+
+For unstructured fallback text, use:
+
+1. `customer.updatedAt` when valid;
+2. otherwise `customer.createdAt` when valid;
+3. otherwise the import timestamp.
+
+All imported activities must have:
+
+```text
+type = note
+author = Legacy import
+source = legacy_import
+organisationId = mapped organisation
+contactId = mapped contact
+engagementId = null
+followUpDate = null
+```
+
+## 10.3 Idempotency key
+
+Generate a deterministic `sourceReference` for each imported segment.
+
+Use a stable scheme based on:
+
+- legacy customer ID;
+- segment ordinal;
+- a SHA-256 digest of the exact imported segment before outer trimming.
+
+For example:
+
+```text
+legacy-customer-note:<customerId>:<ordinal>:<sha256>
+```
+
+The database unique index must prevent duplicate insertion.
+
+Re-running the backfill against unchanged source data must insert zero duplicate activities.
+
+Do not use random UUIDs as the only import deduplication mechanism.
+
+## 10.4 Transaction and failure semantics
+
+Run mapping and note import in bounded transactions.
+
+A failure must:
+
+- roll back the affected transaction;
+- leave legacy rows untouched;
+- expose enough context in logs/tests to identify the customer and operation;
+- never leave a mapping row pointing at missing CRM entities.
+
+Do not swallow migration errors and continue with a falsely successful startup.
+
+---
+
+# 11. Migration-runner integration
+
+The current migration runner applies generated Drizzle migrations. Extend it with the smallest safe mechanism required to run the WI3 data backfill after the structural migration.
+
+Preferred shape:
 
 ```ts
-if (endDate !== null && endDate < startDate) {
-  // Return the established validation/domain error.
+export function runMigrations(dbInstance: Database, migrationsFolder?: string) {
+  migrate(dbInstance, { migrationsFolder });
+  runWi3LegacyActivityBackfill(dbInstance);
 }
 ```
 
-## Update schemas
+Adapt types and paths to the actual repository.
 
-Update schemas must:
+Requirements:
 
-- be `.strict()`;
-- omit immutable and backend-owned fields;
-- support explicit `null` only for nullable fields;
-- reject empty patches;
-- not permit:
-  - `id`;
-  - `organisationId`;
-  - `createdAt`;
-  - `updatedAt`;
-  - `archivedAt`.
+- the backfill must accept the supplied database instance;
+- it must never open or target the normal runtime database when a temporary test database was supplied;
+- it must be synchronous if required by the existing `better-sqlite3` migration lifecycle;
+- it must be idempotent on every application startup and smoke-test rerun;
+- it must not depend on the Express app being running;
+- it must be isolated in a clearly named infrastructure module;
+- it must have direct automated tests.
 
-An illustrative pattern is:
-
-```ts
-export const OrganisationUpdateSchema = z.object({
-  name: requiredTrimmedString('Organisation name').optional(),
-  legalName: nullableTrimmedString,
-  website: /* optional nullable URL */,
-  industry: nullableTrimmedString,
-  employeeBand: EmployeeBandSchema.nullable().optional(),
-  annualRevenueBand: AnnualRevenueBandSchema.nullable().optional(),
-  country: /* optional nullable country code */,
-  status: OrganisationStatusSchema.optional(),
-  source: nullableTrimmedString,
-})
-  .strict()
-  .refine(
-    (patch) => Object.keys(patch).length > 0,
-    { message: 'At least one field must be supplied' },
-  );
-```
-
-Do not use `ResponseSchema.partial()` for updates.
-
-## Nested route body schemas
-
-Contacts and engagements are created under an organisation route.
-
-The organisation ID must come from the validated route parameter, not from user-controlled body data.
-
-Create body schemas should omit `organisationId`:
-
-```ts
-export const ContactCreateBodySchema =
-  ContactCreateSchema.omit({ organisationId: true }).strict();
-
-export const EngagementCreateBodySchema =
-  EngagementCreateSchema.omit({ organisationId: true }).strict();
-```
-
-The route then constructs the application input:
-
-```ts
-const input = ContactCreateSchema.parse({
-  ...parsedBody,
-  organisationId: parsedParams.organisationId,
-});
-```
-
-Because the body schema is strict, a body-supplied `organisationId` must be rejected rather than silently overriding the route.
-
-## Response contracts
-
-Response schemas must require:
-
-- `id`;
-- backend timestamps;
-- required status/type values;
-- explicit nullable fields consistent with the database mapper.
-
-Do not expose database-only structures or raw Drizzle rows.
+Do not hide application startup work in module import side effects.
 
 ---
 
-# 12. Drizzle schema
+# 12. Shared contracts and validation
 
-Extend:
+Add distinct strict schemas. Do not use one schema for database entities, create bodies, patches and responses.
+
+At minimum provide:
 
 ```text
-backend/src/infrastructure/database/schema.ts
+ActivityTypeSchema
+ActivitySourceSchema
+ActivityCreateSchema
+ActivityCreateBodySchema
+ActivityUpdateSchema
+ActivityResponseSchema
+ActivityListQuerySchema or equivalent route-level query schemas
+CustomerActivityCreateBodySchema, if the compatibility route differs
 ```
 
-Use existing naming conventions:
+## 12.1 Create body
 
-- TypeScript properties in camelCase;
-- SQLite columns in snake_case;
-- explicit named indexes.
-
-An indicative structure is:
+Ordinary organisation activity create bodies may accept:
 
 ```ts
-export const organisations = sqliteTable(
-  'organisations',
-  {
-    id: text('id').primaryKey(),
-    name: text('name').notNull(),
-    legalName: text('legal_name'),
-    website: text('website'),
-    industry: text('industry'),
-    employeeBand: text('employee_band'),
-    annualRevenueBand: text('annual_revenue_band'),
-    country: text('country'),
-    status: text('status').notNull().default('prospect'),
-    source: text('source'),
-    createdAt: text('created_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-    archivedAt: text('archived_at'),
-  },
-  (table) => ({
-    statusIdx: index('organisation_status_idx').on(table.status),
-    nameIdx: index('organisation_name_idx').on(table.name),
-  }),
-);
+{
+  contactId?: string | null;
+  engagementId?: string | null;
+  type: ActivityType;
+  body: string;
+  author?: string;
+  occurredAt?: string;
+  followUpDate?: string | null;
+}
 ```
 
-Contacts should use an organisation foreign key that does not cascade:
+Rules:
 
-```ts
-organisationId: text('organisation_id')
-  .notNull()
-  .references(() => organisations.id, { onDelete: 'restrict' }),
+- `organisationId` comes from the route, not the body;
+- IDs must be UUIDs when supplied;
+- body must trim to non-empty;
+- author must trim to non-empty when supplied;
+- omitted author defaults in the service;
+- omitted `occurredAt` defaults in the service to the current ISO timestamp;
+- `occurredAt` must be a valid timestamp, not merely any string;
+- `followUpDate` must use strict real-calendar `YYYY-MM-DD` validation;
+- explicit `null` clears nullable fields;
+- unknown keys are rejected;
+- clients cannot provide `id`, `source`, `sourceReference`, `createdAt`, `updatedAt` or `archivedAt`.
+
+## 12.2 Update body
+
+Updates may change only:
+
+```text
+contactId
+engagementId
+type
+body
+author
+occurredAt
+followUpDate
 ```
 
-Engagement organisation foreign keys must also restrict hard deletion.
+Rules:
 
-The `primaryContactId` foreign key must preserve business-record integrity. Prefer `restrict`, since the application uses soft archival and exposes no hard-delete endpoint.
+- `organisationId` is immutable;
+- `source` and `sourceReference` are immutable;
+- immutable fields must be rejected, not silently ignored;
+- an empty patch is invalid;
+- ordinary update of an archived activity is invalid;
+- the resulting merged record must pass all relationship and field invariants.
 
-## One-primary-contact database protection
+## 12.3 Response
 
-The service transaction is mandatory.
+The response schema must require the complete canonical shape and must match repository mapping exactly.
 
-Also add a partial unique index if supported by the installed Drizzle and SQLite versions:
-
-```sql
-CREATE UNIQUE INDEX contact_one_active_primary_per_org_idx
-ON contacts (organisation_id)
-WHERE is_primary = 1
-  AND status = 'active'
-  AND archived_at IS NULL;
-```
-
-Prefer expressing this in the Drizzle schema so generation and metadata remain aligned. For example, verify whether the installed Drizzle version supports:
-
-```ts
-uniqueIndex('contact_one_active_primary_per_org_idx')
-  .on(table.organisationId)
-  .where(
-    sql`${table.isPrimary} = 1
-        AND ${table.status} = 'active'
-        AND ${table.archivedAt} IS NULL`,
-  )
-```
-
-Do not guess that this API is supported. Confirm it against the installed version by generating and building.
-
-If the installed Drizzle version cannot represent a partial index safely:
-
-- retain the transaction-based enforcement;
-- document the limitation in the PR;
-- do not perform a dependency upgrade merely for this feature;
-- do not hand-edit snapshot metadata into an inconsistent state.
+Do not expose migration-only mapping records through the activity response.
 
 ---
 
-# 13. Required indexes
+# 13. Activity invariants
 
-Create useful, deliberately limited indexes.
+Enforce these in the application service and tests.
 
-## Organisations
+## Organisation
 
-```text
-organisation_status_idx
-organisation_name_idx
-```
+- Every activity belongs to exactly one organisation.
+- The organisation must exist when an activity is created.
+- New activities cannot be added to an archived organisation.
+- `organisationId` cannot be changed by ordinary update.
+- Archiving an organisation later does not delete its historical activities.
 
-## Contacts
+## Contact
 
-```text
-contact_organisation_idx
-contact_email_idx
-contact_organisation_primary_idx
-```
+- `contactId` is optional.
+- When supplied, the contact must exist.
+- It must belong to the activity organisation.
+- It must be non-archived at assignment time.
+- An inactive but non-archived contact may retain or receive historical activity because status does not erase history.
+- Archiving a contact later does not clear historical activity references.
 
-The organisation-primary index should cover:
+## Engagement
 
-```text
-organisation_id, is_primary
-```
+- `engagementId` is optional.
+- When supplied, the engagement must exist.
+- It must belong to the activity organisation.
+- It must be non-archived at assignment time.
+- Proposed, active, paused, completed and cancelled engagements may retain activity history.
+- Archiving an engagement later does not clear historical activity references.
 
-Also add the partial unique primary-contact index where supported.
+## Contact and engagement together
 
-Do not make the email index unique.
+- They must both belong to the same activity organisation.
+- The contact does not need to be the engagement primary contact.
 
-## Engagements
+## Body and time
 
-```text
-engagement_organisation_idx
-engagement_status_idx
-engagement_start_date_idx
-```
+- Body is always trimmed and non-empty.
+- `occurredAt` is always a valid ISO timestamp in responses.
+- `followUpDate`, when present, is a valid date-only value.
+- Do not force follow-up date to be on or after occurred date; a user may record overdue follow-up retrospectively.
 
-Do not index every optional descriptive field.
+## Archive
 
-Use deterministic, collision-free names consistent with existing migrations.
-
----
-
-# 14. Migration
-
-Generate exactly one new additive Drizzle migration after changing the schema.
-
-Use:
-
-```bash
-npm run db:generate
-```
-
-The migration must:
-
-- create only the three new domain tables and their indexes;
-- preserve every existing table and row;
-- not rebuild or rewrite legacy tables;
-- not alter customer, booking, invoice, invoice-item or payment relationships;
-- not import or transform existing customers;
-- not create runtime data;
-- apply through the existing migration runner;
-- be tracked through the Drizzle journal;
-- be safe when the existing `0000` migration has already been applied;
-- be a no-op when the normal migration runner sees it has already been applied;
-- pass foreign-key and integrity checks.
-
-“Idempotent” here means the existing migration runner can be invoked repeatedly without attempting to reapply an already-recorded migration. Do not add broad `IF NOT EXISTS` statements merely to conceal migration-state errors.
-
-Update generated migration metadata using the repository’s normal Drizzle generation process.
-
-Do not manually edit generated snapshot or journal files unless that is demonstrably required by the established repository process. If generated SQL requires review, keep SQL and metadata mutually consistent.
-
-Inspect the migration diff carefully. Reject and regenerate it if it unexpectedly drops, renames or recreates existing tables.
+- Archive is soft and timestamp-based.
+- Repeated archive requests are idempotent.
+- Archived activities are excluded from normal lists and lookups.
+- Archived activities cannot be edited through ordinary update.
+- No hard-delete endpoint exists.
+- Restoration is deferred unless a pre-existing repository convention makes it trivial; do not add it merely for symmetry.
 
 ---
 
-# 15. Migration smoke coverage
+# 14. Repository interfaces and implementations
 
-Update:
+Extend the repository interface layer with explicit activity and mapping operations.
 
-```text
-scratch/db-smoke.ts
-```
-
-Add the expected tables:
-
-```text
-organisations
-contacts
-engagements
-```
-
-Also verify the required indexes exist.
-
-Retain and extend the checks for:
-
-```sql
-PRAGMA foreign_key_check;
-PRAGMA integrity_check;
-```
-
-Explicitly verify that foreign-key enforcement is enabled:
-
-```sql
-PRAGMA foreign_keys;
-```
-
-The result must be `1`.
-
-The smoke test must:
-
-1. create a temporary directory;
-2. create a temporary SQLite database;
-3. run the complete migration set;
-4. verify all legacy and new tables;
-5. verify the required new indexes;
-6. invoke the migration runner a second time;
-7. verify no failure or duplicate migration;
-8. run foreign-key and integrity checks;
-9. close the database;
-10. remove the temporary directory in `finally`.
-
-Never point this test at:
-
-```text
-backend/data/crm.db
-```
-
-or any normal runtime database.
-
----
-
-# 16. Repository interfaces
-
-Add explicit repository interfaces under the current application interface structure.
-
-Do not use full response types as unrestricted persistence input types.
-
-Prefer narrow interfaces similar to:
+A suitable activity interface is:
 
 ```ts
-export interface OrganisationListOptions {
-  status?: OrganisationStatus;
-  search?: string;
+export interface ActivityListOptions {
+  organisationId: string;
+  contactId?: string;
+  engagementId?: string;
+  type?: ActivityType;
+  occurredFrom?: string;
+  occurredTo?: string;
+  followUpFrom?: string;
+  followUpTo?: string;
   includeArchived?: boolean;
   limit: number;
   offset: number;
 }
 
-export interface IOrganisationRepository {
-  create(input: OrganisationCreateInput): Promise<Organisation>;
-  getById(
-    id: string,
-    options?: { includeArchived?: boolean },
-  ): Promise<Organisation | null>;
-  list(options: OrganisationListOptions): Promise<Organisation[]>;
-  update(
-    id: string,
-    patch: OrganisationUpdateInput,
-  ): Promise<Organisation | null>;
-  archive(id: string, archivedAt: string): Promise<Organisation | null>;
+export interface IActivityRepository {
+  create(input: ActivityCreate): Promise<Activity>;
+  getById(id: string, options?: { includeArchived?: boolean }): Promise<Activity | null>;
+  list(options: ActivityListOptions): Promise<Activity[]>;
+  update(id: string, patch: ActivityUpdate): Promise<Activity | null>;
+  archive(id: string, archivedAt: string): Promise<Activity | null>;
 }
 ```
 
-Add equivalent contact and engagement interfaces.
+Adapt names to repository conventions, but preserve the semantics.
 
-Repository methods should report absence using `null`, not by manufacturing generic errors containing IDs or SQL details.
-
-Application services decide whether absence is a `404`, conflict or another domain result.
-
----
-
-# 17. Repository implementations
-
-Add implementations following the existing location and naming style:
-
-```text
-backend/src/infrastructure/database/repositories/
-```
-
-Likely files are:
-
-```text
-OrganisationRepository.ts
-ContactRepository.ts
-EngagementRepository.ts
-```
-
-Update the repository barrel export if one is used.
-
-## Mapping
-
-Do not expose `any` unnecessarily.
-
-Use inferred Drizzle row types where practical:
+Provide focused mapping operations such as:
 
 ```ts
-type OrganisationRow = typeof organisations.$inferSelect;
-type NewOrganisationRow = typeof organisations.$inferInsert;
+ensureCustomerMapping(customerId: string): Promise<LegacyCustomerCrmMapping>
+getCustomerMapping(customerId: string): Promise<LegacyCustomerCrmMapping | null>
 ```
 
-Map database rows into shared response contracts consistently.
+Do not expose low-level transaction responsibilities to Express routes.
 
-Decide whether nullable API fields are returned as `null` or omitted, then apply that convention consistently across all three entities and response schemas. Prefer explicit `null` for nullable response fields in this new domain rather than inheriting ambiguous `undefined` behaviour accidentally.
+## Ordering
 
-Do not change legacy customer response mapping solely to make it match the new entities.
-
-## Organisation listing
-
-Support:
-
-- status filter;
-- case-insensitive name search;
-- archived exclusion by default;
-- explicit inclusion of archived records;
-- validated `limit`;
-- validated `offset`;
-- deterministic ordering.
-
-Default ordering should be stable, for example:
+Activity list results must be deterministic:
 
 ```text
-lower(name) ASC, id ASC
-```
-
-Case-insensitive search must not depend accidentally on connection-specific case settings.
-
-Escape `%`, `_` and the escape character when treating user input as a literal substring. Do not allow user search text to become uncontrolled SQL wildcard syntax.
-
-An illustrative SQL pattern is:
-
-```ts
-const escaped = search.replace(/[\\%_]/g, '\\$&');
-const pattern = `%${escaped}%`;
-
-sql`lower(${organisations.name}) LIKE lower(${pattern}) ESCAPE '\\'`
-```
-
-Confirm the exact Drizzle syntax with the installed version.
-
-## Contact listing
-
-List contacts only for the requested organisation.
-
-Support:
-
-- status filter;
-- archived exclusion by default;
-- explicit inclusion of archived records;
-- deterministic ordering;
-- validated `limit` and `offset`.
-
-A suitable stable order is:
-
-```text
-isPrimary DESC,
-lower(lastName) ASC,
-lower(firstName) ASC,
+occurredAt DESC
+createdAt DESC
 id ASC
 ```
 
-Handle nullable names deterministically.
+## Pagination
 
-## Engagement listing
+Use the existing bounded list conventions established in WI2.
 
-List engagements only for the requested organisation.
+- default limit: use the existing canonical default;
+- maximum limit: use the existing canonical maximum;
+- offset must be a non-negative integer;
+- do not load an unbounded timeline.
 
-Support:
+## Repository errors
 
-- status filter;
-- archived exclusion by default;
-- explicit inclusion of archived records;
+Translate expected SQLite constraint outcomes into specific repository/application errors where required. Do not leak raw SQL, database paths or stack traces through REST responses.
+
+---
+
+# 15. Application services
+
+Add a focused activity service under the existing application service location.
+
+It must:
+
+- validate organisation existence/archive state;
+- validate optional contact ownership/archive state;
+- validate optional engagement ownership/archive state;
+- apply author and occurred-time defaults;
+- merge and validate updates against the current persisted record;
+- reject ordinary edits to archived activities;
+- provide deterministic list behaviour;
+- perform idempotent archive operations;
+- coordinate compatibility routes with the legacy customer mapping service.
+
+Add a small legacy bridge service or equivalent that:
+
+- loads the legacy customer;
+- ensures its CRM mapping exists;
+- returns the mapped organisation/contact IDs;
+- creates/lists activities for the customer through the canonical activity service;
+- never duplicates business logic from the activity service.
+
+Do not put cross-entity ownership validation in route handlers.
+
+---
+
+# 16. REST API
+
+Use thin Express routes and the established error envelope.
+
+## 16.1 Canonical organisation activity routes
+
+Implement:
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/organisations/:organisationId/activities` | List organisation activities with filters and bounded pagination |
+| `POST` | `/api/organisations/:organisationId/activities` | Create an activity |
+| `GET` | `/api/activities/:activityId` | Get one non-archived activity |
+| `PATCH` | `/api/activities/:activityId` | Update one non-archived activity |
+| `POST` | `/api/activities/:activityId/archive` | Soft archive idempotently |
+
+Do not add `DELETE /api/activities/:id`.
+
+## 16.2 Legacy customer compatibility routes
+
+Implement:
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/customers/:customerId/activities` | Resolve the customer mapping and list its contact-linked activities |
+| `POST` | `/api/customers/:customerId/activities` | Resolve the mapping and create an activity linked to the mapped organisation/contact |
+
+Compatibility route behaviour:
+
+- the route body must not accept `organisationId` or `contactId`;
+- the service supplies the mapped IDs;
+- `engagementId` may be accepted only when it belongs to the mapped organisation;
+- a missing customer returns `404`;
+- a missing mapping is created idempotently;
+- listing should include activities linked to the mapped contact, not every activity for the organisation;
+- default `type` may be `note` only if the compatibility create schema explicitly documents that default; otherwise require the type;
+- normal activity validation still applies.
+
+## 16.3 Validation and status codes
+
+Use consistent outcomes:
+
+- `200` successful get/list/update/archive;
+- `201` successful create;
+- `400` malformed path/query/body or domain validation error;
+- `404` missing customer/organisation/contact/engagement/activity;
+- `409` archived-parent, archived-record or ownership conflict;
+- `500` sanitized unexpected error.
+
+Follow the existing `AppError` envelope exactly.
+
+Validate all UUID route parameters before repository access.
+
+Reject unknown query parameters if that matches the strict WI2 route convention; otherwise document the established compatible behaviour and remain consistent.
+
+---
+
+# 17. Query filters
+
+The canonical organisation list route must support:
+
+```text
+contactId
+engagementId
+type
+occurredFrom
+occurredTo
+followUpFrom
+followUpTo
+includeArchived
+limit
+offset
+```
+
+Rules:
+
+- IDs are UUIDs;
+- types use the shared enum;
+- occurred bounds are valid timestamps;
+- follow-up bounds are strict date-only values;
+- `occurredTo` cannot precede `occurredFrom`;
+- `followUpTo` cannot precede `followUpFrom`;
+- filters combine with AND semantics;
+- archived records are excluded by default;
+- `includeArchived=true` is explicit;
+- ordering remains deterministic after filtering.
+
+Do not add full-text search in WI3.
+
+---
+
+# 18. Frontend integration
+
+Keep frontend work narrow and functional. Do not build the complete future organisation workspace.
+
+Update `frontend/src/pages/CustomerWorkspace.tsx` so the current customer timeline uses the compatibility activity API.
+
+## Required changes
+
+1. Add an activities query:
+
+```text
+GET /api/customers/:customerId/activities
+```
+
+2. Replace the note logger mutation that rewrites `customer.notes` with:
+
+```text
+POST /api/customers/:customerId/activities
+```
+
+3. Remove all parsing of:
+
+```text
+[Note logged on ...]
+```
+
+4. Remove the regular-expression reconstruction of notes from `customer.notes`.
+
+5. Remove `notes` from the customer edit mutation payload.
+
+6. Remove or make non-editable any profile form control whose purpose is to write the combined legacy notes blob.
+
+7. Keep the underlying legacy `customer.notes` value intact in the database; it has already been imported by the backfill.
+
+8. Render canonical activity records in the timeline alongside bookings and invoices.
+
+9. Sort using parseable canonical timestamps, not locale-formatted string comparison.
+
+10. Invalidate the activity query after create/archive/update actions as applicable.
+
+## Activity composer
+
+Provide a compact activity composer in the existing timeline UI with:
+
+- type selector using the six controlled types;
+- body textarea;
+- optional follow-up date;
+- submit action;
+- validation and error state;
+- disabled/loading state during mutation.
+
+Do not add a rich-text editor.
+
+Author may be omitted from the UI so the backend uses `Local user`.
+
+## Timeline display
+
+For each activity show, at minimum:
+
+- human-readable activity type;
+- body;
+- occurred date/time;
+- author;
+- follow-up date when present.
+
+Use the existing visual language and components. Do not undertake a broad UX/UI pass.
+
+Legacy booking and invoice timeline entries must continue to work.
+
+## Type safety
+
+Import the shared `Activity` and controlled types. Avoid adding new `any` values in the changed activity code. Where practical, remove activity-related `any` introduced by the old timeline feed.
+
+Do not add a new state-management library.
+
+---
+
+# 19. Behaviour of `customers.notes` after WI3
+
+The legacy column remains for preservation and backwards compatibility, but it is no longer the activity system.
+
+Requirements:
+
+- do not drop the column;
+- do not clear existing values;
+- do not parse it in the frontend;
+- do not append new timeline entries to it;
+- document it as deprecated legacy source data;
+- new UI activity writes go only to `activities`;
+- the canonical activity API never reads it at request time;
+- the backfill may read it idempotently during migration/startup.
+
+Do not attempt to remove the field from every legacy API contract if doing so would cause unrelated breakage. The core requirement is that WI3 application workflows stop using it as the timeline store.
+
+---
+
+# 20. Structural migration requirements
+
+Generate an additive Drizzle migration after the existing migrations.
+
+The migration must:
+
+- create `activities`;
+- create the two legacy mapping tables;
+- create all required indexes and constraints;
+- preserve all existing tables and rows;
+- not rewrite the legacy customer or financial tables;
+- apply cleanly to a database already migrated through WI2;
+- apply cleanly when building a new database from zero;
+- remain safe when the migration runner is invoked repeatedly;
+- include correct Drizzle metadata and journal updates.
+
+Do not hand-edit generated Drizzle snapshot metadata unless the repository’s established workflow requires a precise correction. Use the project’s generation command first and inspect every generated file.
+
+The structural migration and application-level data backfill are separate concerns. The SQL migration creates the required schema; the tested backfill performs parsing and inserts.
+
+---
+
+# 21. Automated test requirements
+
+Add focused automated coverage. Use temporary databases only.
+
+Do not touch the developer’s runtime SQLite database.
+
+## 21.1 Shared validation tests
+
+Cover:
+
+- valid activity create and update payloads;
+- controlled type rejection;
+- empty/whitespace body rejection;
+- invalid UUIDs;
+- invalid timestamps;
+- invalid and impossible follow-up dates;
+- unknown request fields;
+- immutable field rejection;
+- explicit nullable clearing;
+- empty patch rejection;
+- author fallback behaviour at service level.
+
+## 21.2 Repository tests
+
+Cover:
+
+- create/get/list/update/archive;
+- nullable contact and engagement fields;
 - deterministic ordering;
-- validated `limit` and `offset`.
+- filtering by contact, engagement, type, event range and follow-up range;
+- bounded pagination;
+- archived exclusion and explicit inclusion;
+- idempotent archive;
+- source-reference uniqueness;
+- database foreign-key enforcement;
+- no cascade deletion of activities.
 
-A suitable stable order is:
+## 21.3 Service tests
+
+Cover:
+
+- missing organisation;
+- archived organisation create rejection;
+- contact from another organisation;
+- archived contact assignment;
+- inactive non-archived contact accepted;
+- engagement from another organisation;
+- archived engagement assignment;
+- valid contact and engagement together;
+- immutable organisation ownership;
+- merged update validation;
+- archived activity update rejection;
+- sanitized error translation.
+
+## 21.4 Mapping tests
+
+Cover:
+
+- one individual customer creates one dedicated organisation/contact mapping;
+- customers with exactly matching normalised company keys share one imported organisation;
+- company matching is deterministic across case, Unicode normalisation and whitespace;
+- no fuzzy matching with an existing manually created organisation;
+- multiple company contacts do not receive an arbitrary primary;
+- a sole imported contact may be primary;
+- rerun returns the same mapping IDs;
+- partial/constraint failure rolls back;
+- source customer fields remain unchanged;
+- bookings/invoices/payments remain linked to the legacy customer model.
+
+## 21.5 Legacy note backfill tests
+
+Use representative pre-WI3 customer data and cover:
+
+- one structured note block;
+- several structured note blocks;
+- free-text preamble plus structured blocks;
+- only unstructured text;
+- malformed marker text;
+- parseable localised timestamp;
+- unparseable timestamp with preserved raw text;
+- mixed line endings;
+- whitespace-only notes;
+- one activity per recognised block;
+- no lost unmatched text;
+- mapped organisation/contact links;
+- `Legacy import` author;
+- `legacy_import` source;
+- deterministic unique source references;
+- rerun inserts no duplicates;
+- original `customers.notes` remains byte-for-byte unchanged;
+- failure rollback.
+
+## 21.6 Route tests
+
+Cover both canonical and compatibility endpoints:
+
+- create/list/get/update/archive success;
+- strict path/query/body validation;
+- status codes and error envelopes;
+- compatibility mapping creation;
+- customer-specific listing does not leak another contact’s activities;
+- cross-organisation engagement rejection;
+- archive exclusion;
+- no hard-delete route;
+- no raw SQL/path/stack leakage.
+
+## 21.7 Frontend confidence
+
+Do not add a testing framework solely for WI3 if the frontend has none.
+
+At minimum:
+
+- keep TypeScript build green;
+- ensure the old parsing text and regex are absent from production frontend code;
+- ensure note/activity creation targets the new endpoint;
+- ensure the customer update payload no longer writes `notes`;
+- manually inspect the changed timeline code for deterministic timestamp handling and loading/error states.
+
+Add focused frontend tests only if the repository already has the required test infrastructure.
+
+---
+
+# 22. Migration smoke and compatibility checks
+
+Extend `scratch/db-smoke.ts` or add an equally focused isolated check so validation proves:
+
+- all WI3 tables exist;
+- required indexes exist;
+- foreign keys are enabled;
+- `PRAGMA foreign_key_check` is clean;
+- `PRAGMA integrity_check` returns `ok`;
+- migration rerun is safe;
+- the backfill rerun is safe;
+- no normal runtime database path was used.
+
+Where the generic smoke script cannot conveniently seed a pre-WI3 database between migration versions, add a dedicated backend integration test that constructs the exact migration/backfill scenario. Do not weaken the backfill test merely to fit the existing smoke script.
+
+---
+
+# 23. Documentation
+
+Update at least:
 
 ```text
-startDate DESC,
-createdAt DESC,
-id ASC
-```
-
-## Archive operations
-
-Archive with an update, not a delete:
-
-```ts
-{
-  archivedAt: now,
-  updatedAt: now,
-}
-```
-
-Archive operations are idempotent.
-
-Calling archive on an already archived record should return the existing archived record or the same success shape used for the first archive. It must not produce a second archive timestamp unless there is an explicit reason documented and tested.
-
-Do not cascade archival automatically to children.
-
----
-
-# 18. Primary-contact transaction
-
-The primary-contact invariant must be implemented as one database transaction.
-
-The transaction must cover both:
-
-1. clearing other eligible primary contacts;
-2. writing the candidate contact’s new state.
-
-The implementation should conceptually resemble:
-
-```ts
-database.transaction((tx) => {
-  tx.update(contacts)
-    .set({
-      isPrimary: false,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(contacts.organisationId, organisationId),
-        ne(contacts.id, contactId),
-        eq(contacts.isPrimary, true),
-        isNull(contacts.archivedAt),
-      ),
-    )
-    .run();
-
-  tx.update(contacts)
-    .set({
-      ...patch,
-      isPrimary: true,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(contacts.id, contactId),
-        eq(contacts.organisationId, organisationId),
-        eq(contacts.status, 'active'),
-        isNull(contacts.archivedAt),
-      ),
-    )
-    .run();
-});
-```
-
-Adapt this to the installed Drizzle/better-sqlite3 API.
-
-Important requirements:
-
-- do not clear the old primary before validating the candidate;
-- validate candidate existence, organisation, status and archive state first;
-- execute the clear and set writes inside one transaction;
-- ensure an exception rolls back both writes;
-- ensure the candidate update affected exactly one row;
-- protect the invariant with the partial unique index where supported;
-- translate a unique-constraint race into a safe conflict response rather than exposing SQLite text.
-
-Creating a new contact with `isPrimary: true` must use the same transaction semantics.
-
-Changing a contact to inactive or archiving it must clear its own `isPrimary` flag in the same transaction.
-
-Do not use a read-then-write sequence without a transaction.
-
----
-
-# 19. Application services
-
-Add narrow services, likely:
-
-```text
-OrganisationService
-ContactService
-EngagementService
-```
-
-Do not place cross-table rules exclusively in Express routes.
-
-## Organisation service responsibilities
-
-- create;
-- get;
-- list;
-- update;
-- archive;
-- reject ordinary edits to archived organisations;
-- normalize domain errors.
-
-## Contact service responsibilities
-
-- verify parent organisation exists;
-- verify parent organisation is not archived for creation;
-- create contact;
-- list by organisation;
-- retrieve contact;
-- merge patches with stored values;
-- enforce the identifying-field rule after patching;
-- reject ordinary edits to archived contacts;
-- reject `isPrimary = true` for inactive contacts;
-- perform primary-contact changes transactionally;
-- clear primary status when making a contact inactive;
-- clear primary status while archiving;
-- prohibit organisation reassignment.
-
-## Engagement service responsibilities
-
-- verify parent organisation exists;
-- verify parent organisation is not archived for creation;
-- validate optional primary contact;
-- ensure contact belongs to the same organisation;
-- ensure assigned contact is active and non-archived;
-- validate full resulting date range;
-- reject ordinary edits to archived engagements;
-- prohibit organisation reassignment;
-- create, list, retrieve, update and archive.
-
-## Assigning an engagement primary contact
-
-Centralize this validation in one private or reusable service method, conceptually:
-
-```ts
-private async validatePrimaryContact(
-  organisationId: string,
-  contactId: string | null | undefined,
-): Promise<void> {
-  if (contactId === null || contactId === undefined) return;
-
-  const contact = await this.contacts.getById(contactId, {
-    includeArchived: true,
-  });
-
-  if (!contact) {
-    throw new NotFoundError('Primary contact not found');
-  }
-
-  if (contact.organisationId !== organisationId) {
-    throw new ConflictError(
-      'Primary contact must belong to the engagement organisation',
-    );
-  }
-
-  if (contact.archivedAt || contact.status !== 'active') {
-    throw new ConflictError(
-      'Primary contact must be active and non-archived',
-    );
-  }
-}
-```
-
-Do not duplicate this logic between create and update routes.
-
----
-
-# 20. Domain errors and safe HTTP mapping
-
-Do not expose raw SQLite, Drizzle or stack-trace details.
-
-Add a minimal typed operational-error mechanism. For example:
-
-```ts
-export class AppError extends Error {
-  constructor(
-    public readonly statusCode: number,
-    message: string,
-    public readonly code: string,
-    public readonly details?: unknown,
-  ) {
-    super(message);
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(message: string) {
-    super(404, message, 'NOT_FOUND');
-  }
-}
-
-export class ValidationError extends AppError {
-  constructor(message: string, details?: unknown) {
-    super(400, message, 'VALIDATION_ERROR', details);
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message: string) {
-    super(409, message, 'CONFLICT');
-  }
-}
-```
-
-Adapt this to any existing error utility found during inspection.
-
-The global error middleware should return operational messages only for known application errors.
-
-Unknown failures must return a generic response:
-
-```ts
-if (err instanceof AppError) {
-  return res.status(err.statusCode).json({
-    error: err.code,
-    message: err.message,
-    ...(err.details === undefined ? {} : { details: err.details }),
-  });
-}
-
-console.error('Unhandled Server Error:', err);
-
-return res.status(500).json({
-  error: 'INTERNAL_SERVER_ERROR',
-  message: 'An unexpected error occurred',
-});
-```
-
-Do not return:
-
-- SQL statements;
-- constraint names as the only explanation;
-- stack traces;
-- arbitrary `err.message` for unknown errors;
-- database file paths.
-
-Keep this hardening small and compatible with existing routes. Do not redesign every existing error response unless needed to prevent internal-error leakage.
-
----
-
-# 21. HTTP route validation
-
-Validate separately:
-
-- route parameters;
-- query parameters;
-- request bodies.
-
-Use shared Zod schemas where the contract crosses workspace boundaries. Small HTTP-only parameter/query schemas may live in the backend.
-
-An ID parameter schema can resemble:
-
-```ts
-const IdParamSchema = z.object({
-  id: z.string().uuid('Invalid ID'),
-}).strict();
-
-const OrganisationIdParamSchema = z.object({
-  organisationId: z.string().uuid('Invalid organisation ID'),
-}).strict();
-```
-
-Do not pass unvalidated values from:
-
-```text
-req.params
-req.query
-req.body
-```
-
-to a service.
-
-## Query validation
-
-For list endpoints, support:
-
-```text
-includeArchived
-limit
-offset
-```
-
-plus the entity-specific filters.
-
-Use:
-
-```text
-default limit: 50
-maximum limit: 200
-default offset: 0
-```
-
-Reject rather than silently accepting:
-
-- negative values;
-- non-integers;
-- invalid booleans;
-- invalid status values;
-- limits above the maximum.
-
-Preserve the existing list-response style unless repository inspection shows an established pagination envelope. Do not introduce a global API envelope as part of this PR.
-
----
-
-# 22. REST endpoints
-
-Register new route modules in:
-
-```text
-backend/src/presentation/app.ts
-```
-
-Use the existing `/api` routing convention.
-
-## Organisation endpoints
-
-```http
-POST /api/organisations
-GET /api/organisations
-GET /api/organisations/:id
-PATCH /api/organisations/:id
-POST /api/organisations/:id/archive
-```
-
-### Organisation list query
-
-```text
-status
-search
-includeArchived
-limit
-offset
-```
-
-## Contact endpoints
-
-```http
-POST /api/organisations/:organisationId/contacts
-GET /api/organisations/:organisationId/contacts
-GET /api/contacts/:id
-PATCH /api/contacts/:id
-POST /api/contacts/:id/archive
-```
-
-### Contact list query
-
-```text
-status
-includeArchived
-limit
-offset
-```
-
-## Engagement endpoints
-
-```http
-POST /api/organisations/:organisationId/engagements
-GET /api/organisations/:organisationId/engagements
-GET /api/engagements/:id
-PATCH /api/engagements/:id
-POST /api/engagements/:id/archive
-```
-
-### Engagement list query
-
-```text
-status
-includeArchived
-limit
-offset
-```
-
-Do not add restore endpoints in this PR because the repository currently has no established restore API convention. Preserve `archivedAt` so restoration can be added deliberately later.
-
-Do not add `DELETE` endpoints.
-
----
-
-# 23. HTTP response behaviour
-
-Use these status conventions unless an established compatible repository convention requires a small adjustment.
-
-| Operation | Status |
-|---|---:|
-| Successful create | `201` |
-| Successful get/list/update/archive | `200` |
-| Invalid body, query or route parameter | `400` |
-| Missing resource | `404` |
-| Valid request conflicting with current state | `409` |
-| Unknown server failure | `500` |
-
-Examples of `409` conflicts:
-
-- updating an archived entity;
-- assigning an inactive or archived primary contact;
-- assigning a contact belonging to another organisation;
-- creating a child under an archived organisation;
-- an invariant conflict arising from concurrent primary-contact writes.
-
-Examples of `404`:
-
-- requested organisation does not exist;
-- requested contact does not exist;
-- requested engagement does not exist;
-- parent organisation in a nested route does not exist;
-- supplied engagement primary contact ID does not exist.
-
-Use a consistent error response for new routes:
-
-```json
-{
-  "error": "VALIDATION_ERROR",
-  "message": "Request validation failed",
-  "details": {}
-}
-```
-
-or:
-
-```json
-{
-  "error": "NOT_FOUND",
-  "message": "Organisation not found"
-}
-```
-
-Successful responses should be the validated response object or list of response objects. Do not expose raw database result objects.
-
-Archive endpoints should return the archived entity rather than an unexplained empty response.
-
----
-
-# 24. Legacy customer compatibility
-
-The existing `customers` model is individual-first and remains the financial and appointment-facing customer model for now.
-
-This PR must establish temporary coexistence:
-
-```text
-Legacy customers
-    ├── existing bookings
-    ├── existing invoices
-    └── existing custom-object relationships
-
-New organisations
-    ├── contacts
-    └── engagements
-```
-
-There is no relationship between the two groups in PR2.
-
-Do not:
-
-- infer organisations from `customers.company`;
-- convert customers into contacts;
-- create shadow organisation records;
-- add `organisationId` to invoices;
-- add `organisationId` to customers;
-- add `customerId` to organisations, contacts or engagements;
-- change invoice or booking routes;
-- alter existing customer cascade semantics;
-- rewrite existing seed data.
-
-Document this coexistence clearly in `docs/DOMAIN.md`.
-
----
-
-# 25. Frontend scope
-
-Do not build organisation, contact or engagement pages.
-
-Do not add:
-
-- navigation entries;
-- dashboards;
-- tables;
-- forms;
-- contact workspaces;
-- engagement workspaces;
-- frontend state stores;
-- frontend API screens.
-
-Frontend modifications are permitted only when strictly necessary to:
-
-- keep shared imports compiling;
-- accommodate a safe shared export change;
-- keep the complete monorepo build green.
-
-A frontend change must be justified in the PR body.
-
-Do not add placeholder pages.
-
----
-
-# 26. Automated test infrastructure
-
-Use Vitest and the repository’s existing backend test conventions.
-
-Every database-affecting test must use an explicit temporary SQLite database.
-
-A suitable lifecycle is:
-
-```ts
-beforeEach(() => {
-  tempDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'whitelabel-crm-test-'),
-  );
-
-  databasePath = path.join(tempDir, 'test.sqlite');
-
-  const database = openDatabase(databasePath);
-  runMigrations(database, migrationsFolder);
-});
-
-afterEach(() => {
-  closeDatabase();
-  fs.rmSync(tempDir, { recursive: true, force: true });
-});
-```
-
-Ensure cleanup also occurs when a test fails.
-
-Do not import or initialize code in an order that silently opens the normal runtime database before the temporary database has been configured.
-
-Do not use:
-
-```text
-backend/data/crm.db
-```
-
-in any automated test.
-
-For API integration tests, prefer the existing:
-
-```ts
-startServer({ host: '127.0.0.1', port: 0 })
-```
-
-and the Node runtime’s `fetch`, unless the repository already has an HTTP test helper.
-
-Do not add Supertest solely out of habit when the existing server can be tested without it.
-
-Always close the server in `finally` or `afterEach`.
-
----
-
-# 27. Required migration tests
-
-Add automated migration coverage that verifies:
-
-1. the complete migration set applies to a fresh temporary database;
-2. the new migration applies after the existing baseline migration;
-3. invoking the migration runner again succeeds;
-4. all legacy tables remain;
-5. all three new tables exist;
-6. required columns exist;
-7. required indexes exist;
-8. foreign-key enforcement is enabled;
-9. organisation foreign keys do not use cascade deletion;
-10. `PRAGMA foreign_key_check` returns no rows;
-11. `PRAGMA integrity_check` returns exactly `ok`;
-12. no normal runtime database is created or changed.
-
-Where practical, insert a legacy row before applying the new migration and prove it remains afterwards.
-
----
-
-# 28. Required organisation tests
-
-Test at repository, service or API level as appropriate:
-
-- creates a valid organisation;
-- generates a UUID;
-- generates `createdAt` and `updatedAt`;
-- defaults status correctly;
-- trims required and optional strings;
-- normalizes blank optional strings to null;
-- normalizes country to uppercase;
-- rejects an invalid country code;
-- rejects an empty or whitespace-only name;
-- rejects an invalid website;
-- rejects invalid status;
-- rejects invalid employee band;
-- rejects invalid annual revenue band;
-- gets an organisation by ID;
-- returns `404` for a missing organisation through HTTP;
-- lists organisations deterministically;
-- filters by status;
-- searches names case-insensitively;
-- treats search wildcard characters as literal input;
-- validates pagination;
-- excludes archived organisations by default;
-- includes them only when requested;
-- archives without deleting;
-- archive is idempotent;
-- ordinary update rejects an archived organisation;
-- updates only allowed mutable fields;
-- rejects immutable or unknown update fields;
-- rejects an empty patch.
-
----
-
-# 29. Required contact tests
-
-Test:
-
-- creates a contact under an existing active organisation;
-- rejects creation under a missing organisation;
-- rejects creation under an archived organisation;
-- derives organisation ID from the route;
-- rejects body-supplied `organisationId`;
-- accepts first name only;
-- accepts last name only;
-- accepts email only;
-- rejects a contact with no identifying field;
-- rejects whitespace-only identifying fields;
-- validates email format;
-- normalizes email casing consistently;
-- allows the same email in different organisations;
-- allows duplicate email records where legitimate;
-- does not create a unique email index;
-- lists contacts only for the requested organisation;
-- filters by status;
-- validates pagination;
-- excludes archived contacts by default;
-- includes archived contacts only when requested;
-- ordinary update cannot change `organisationId`;
-- update cannot clear all identifying fields;
-- inactive contact cannot be set primary;
-- setting the first primary contact succeeds;
-- setting a second primary clears the first;
-- only one active non-archived primary remains;
-- creating a new primary contact clears the existing primary;
-- setting `isPrimary: false` does not promote another contact;
-- changing a primary contact to inactive clears its primary flag;
-- archiving a primary contact clears its primary flag;
-- archiving does not delete the row;
-- archive is idempotent;
-- ordinary update rejects an archived contact;
-- primary-contact writes are transactional;
-- a failed primary change does not leave the organisation without its previous valid primary;
-- the database-level partial uniqueness protection works where implemented.
-
-For the transaction rollback test, assert the final stored state after a deliberately failed operation. Do not merely assert that an exception was thrown.
-
----
-
-# 30. Required engagement tests
-
-Test:
-
-- creates an engagement under an existing active organisation;
-- rejects creation under a missing organisation;
-- rejects creation under an archived organisation;
-- derives organisation ID from the route;
-- rejects body-supplied `organisationId`;
-- creates without a primary contact;
-- accepts an active, non-archived primary contact from the same organisation;
-- rejects a missing primary contact;
-- rejects a primary contact from another organisation;
-- rejects an inactive primary contact;
-- rejects an archived primary contact;
-- accepts a valid date-only value;
-- rejects a malformed date;
-- rejects an impossible calendar date;
-- rejects an end date before the start date;
-- accepts an end date equal to the start date;
-- accepts a null end date;
-- update validates the complete merged date range;
-- update can explicitly clear `primaryContactId` with null;
-- update can explicitly clear `endDate` with null;
-- update cannot change `organisationId`;
-- lists engagements only for the requested organisation;
-- filters by status;
-- validates pagination;
-- orders deterministically;
-- excludes archived engagements by default;
-- includes archived engagements only when requested;
-- archives without deleting;
-- archive is idempotent;
-- ordinary update rejects an archived engagement.
-
----
-
-# 31. Required API tests
-
-Exercise every new route using an isolated temporary database.
-
-At minimum cover:
-
-- successful creation;
-- successful listing;
-- successful retrieval;
-- successful patch;
-- successful archive;
-- malformed UUID route parameter;
-- invalid body;
-- unknown body field;
-- invalid list query;
-- missing record;
-- missing parent organisation;
-- nested-route/body organisation mismatch attempt;
-- cross-organisation primary-contact rejection;
-- inactive primary-contact rejection;
-- archive filtering;
-- conflict response;
-- safe `500` response without SQL or stack leakage.
-
-Verify:
-
-- status code;
-- response shape;
-- response content type;
-- persisted state;
-- absence of internal database details.
-
-A test for the unknown-error path may use a controlled failing stub or equivalent. Do not deliberately corrupt a shared or runtime database.
-
----
-
-# 32. Documentation
-
-Update:
-
-```text
+docs/ARCHITECTURE.md
 docs/DOMAIN.md
 ```
 
 Document:
 
-- organisation;
-- contact;
-- engagement;
-- all relationships;
-- status and type values;
-- one-primary-contact semantics;
-- engagement primary-contact eligibility;
-- date semantics;
-- soft archival semantics;
-- absence of hard-delete endpoints;
-- temporary coexistence with legacy customers;
-- explicit absence of invoice relationships.
+- the canonical activity entity;
+- notes as `type = note` activity records;
+- organisation/contact/engagement relationships;
+- activity archive semantics;
+- legacy customer mapping tables;
+- company and individual mapping rules;
+- the idempotent legacy note import;
+- deprecation of combined `customers.notes` timeline parsing;
+- the continued legacy customer ownership of bookings, invoices and payments;
+- the interim non-authenticated author label;
+- deferred tasks, reminders, documents, financial migration and full organisation UI.
 
-Update:
+Update quality/release documentation only where WI3 adds a genuinely reusable validation requirement.
 
-```text
-docs/ARCHITECTURE.md
-```
-
-only as needed to describe:
-
-- the new organisation/contact/engagement domain;
-- the small service layer used for cross-entity rules;
-- the new repositories;
-- continued legacy-customer isolation.
-
-Remove or revise statements saying that organisation/contact/engagement modelling is deferred, because PR2 implements that work.
-
-Do not rewrite unrelated documentation.
+Do not claim that customers, bookings, invoices or payments have been fully migrated to the B2B domain.
 
 ---
 
-# 33. Suggested implementation sequence
+# 24. Code quality requirements
 
-Follow this order to reduce rework.
-
-## Step 1 — Establish baseline
-
-Run:
-
-```bash
-git status --short --untracked-files=all
-git branch --show-current
-git log -1 --oneline
-node --version
-npm --version
-```
-
-Ensure the worktree contains no unrelated local changes.
-
-Fetch `main` and create the requested branch from the current remote base without force-updating unrelated work.
-
-## Step 2 — Shared contracts
-
-Implement and test:
-
-- enums;
-- normalization helpers;
-- create schemas;
-- update schemas;
-- body schemas;
-- response schemas;
-- inferred types.
-
-Run the shared build before continuing.
-
-## Step 3 — Database schema and migration
-
-Add the three Drizzle tables and indexes.
-
-Run:
-
-```bash
-npm run db:generate
-```
-
-Inspect all generated SQL and metadata.
-
-Confirm the migration is additive.
-
-## Step 4 — Migration tests
-
-Update `scratch/db-smoke.ts` and add focused migration tests before writing routes.
-
-Run the migration smoke test.
-
-## Step 5 — Repository interfaces and implementations
-
-Add:
-
-- interfaces;
-- row mapping;
-- filters;
-- stable ordering;
-- pagination;
-- archive operations;
-- primary-contact transaction.
-
-Add repository tests.
-
-## Step 6 — Services and domain errors
-
-Add the minimum service and error structure required to centralize business rules.
-
-Add service tests.
-
-## Step 7 — Routes
-
-Add route modules and mount them in the Express app.
-
-Keep route handlers thin:
-
-```text
-validate → call service → return response
-```
-
-Add API integration tests.
-
-## Step 8 — Documentation
-
-Update only the relevant domain and architecture sections.
-
-## Step 9 — Full validation
-
-Run all required checks and fix failures before opening the PR.
+- Follow existing formatting and TypeScript configuration.
+- Prefer small focused files over one oversized route or service.
+- Keep route handlers thin.
+- Keep parsing/backfill code pure where possible and test the parser separately from database writes.
+- Avoid `any` in new code unless an existing external library boundary makes it unavoidable.
+- Add explanatory comments only where invariants or migration behaviour are not obvious.
+- Do not log full note bodies during normal migration success.
+- Do not expose private customer content in error responses.
+- Do not add dependencies when Node’s standard library and current packages are sufficient.
+- Use `node:crypto` for SHA-256 if required.
+- Use the repository’s UUID and ISO timestamp conventions.
+- Ensure all database statements use parameters rather than interpolated untrusted content.
 
 ---
 
-# 34. Validation commands
+# 25. Required validation commands
 
-Validate from a clean dependency state where practical.
+Inspect `AGENTS.md`, package scripts and CI before running commands. Run the repository’s canonical equivalents of all applicable checks.
 
-```bash
-rm -rf \
-  node_modules \
-  shared/node_modules \
-  backend/node_modules \
-  frontend/node_modules \
-  desktop/node_modules
-
-ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
-```
-
-Then run:
+At minimum run:
 
 ```bash
 npm run build
@@ -2029,31 +1239,37 @@ npm test
 npm run db:smoke
 npm run desktop:preflight
 npm run ci:verify
+```
+
+Also run focused backend tests for WI3 before the full suite.
+
+Run:
+
+```bash
 git diff --check
 git status --short --untracked-files=all
 ```
 
-Also run targeted backend tests while developing, for example:
+If the repository provides lint or typecheck scripts not already included in `ci:verify`, run them.
 
-```bash
-npm run test -w backend -- organisations
-npm run test -w backend -- contacts
-npm run test -w backend -- engagements
-npm run test -w backend -- migration
-```
+If `npm ci` is part of CI, run it in a clean environment when possible. Do not modify the lockfile unless a real dependency change is intentionally required.
 
-Adapt filters to the actual test filenames and Vitest CLI.
+Do not commit generated `THIRD_PARTY_LICENSES.txt` churn or unrelated desktop staging changes unless the repository’s current tracked artefact policy explicitly requires the exact change.
 
-Do not claim a command passed unless it was actually run and completed successfully.
-
-If a command cannot be run, state:
+If any required command cannot run, report:
 
 - the exact command;
-- why it was not run;
+- the exact failure or environmental constraint;
 - what narrower validation was performed;
 - the remaining risk.
 
-Before committing, verify:
+Do not describe an unrun command as passed.
+
+---
+
+# 26. Worktree hygiene
+
+Before committing, inspect:
 
 ```bash
 git diff --stat
@@ -2061,102 +1277,117 @@ git diff --check
 git status --short --untracked-files=all
 ```
 
-Confirm that the branch does not contain:
+Ensure the branch contains no unintended:
 
 - runtime SQLite databases;
 - WAL or SHM files;
-- temporary test databases;
-- dependency directories;
+- backups;
+- temporary migration databases;
 - logs;
+- dependency directories;
 - coverage output unless intentionally tracked;
-- unrelated generated desktop staging changes;
-- unrelated licence-file churn;
-- editor configuration;
-- operating-system files.
+- generated desktop packages;
+- licence-file churn;
+- editor settings;
+- operating-system files;
+- unrelated source formatting.
 
 ---
 
-# 35. Acceptance criteria
+# 27. Acceptance criteria
 
-The PR is complete only when all of the following are true.
+WI3 is complete only when all applicable items below are true.
 
-## Schema
+## Schema and migration
 
-- [ ] `organisations` exists.
-- [ ] `contacts` exists.
-- [ ] `engagements` exists.
-- [ ] All required fields and indexes exist.
-- [ ] Foreign keys are enabled.
-- [ ] Organisation deletion cannot cascade-delete contacts or engagements.
-- [ ] No existing table is dropped, renamed or rewritten.
-- [ ] Migration applies after the existing migration.
-- [ ] Re-running the migration runner is safe.
+- [ ] `activities` exists with the specified fields.
+- [ ] Legacy organisation and customer mapping tables exist.
+- [ ] Required foreign keys, indexes and source-reference uniqueness exist.
+- [ ] No existing table is dropped, renamed or repurposed.
+- [ ] `customers.notes` remains present and unchanged by import.
+- [ ] Bookings, invoices, invoice items and payments remain structurally unchanged.
+- [ ] Migration applies after WI2 and from a clean database.
+- [ ] Migration and backfill reruns are idempotent.
 - [ ] Integrity and foreign-key checks pass.
 
 ## Contracts
 
-- [ ] Controlled values are defined once in shared code.
-- [ ] Create, update and response schemas are distinct.
-- [ ] Required strings are trimmed and validated.
-- [ ] Optional clearing is unambiguous.
-- [ ] Immutable fields cannot be patched.
-- [ ] Unknown request fields are rejected.
-- [ ] Dates are valid calendar dates.
-- [ ] Response shapes match repository mapping.
+- [ ] Activity type/source values are defined once.
+- [ ] Create, update, response and query schemas are distinct and strict.
+- [ ] Immutable/backend-owned fields cannot be submitted.
+- [ ] Body, author, timestamps and date-only values are validated.
+- [ ] Optional fields have unambiguous omitted-versus-null semantics.
+- [ ] Response shapes match persistence mapping.
 
 ## Business rules
 
-- [ ] Archived parents cannot receive new children.
-- [ ] One eligible primary contact is enforced transactionally.
-- [ ] Contact inactivity/archive clears primary status.
-- [ ] Engagement primary contact belongs to the same organisation.
-- [ ] Inactive or archived contacts cannot be assigned.
-- [ ] Engagement date ordering is enforced after updates.
-- [ ] Ordinary updates reject archived records.
-- [ ] Archive operations are idempotent.
-- [ ] No hard-delete endpoints exist.
+- [ ] Every activity has one organisation.
+- [ ] Optional contact and engagement ownership is validated.
+- [ ] Archived parents reject new links.
+- [ ] Historical links survive later parent archival.
+- [ ] Organisation ownership is immutable.
+- [ ] Activity archive is soft and idempotent.
+- [ ] Archived activities cannot be ordinarily edited.
+- [ ] No hard-delete endpoint exists.
+
+## Legacy mapping and import
+
+- [ ] Every imported legacy customer receives one stable CRM mapping.
+- [ ] Matching normalised company values share an imported organisation.
+- [ ] Individual customers receive dedicated organisations.
+- [ ] Existing manual organisations are not fuzzy-merged.
+- [ ] Existing note text is imported into distinct activity rows.
+- [ ] Structured and unstructured text is preserved.
+- [ ] Import timestamps follow the specified fallback rules.
+- [ ] Import source references prevent duplicates.
+- [ ] Re-running the import creates no duplicate activities.
+- [ ] Legacy customer and financial rows remain unchanged.
 
 ## API
 
-- [ ] Every specified endpoint exists.
+- [ ] All canonical activity routes exist.
+- [ ] Both customer compatibility routes exist.
 - [ ] Parameters, queries and bodies are validated.
-- [ ] Status codes are consistent.
-- [ ] Raw SQL and stack traces are not exposed.
-- [ ] List ordering is deterministic.
-- [ ] Pagination is bounded.
-- [ ] Archived records are excluded by default.
+- [ ] List results are bounded and deterministic.
+- [ ] Customer activity listing cannot leak another contact’s records.
+- [ ] Status codes and error envelopes are consistent.
+- [ ] Raw SQL, paths and stack traces are not exposed.
 
-## Compatibility
+## Frontend
 
-- [ ] Legacy customers remain unchanged.
-- [ ] Existing invoices remain linked to customers.
-- [ ] Existing bookings remain linked to customers.
-- [ ] No automatic customer migration occurs.
-- [ ] Frontend behaviour remains unchanged.
-- [ ] Desktop build and preflight remain green.
+- [ ] `CustomerWorkspace` loads canonical activity records.
+- [ ] New activity/note writes use the activity endpoint.
+- [ ] No frontend production code parses `[Note logged on ...]` strings.
+- [ ] Customer profile updates no longer append or replace timeline notes.
+- [ ] The composer supports type, body and optional follow-up date.
+- [ ] Timeline displays body, type, occurred time, author and follow-up date.
+- [ ] Booking and invoice timeline entries still work.
+- [ ] Loading, mutation and error states are handled.
 
 ## Quality
 
-- [ ] Automated tests cover repositories, services, routes and migrations.
+- [ ] Focused parser/backfill tests pass.
+- [ ] Repository, service and route tests pass.
 - [ ] Tests use temporary databases.
 - [ ] Root build passes.
-- [ ] Root tests pass.
-- [ ] Database smoke test passes.
+- [ ] Full tests pass.
+- [ ] Database smoke passes.
 - [ ] Desktop preflight passes.
 - [ ] `ci:verify` passes.
 - [ ] `git diff --check` passes.
-- [ ] Worktree contains no unintended artifacts.
+- [ ] Worktree contains no unintended artefacts.
+- [ ] Documentation accurately describes implemented and deferred behaviour.
 
 ---
 
-# 36. Commit and pull-request requirements
+# 28. Commit and pull-request requirements
 
-Use clear, scoped commits. Do not mix unrelated cleanup with domain implementation.
+Use clear, scoped commits. Do not mix unrelated cleanup with WI3.
 
 Push:
 
 ```text
-codex/add-organisations-contacts-engagements
+codex/wi3-normalised-activity-notes
 ```
 
 Open a non-draft pull request against:
@@ -2168,21 +1399,27 @@ main
 with the exact title:
 
 ```text
-PR2: Add organisations, contacts and engagements
+WI3: Normalised activity and notes system
 ```
 
 Do not merge it.
 
-The PR body must contain these headings:
+The pull-request body must contain these headings:
 
 ```markdown
 ## Summary
 
-## Domain model
+## Activity domain model
+
+## Legacy customer mapping
+
+## Legacy note migration
 
 ## Database migration
 
 ## API endpoints
+
+## Frontend integration
 
 ## Business rules enforced
 
@@ -2190,46 +1427,60 @@ The PR body must contain these headings:
 
 ## Validation performed
 
-## Compatibility with legacy customers
+## Compatibility and data preservation
 
 ## Risks and limitations
 
 ## Deferred work
 ```
 
-Under **Validation performed**, list every command actually run and its result.
+Under **Validation performed**, list every command actually run and its exact result.
 
-Under **Risks and limitations**, mention any invariant that could not be reinforced at database level, including partial unique-index limitations.
+Under **Compatibility and data preservation**, explicitly confirm:
+
+- legacy customers were retained;
+- `customers.notes` was not cleared;
+- bookings and invoices still reference customers;
+- payments still reference invoices;
+- no financial migration occurred.
+
+Under **Risks and limitations**, include:
+
+- author is an unauthenticated label until a later authentication work item;
+- legacy company grouping is exact normalised matching, not fuzzy entity resolution;
+- any database invariant that cannot be expressed directly in SQLite and is enforced in the service layer.
 
 Under **Deferred work**, explicitly include:
 
-- organisation/contact/engagement frontend;
-- activities and notes;
-- tasks;
-- documents;
-- invoice-to-organisation migration;
-- financial-state redesign;
-- restoration UI/API;
-- authentication and multi-tenancy.
+- tasks and reminders;
+- documents and uploads;
+- full organisation/contact/engagement workspace UI;
+- invoice and booking migration to the B2B domain;
+- financial state-machine redesign;
+- authentication, users, authorisation and multi-tenancy;
+- activity restoration UI/API if not implemented;
+- notifications and calendar integration.
 
-Do not include speculative claims or describe deferred functionality as implemented.
+Do not describe deferred functionality as implemented.
 
 ---
 
-# 37. Final response after opening the PR
+# 29. Final response after opening the pull request
 
 Return a concise implementation report containing:
 
 1. branch name;
 2. pull-request number and URL;
-3. migration filename;
-4. main files added or changed;
-5. domain invariants implemented;
-6. test files added;
-7. validation commands and exact outcomes;
-8. any command not run and the reason;
-9. residual risks;
-10. confirmation that the PR remains open and unmerged.
+3. structural migration filename;
+4. backfill module filename;
+5. main files added or changed;
+6. activity and mapping invariants implemented;
+7. legacy note import cases covered;
+8. test files added or changed;
+9. validation commands and exact outcomes;
+10. any command not run and the reason;
+11. residual risks;
+12. confirmation that the pull request remains open and unmerged.
 
 Do not finish with only “PR created”.
 
