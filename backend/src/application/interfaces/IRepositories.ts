@@ -1,6 +1,28 @@
-import { 
-  Settings, Customer, Service, Booking, Invoice, Payment, 
-  CustomFieldDefinition, CustomFieldValue, CustomObjectDefinition, CustomObjectRecord 
+import {
+  Settings,
+  Customer,
+  Service,
+  Booking,
+  Invoice,
+  Payment,
+  CustomFieldDefinition,
+  CustomFieldValue,
+  CustomObjectDefinition,
+  CustomObjectRecord,
+} from 'shared';
+import type {
+  Organisation,
+  OrganisationCreate,
+  OrganisationUpdate,
+  OrganisationStatus,
+  Contact,
+  ContactCreate,
+  ContactUpdate,
+  ContactStatus,
+  Engagement,
+  EngagementCreate,
+  EngagementUpdate,
+  EngagementStatus,
 } from 'shared';
 
 export interface ISettingsRepository {
@@ -55,31 +77,68 @@ export interface IPaymentRepository {
 }
 
 export interface ICustomFieldRepository {
-  // Definitions
   createDefinition(def: CustomFieldDefinition): Promise<CustomFieldDefinition>;
   getDefinitions(entityType: string): Promise<CustomFieldDefinition[]>;
   getDefinitionByName(entityType: string, name: string): Promise<CustomFieldDefinition | null>;
   deleteDefinition(id: string): Promise<void>;
-  
-  // Values
   saveValues(entityId: string, values: Record<string, string>): Promise<void>;
-  getValues(entityId: string): Promise<Record<string, string>>; // returns fieldName -> value map
+  getValues(entityId: string): Promise<Record<string, string>>;
 }
 
 export interface ICustomObjectRepository {
-  // Definitions
   createDefinition(def: CustomObjectDefinition): Promise<CustomObjectDefinition>;
   getDefinitions(): Promise<CustomObjectDefinition[]>;
   getDefinitionByApiName(apiName: string): Promise<CustomObjectDefinition | null>;
   deleteDefinition(id: string): Promise<void>;
-  
-  // Records
   createRecord(record: Omit<CustomObjectRecord, 'values'>): Promise<CustomObjectRecord>;
   getRecords(definitionId: string, customerId?: string): Promise<CustomObjectRecord[]>;
   getRecordById(recordId: string): Promise<CustomObjectRecord | null>;
   deleteRecord(recordId: string): Promise<void>;
-  
-  // Values
   saveRecordValues(recordId: string, values: Record<string, string>): Promise<void>;
-  getRecordValues(recordId: string): Promise<Record<string, string>>; // fieldName -> value map
+  getRecordValues(recordId: string): Promise<Record<string, string>>;
+}
+
+export interface ListOptions<TStatus> {
+  status?: TStatus;
+  includeArchived?: boolean;
+  limit: number;
+  offset: number;
+}
+
+export interface OrganisationListOptions extends ListOptions<OrganisationStatus> {
+  search?: string;
+}
+
+export interface ContactListOptions extends ListOptions<ContactStatus> {
+  organisationId: string;
+}
+
+export interface EngagementListOptions extends ListOptions<EngagementStatus> {
+  organisationId: string;
+}
+
+export interface IOrganisationRepository {
+  create(input: OrganisationCreate): Promise<Organisation>;
+  getById(id: string, options?: { includeArchived?: boolean }): Promise<Organisation | null>;
+  list(options: OrganisationListOptions): Promise<Organisation[]>;
+  update(id: string, patch: OrganisationUpdate): Promise<Organisation | null>;
+  archive(id: string, archivedAt: string): Promise<Organisation | null>;
+}
+
+export interface IContactRepository {
+  create(input: ContactCreate): Promise<Contact>;
+  createPrimary(input: ContactCreate): Promise<Contact>;
+  getById(id: string, options?: { includeArchived?: boolean }): Promise<Contact | null>;
+  list(options: ContactListOptions): Promise<Contact[]>;
+  update(id: string, patch: ContactUpdate): Promise<Contact | null>;
+  updatePrimary(id: string, patch: ContactUpdate): Promise<Contact | null>;
+  archive(id: string, archivedAt: string): Promise<Contact | null>;
+}
+
+export interface IEngagementRepository {
+  create(input: EngagementCreate): Promise<Engagement>;
+  getById(id: string, options?: { includeArchived?: boolean }): Promise<Engagement | null>;
+  list(options: EngagementListOptions): Promise<Engagement[]>;
+  update(id: string, patch: EngagementUpdate): Promise<Engagement | null>;
+  archive(id: string, archivedAt: string): Promise<Engagement | null>;
 }
