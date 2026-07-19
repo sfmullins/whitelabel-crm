@@ -15,6 +15,13 @@ import type {
   EngagementUpdate,
 } from 'shared';
 import { ConflictError, NotFoundError, ValidationError } from '../errors';
+import {
+  ContactRepositoryAffectedRowsError,
+  ContactRepositoryArchivedError,
+  ContactRepositoryInactivePrimaryError,
+  ContactRepositoryNotFoundError,
+  ContactRepositoryUniquePrimaryError,
+} from '../../infrastructure/database/repositories/ContactRepository';
 
 export class OrganisationService {
   constructor(private readonly organisations: IOrganisationRepository) {}
@@ -50,6 +57,7 @@ export class OrganisationService {
     }
     return updated;
   }
+
 
   async archive(id: string) {
     const organisation = await this.organisations.archive(id, new Date().toISOString());
@@ -89,7 +97,11 @@ export class ContactService {
     if (input.isPrimary && input.status !== 'active') {
       throw new ConflictError('An inactive contact cannot be primary');
     }
-    return input.isPrimary ? this.contacts.createPrimary(input) : this.contacts.create(input);
+    try {
+      return input.isPrimary ? await this.contacts.createPrimary(input) : await this.contacts.create(input);
+    } catch (error) {
+      this.translateContactRepositoryError(error);
+    }
   }
 
   async get(id: string) {
@@ -114,6 +126,10 @@ export class ContactService {
       throw new ConflictError('Archived contacts cannot be edited');
     }
 
+    if (patch.status === 'inactive' && patch.isPrimary === true) {
+      throw new ConflictError('An inactive contact cannot be primary');
+    }
+
     const effectivePatch = { ...patch };
     if (patch.status === 'inactive') {
       effectivePatch.isPrimary = false;
@@ -127,9 +143,36 @@ export class ContactService {
       throw new ConflictError('An inactive contact cannot be primary');
     }
 
-    return effectivePatch.isPrimary
-      ? this.contacts.updatePrimary(id, effectivePatch)
-      : this.contacts.update(id, effectivePatch);
+    try {
+      const updated = effectivePatch.isPrimary
+        ? await this.contacts.updatePrimary(id, effectivePatch)
+        : await this.contacts.update(id, effectivePatch);
+      if (!updated) {
+        throw new NotFoundError('Contact not found');
+      }
+      return updated;
+    } catch (error) {
+      this.translateContactRepositoryError(error);
+    }
+  }
+
+  private translateContactRepositoryError(error: unknown): never {
+    if (error instanceof ContactRepositoryNotFoundError) {
+      throw new NotFoundError('Contact not found');
+    }
+    if (error instanceof ContactRepositoryArchivedError) {
+      throw new ConflictError('Archived contacts cannot be edited');
+    }
+    if (error instanceof ContactRepositoryInactivePrimaryError) {
+      throw new ConflictError('An inactive contact cannot be primary');
+    }
+    if (error instanceof ContactRepositoryUniquePrimaryError) {
+      throw new ConflictError('Only one active primary contact is allowed');
+    }
+    if (error instanceof ContactRepositoryAffectedRowsError) {
+      throw new ConflictError('Contact primary update could not be completed');
+    }
+    throw error;
   }
 
   async archive(id: string) {

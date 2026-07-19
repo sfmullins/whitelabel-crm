@@ -13,13 +13,23 @@ export const includeArchivedQueryField = z.enum(['true', 'false'])
   .optional()
   .transform((value) => value === 'true');
 
+const numericQueryValue = (label: string, minimum: number, maximum?: number) => z.preprocess(
+  (value) => (value === '' ? Number.NaN : value),
+  maximum === undefined
+    ? z.coerce.number({ invalid_type_error: `${label} must be a number` }).int().min(minimum)
+    : z.coerce.number({ invalid_type_error: `${label} must be a number` }).int().min(minimum).max(maximum),
+);
+
 export const paginationQueryFields = {
   includeArchived: includeArchivedQueryField,
-  limit: z.coerce.number().int().min(0).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  limit: numericQueryValue('Limit', 1, 200).default(50),
+  offset: numericQueryValue('Offset', 0).default(0),
 };
 
-export function parseRequest(schema: z.ZodTypeAny, value: unknown): any {
+export function parseRequest<TSchema extends z.ZodTypeAny>(
+  schema: TSchema,
+  value: unknown,
+): z.infer<TSchema> {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
     throw new ValidationError('Request validation failed', parsed.error.format());

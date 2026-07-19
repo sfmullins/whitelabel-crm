@@ -1,139 +1,131 @@
 import { randomUUID } from 'crypto';
+import { and, desc, eq, isNull, asc } from 'drizzle-orm';
 import type {
   IEngagementRepository,
   EngagementListOptions,
 } from '../../../application/interfaces/IRepositories';
-import { sqlite } from '../connection';
-import type { Engagement, EngagementCreate, EngagementUpdate } from 'shared';
+import { db } from '../connection';
+import { engagements } from '../schema';
+import {
+  EngagementResponseSchema,
+  type Engagement,
+  type EngagementCreate,
+  type EngagementUpdate,
+} from 'shared';
 
-type EngagementRow = {
-  id: string;
-  organisation_id: string;
-  primary_contact_id: string | null;
-  name: string;
-  type: Engagement['type'];
-  status: Engagement['status'];
-  summary: string | null;
-  start_date: string;
-  end_date: string | null;
-  created_at: string;
-  updated_at: string;
-  archived_at: string | null;
-};
-
-const columnByField: Record<keyof EngagementUpdate, string> = {
-  primaryContactId: 'primary_contact_id',
-  name: 'name',
-  type: 'type',
-  status: 'status',
-  summary: 'summary',
-  startDate: 'start_date',
-  endDate: 'end_date',
-};
+type EngagementRow = typeof engagements.$inferSelect;
+type EngagementInsert = typeof engagements.$inferInsert;
+type EngagementUpdateRow = Partial<typeof engagements.$inferInsert>;
 
 function mapRow(row: EngagementRow): Engagement {
-  return {
+  return EngagementResponseSchema.parse({
     id: row.id,
-    organisationId: row.organisation_id,
-    primaryContactId: row.primary_contact_id,
+    organisationId: row.organisationId,
+    primaryContactId: row.primaryContactId,
     name: row.name,
     type: row.type,
     status: row.status,
     summary: row.summary,
-    startDate: row.start_date,
-    endDate: row.end_date,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    archivedAt: row.archived_at,
-  };
+    startDate: row.startDate,
+    endDate: row.endDate,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt,
+  });
+}
+
+function buildUpdateRow(patch: EngagementUpdate, updatedAt: string): EngagementUpdateRow {
+  const update: EngagementUpdateRow = { updatedAt };
+  if ('primaryContactId' in patch) update.primaryContactId = patch.primaryContactId ?? null;
+  if ('name' in patch) update.name = patch.name;
+  if ('type' in patch) update.type = patch.type;
+  if ('status' in patch) update.status = patch.status;
+  if ('summary' in patch) update.summary = patch.summary ?? null;
+  if ('startDate' in patch) update.startDate = patch.startDate;
+  if ('endDate' in patch) update.endDate = patch.endDate ?? null;
+  return update;
 }
 
 export class EngagementRepository implements IEngagementRepository {
   async create(input: EngagementCreate): Promise<Engagement> {
-    const id = randomUUID();
     const now = new Date().toISOString();
-
-    sqlite.prepare(`
-      insert into engagements (
-        id, organisation_id, primary_contact_id, name, type, status, summary,
-        start_date, end_date, created_at, updated_at, archived_at
-      ) values (
-        @id, @organisationId, @primaryContactId, @name, @type, @status, @summary,
-        @startDate, @endDate, @now, @now, null
-      )
-    `).run({
-      id,
-      now,
-      ...input,
-      status: input.status ?? 'proposed',
+    const row: EngagementInsert = {
+      id: randomUUID(),
+      organisationId: input.organisationId,
       primaryContactId: input.primaryContactId ?? null,
+      name: input.name,
+      type: input.type,
+      status: input.status ?? 'proposed',
       summary: input.summary ?? null,
+      startDate: input.startDate,
       endDate: input.endDate ?? null,
-    });
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    };
 
-    return (await this.getById(id, { includeArchived: true }))!;
+    db.insert(engagements).values(row).run();
+    const created = await this.getById(row.id, { includeArchived: true });
+    if (!created) {
+      throw new Error('Engagement was not found after create');
+    }
+    return created;
   }
 
   async getById(
     id: string,
     options?: { includeArchived?: boolean },
   ): Promise<Engagement | null> {
-    const row = sqlite.prepare(`
-      select * from engagements
-      where id = @id ${options?.includeArchived ? '' : 'and archived_at is null'}
-    `).get({ id }) as EngagementRow | undefined;
+    const predicates = [eq(engagements.id, id)];
+    if (!options?.includeArchived) {
+      predicates.push(isNull(engagements.archivedAt));
+    }
 
+    const row = db.select().from(engagements).where(and(...predicates)).get();
     return row ? mapRow(row) : null;
   }
 
   async list(options: EngagementListOptions): Promise<Engagement[]> {
-    const where = ['organisation_id = @organisationId'];
+    const predicates = [eq(engagements.organisationId, options.organisationId)];
     if (!options.includeArchived) {
-      where.push('archived_at is null');
+      predicates.push(isNull(engagements.archivedAt));
     }
     if (options.status) {
-      where.push('status = @status');
+      predicates.push(eq(engagements.status, options.status));
     }
 
-    const rows = sqlite.prepare(`
-      select * from engagements
-      where ${where.join(' and ')}
-      order by start_date desc, created_at desc, id asc
-      limit @limit offset @offset
-    `).all(options) as EngagementRow[];
+    const rows = db.select()
+      .from(engagements)
+      .where(and(...predicates))
+      .orderBy(desc(engagements.startDate), desc(engagements.createdAt), asc(engagements.id))
+      .limit(options.limit)
+      .offset(options.offset)
+      .all();
 
     return rows.map(mapRow);
   }
 
   async update(id: string, patch: EngagementUpdate): Promise<Engagement | null> {
-    const now = new Date().toISOString();
-    const setClauses = Object.keys(patch).map(
-      (field) => `${columnByField[field as keyof EngagementUpdate]} = @${field}`,
-    );
+    const update = buildUpdateRow(patch, new Date().toISOString());
 
-    const result = sqlite.prepare(`
-      update engagements
-      set ${setClauses.join(', ')}, updated_at = @now
-      where id = @id and archived_at is null
-    `).run({ id, now, ...patch });
+    db.update(engagements)
+      .set(update)
+      .where(and(eq(engagements.id, id), isNull(engagements.archivedAt)))
+      .run();
 
-    return result.changes ? this.getById(id, { includeArchived: true }) : null;
+    return this.getById(id, { includeArchived: true });
   }
 
   async archive(id: string, archivedAt: string): Promise<Engagement | null> {
     const existing = await this.getById(id, { includeArchived: true });
-    if (!existing) {
-      return null;
-    }
-    if (existing.archivedAt) {
+    if (!existing || existing.archivedAt) {
       return existing;
     }
 
-    sqlite.prepare(`
-      update engagements
-      set archived_at = @archivedAt, updated_at = @archivedAt
-      where id = @id
-    `).run({ id, archivedAt });
+    db.update(engagements)
+      .set({ archivedAt, updatedAt: archivedAt })
+      .where(eq(engagements.id, id))
+      .run();
 
     return this.getById(id, { includeArchived: true });
   }

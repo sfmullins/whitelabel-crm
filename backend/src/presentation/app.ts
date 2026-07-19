@@ -45,6 +45,12 @@ app.use('/api/organisations', organisationsRouter);
 app.use('/api', contactsRouter);
 app.use('/api', engagementsRouter);
 
+if (process.env.NODE_ENV === 'test') {
+  app.get('/api/__test/unknown-error', () => {
+    throw new Error('internal test database path /tmp/secret.sqlite constraint stack sqlite');
+  });
+}
+
 // Root health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', time: new Date().toISOString() });

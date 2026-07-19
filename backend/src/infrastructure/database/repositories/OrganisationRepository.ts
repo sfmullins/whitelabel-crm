@@ -1,161 +1,143 @@
 import { randomUUID } from 'crypto';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import type {
   IOrganisationRepository,
   OrganisationListOptions,
 } from '../../../application/interfaces/IRepositories';
-import { sqlite } from '../connection';
-import type { Organisation, OrganisationCreate, OrganisationUpdate } from 'shared';
+import { db } from '../connection';
+import { organisations } from '../schema';
+import {
+  OrganisationResponseSchema,
+  type Organisation,
+  type OrganisationCreate,
+  type OrganisationUpdate,
+} from 'shared';
 
-type OrganisationRow = {
-  id: string;
-  name: string;
-  legal_name: string | null;
-  website: string | null;
-  industry: string | null;
-  employee_band: Organisation['employeeBand'];
-  annual_revenue_band: Organisation['annualRevenueBand'];
-  country: string | null;
-  status: Organisation['status'];
-  source: string | null;
-  created_at: string;
-  updated_at: string;
-  archived_at: string | null;
-};
-
-const columnByField: Record<keyof OrganisationUpdate, string> = {
-  name: 'name',
-  legalName: 'legal_name',
-  website: 'website',
-  industry: 'industry',
-  employeeBand: 'employee_band',
-  annualRevenueBand: 'annual_revenue_band',
-  country: 'country',
-  status: 'status',
-  source: 'source',
-};
+type OrganisationRow = typeof organisations.$inferSelect;
+type OrganisationInsert = typeof organisations.$inferInsert;
+type OrganisationUpdateRow = Partial<typeof organisations.$inferInsert>;
 
 function mapRow(row: OrganisationRow): Organisation {
-  return {
+  return OrganisationResponseSchema.parse({
     id: row.id,
     name: row.name,
-    legalName: row.legal_name,
+    legalName: row.legalName,
     website: row.website,
     industry: row.industry,
-    employeeBand: row.employee_band,
-    annualRevenueBand: row.annual_revenue_band,
+    employeeBand: row.employeeBand,
+    annualRevenueBand: row.annualRevenueBand,
     country: row.country,
     status: row.status,
     source: row.source,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    archivedAt: row.archived_at,
-  };
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    archivedAt: row.archivedAt,
+  });
 }
 
 function escapeLikeLiteral(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&');
 }
 
+function buildUpdateRow(patch: OrganisationUpdate, updatedAt: string): OrganisationUpdateRow {
+  const update: OrganisationUpdateRow = { updatedAt };
+  if ('name' in patch) update.name = patch.name;
+  if ('legalName' in patch) update.legalName = patch.legalName ?? null;
+  if ('website' in patch) update.website = patch.website ?? null;
+  if ('industry' in patch) update.industry = patch.industry ?? null;
+  if ('employeeBand' in patch) update.employeeBand = patch.employeeBand ?? null;
+  if ('annualRevenueBand' in patch) update.annualRevenueBand = patch.annualRevenueBand ?? null;
+  if ('country' in patch) update.country = patch.country ?? null;
+  if ('status' in patch) update.status = patch.status;
+  if ('source' in patch) update.source = patch.source ?? null;
+  return update;
+}
+
 export class OrganisationRepository implements IOrganisationRepository {
   async create(input: OrganisationCreate): Promise<Organisation> {
-    const id = randomUUID();
     const now = new Date().toISOString();
-
-    sqlite.prepare(`
-      insert into organisations (
-        id, name, legal_name, website, industry, employee_band,
-        annual_revenue_band, country, status, source, created_at, updated_at, archived_at
-      ) values (
-        @id, @name, @legalName, @website, @industry, @employeeBand,
-        @annualRevenueBand, @country, @status, @source, @now, @now, null
-      )
-    `).run({
-      id,
-      now,
-      ...input,
-      status: input.status ?? 'prospect',
+    const row: OrganisationInsert = {
+      id: randomUUID(),
+      name: input.name,
       legalName: input.legalName ?? null,
       website: input.website ?? null,
       industry: input.industry ?? null,
       employeeBand: input.employeeBand ?? null,
       annualRevenueBand: input.annualRevenueBand ?? null,
       country: input.country ?? null,
+      status: input.status ?? 'prospect',
       source: input.source ?? null,
-    });
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+    };
 
-    return (await this.getById(id, { includeArchived: true }))!;
+    db.insert(organisations).values(row).run();
+    const created = await this.getById(row.id, { includeArchived: true });
+    if (!created) {
+      throw new Error('Organisation was not found after create');
+    }
+    return created;
   }
 
   async getById(
     id: string,
     options?: { includeArchived?: boolean },
   ): Promise<Organisation | null> {
-    const row = sqlite.prepare(`
-      select * from organisations
-      where id = @id ${options?.includeArchived ? '' : 'and archived_at is null'}
-    `).get({ id }) as OrganisationRow | undefined;
+    const predicates = [eq(organisations.id, id)];
+    if (!options?.includeArchived) {
+      predicates.push(isNull(organisations.archivedAt));
+    }
 
+    const row = db.select().from(organisations).where(and(...predicates)).get();
     return row ? mapRow(row) : null;
   }
 
   async list(options: OrganisationListOptions): Promise<Organisation[]> {
-    const where: string[] = [];
-    const params: Record<string, unknown> = {
-      limit: options.limit,
-      offset: options.offset,
-    };
-
+    const predicates = [];
     if (!options.includeArchived) {
-      where.push('archived_at is null');
+      predicates.push(isNull(organisations.archivedAt));
     }
     if (options.status) {
-      where.push('status = @status');
-      params.status = options.status;
+      predicates.push(eq(organisations.status, options.status));
     }
     if (options.search) {
-      where.push("lower(name) like lower(@search) escape '\\'");
-      params.search = `%${escapeLikeLiteral(options.search)}%`;
+      const pattern = `%${escapeLikeLiteral(options.search)}%`;
+      predicates.push(sql`lower(${organisations.name}) like lower(${pattern}) escape '\\'`);
     }
 
-    const rows = sqlite.prepare(`
-      select * from organisations
-      ${where.length ? `where ${where.join(' and ')}` : ''}
-      order by lower(name) asc, id asc
-      limit @limit offset @offset
-    `).all(params) as OrganisationRow[];
+    const rows = db.select()
+      .from(organisations)
+      .where(predicates.length ? and(...predicates) : undefined)
+      .orderBy(sql`lower(${organisations.name})`, asc(organisations.id))
+      .limit(options.limit)
+      .offset(options.offset)
+      .all();
 
     return rows.map(mapRow);
   }
 
   async update(id: string, patch: OrganisationUpdate): Promise<Organisation | null> {
-    const now = new Date().toISOString();
-    const setClauses = Object.keys(patch).map(
-      (field) => `${columnByField[field as keyof OrganisationUpdate]} = @${field}`,
-    );
+    const update = buildUpdateRow(patch, new Date().toISOString());
 
-    const result = sqlite.prepare(`
-      update organisations
-      set ${setClauses.join(', ')}, updated_at = @now
-      where id = @id and archived_at is null
-    `).run({ id, now, ...patch });
+    db.update(organisations)
+      .set(update)
+      .where(and(eq(organisations.id, id), isNull(organisations.archivedAt)))
+      .run();
 
-    return result.changes ? this.getById(id, { includeArchived: true }) : null;
+    return this.getById(id, { includeArchived: true });
   }
 
   async archive(id: string, archivedAt: string): Promise<Organisation | null> {
     const existing = await this.getById(id, { includeArchived: true });
-    if (!existing) {
-      return null;
-    }
-    if (existing.archivedAt) {
+    if (!existing || existing.archivedAt) {
       return existing;
     }
 
-    sqlite.prepare(`
-      update organisations
-      set archived_at = @archivedAt, updated_at = @archivedAt
-      where id = @id
-    `).run({ id, archivedAt });
+    db.update(organisations)
+      .set({ archivedAt, updatedAt: archivedAt })
+      .where(eq(organisations.id, id))
+      .run();
 
     return this.getById(id, { includeArchived: true });
   }
