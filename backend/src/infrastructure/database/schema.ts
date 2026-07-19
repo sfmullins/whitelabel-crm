@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, real, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
 
 // ==========================================
@@ -201,4 +202,72 @@ export const customObjectsValues = sqliteTable('custom_objects_values', {
 }, (table) => ({
   recordIdx: index('co_val_rec_idx').on(table.recordId),
   recordFieldIdx: uniqueIndex('co_val_unique_idx').on(table.recordId, table.fieldId),
+}));
+
+
+// ==========================================
+// Organisations Table
+// ==========================================
+export const organisations = sqliteTable('organisations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  legalName: text('legal_name'),
+  website: text('website'),
+  industry: text('industry'),
+  employeeBand: text('employee_band'),
+  annualRevenueBand: text('annual_revenue_band'),
+  country: text('country'),
+  status: text('status').notNull().default('prospect'),
+  source: text('source'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  archivedAt: text('archived_at'),
+}, (table) => ({
+  statusIdx: index('organisation_status_idx').on(table.status),
+  nameIdx: index('organisation_name_idx').on(table.name),
+}));
+
+// ==========================================
+// Contacts Table
+// ==========================================
+export const contacts = sqliteTable('contacts', {
+  id: text('id').primaryKey(),
+  organisationId: text('organisation_id').notNull().references(() => organisations.id, { onDelete: 'restrict' }),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  jobTitle: text('job_title'),
+  email: text('email'),
+  phone: text('phone'),
+  isPrimary: integer('is_primary', { mode: 'boolean' }).notNull().default(false),
+  status: text('status').notNull().default('active'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  archivedAt: text('archived_at'),
+}, (table) => ({
+  organisationIdx: index('contact_organisation_idx').on(table.organisationId),
+  emailIdx: index('contact_email_idx').on(table.email),
+  organisationPrimaryIdx: index('contact_organisation_primary_idx').on(table.organisationId, table.isPrimary),
+  oneActivePrimaryPerOrgIdx: uniqueIndex('contact_one_active_primary_per_org_idx').on(table.organisationId).where(sql`${table.isPrimary} = 1 AND ${table.status} = 'active' AND ${table.archivedAt} IS NULL`),
+}));
+
+// ==========================================
+// Engagements Table
+// ==========================================
+export const engagements = sqliteTable('engagements', {
+  id: text('id').primaryKey(),
+  organisationId: text('organisation_id').notNull().references(() => organisations.id, { onDelete: 'restrict' }),
+  primaryContactId: text('primary_contact_id').references(() => contacts.id, { onDelete: 'restrict' }),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  status: text('status').notNull().default('proposed'),
+  summary: text('summary'),
+  startDate: text('start_date').notNull(),
+  endDate: text('end_date'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  archivedAt: text('archived_at'),
+}, (table) => ({
+  organisationIdx: index('engagement_organisation_idx').on(table.organisationId),
+  statusIdx: index('engagement_status_idx').on(table.status),
+  startDateIdx: index('engagement_start_date_idx').on(table.startDate),
 }));

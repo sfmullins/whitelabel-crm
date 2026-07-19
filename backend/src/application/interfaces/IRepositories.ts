@@ -83,3 +83,34 @@ export interface ICustomObjectRepository {
   saveRecordValues(recordId: string, values: Record<string, string>): Promise<void>;
   getRecordValues(recordId: string): Promise<Record<string, string>>; // fieldName -> value map
 }
+
+import type { Organisation, OrganisationCreate, OrganisationUpdate, OrganisationStatus, Contact, ContactCreate, ContactUpdate, ContactStatus, Engagement, EngagementCreate, EngagementUpdate, EngagementStatus } from 'shared';
+
+export interface ListOptions<TStatus> { status?: TStatus; includeArchived?: boolean; limit: number; offset: number; }
+export interface OrganisationListOptions extends ListOptions<OrganisationStatus> { search?: string; }
+export interface ContactListOptions extends ListOptions<ContactStatus> { organisationId: string; }
+export interface EngagementListOptions extends ListOptions<EngagementStatus> { organisationId: string; }
+
+export interface IOrganisationRepository {
+  create(input: OrganisationCreate): Promise<Organisation>;
+  getById(id: string, options?: { includeArchived?: boolean }): Promise<Organisation | null>;
+  list(options: OrganisationListOptions): Promise<Organisation[]>;
+  update(id: string, patch: OrganisationUpdate): Promise<Organisation | null>;
+  archive(id: string, archivedAt: string): Promise<Organisation | null>;
+}
+export interface IContactRepository {
+  create(input: ContactCreate): Promise<Contact>;
+  createPrimary(input: ContactCreate): Promise<Contact>;
+  getById(id: string, options?: { includeArchived?: boolean }): Promise<Contact | null>;
+  list(options: ContactListOptions): Promise<Contact[]>;
+  update(id: string, patch: ContactUpdate): Promise<Contact | null>;
+  updatePrimary(id: string, patch: ContactUpdate): Promise<Contact | null>;
+  archive(id: string, archivedAt: string): Promise<Contact | null>;
+}
+export interface IEngagementRepository {
+  create(input: EngagementCreate): Promise<Engagement>;
+  getById(id: string, options?: { includeArchived?: boolean }): Promise<Engagement | null>;
+  list(options: EngagementListOptions): Promise<Engagement[]>;
+  update(id: string, patch: EngagementUpdate): Promise<Engagement | null>;
+  archive(id: string, archivedAt: string): Promise<Engagement | null>;
+}

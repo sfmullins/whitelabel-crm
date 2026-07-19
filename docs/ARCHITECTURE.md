@@ -63,3 +63,9 @@ The root build runs, in order: the shared build, backend build, frontend build, 
 - Some financial calculation responsibilities appear in multiple layers and should be consolidated before behaviour changes.
 - The desktop staging directory currently contains generated artifacts in the repository and should be reviewed separately rather than removed in this governance PR.
 - The full desktop smoke test is not a mandatory headless CI check.
+
+## B2B CRM domain services
+
+Organisations, contacts and engagements use the dependency direction `Express route -> application service -> repository interface -> SQLite/Drizzle schema`. The service layer is intentionally small and handles cross-table business rules such as archived parent checks, one-primary-contact semantics, engagement primary-contact eligibility and date-range validation.
+
+Repository interfaces live under `backend/src/application/interfaces/`, and SQLite implementations live under `backend/src/infrastructure/database/repositories/`. The new domain coexists with the legacy customer model: bookings, invoices, payments and custom object records continue to reference `customers`, while organisations own only contacts and engagements.

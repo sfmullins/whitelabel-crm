@@ -1,0 +1,13 @@
+import { randomUUID } from 'crypto';
+import { sqlite } from '../connection';
+import type { IEngagementRepository, EngagementListOptions } from '../../../application/interfaces/IRepositories';
+import type { Engagement, EngagementCreate, EngagementUpdate } from 'shared';
+const row=(r:any):Engagement=>({id:r.id,organisationId:r.organisation_id,primaryContactId:r.primary_contact_id,name:r.name,type:r.type,status:r.status,summary:r.summary,startDate:r.start_date,endDate:r.end_date,createdAt:r.created_at,updatedAt:r.updated_at,archivedAt:r.archived_at});
+const cols:any={primaryContactId:'primary_contact_id',startDate:'start_date',endDate:'end_date'};
+export class EngagementRepository implements IEngagementRepository{
+ async create(input:EngagementCreate){const now=new Date().toISOString(),id=randomUUID(); sqlite.prepare(`insert into engagements (id,organisation_id,primary_contact_id,name,type,status,summary,start_date,end_date,created_at,updated_at,archived_at) values (@id,@organisationId,@primaryContactId,@name,@type,@status,@summary,@startDate,@endDate,@now,@now,null)`).run({id,now,...input,status:(input as any).status ?? 'proposed',primaryContactId:input.primaryContactId??null,summary:input.summary??null,endDate:input.endDate??null}); return (await this.getById(id,{includeArchived:true}))!}
+ async getById(id:string,o?:{includeArchived?:boolean}){const r=sqlite.prepare(`select * from engagements where id=? ${o?.includeArchived?'':'and archived_at is null'}`).get(id);return r?row(r):null}
+ async list(o:EngagementListOptions){const w=['organisation_id=@organisationId']; if(!o.includeArchived)w.push('archived_at is null'); if(o.status)w.push('status=@status'); return sqlite.prepare(`select * from engagements where ${w.join(' and ')} order by start_date desc, created_at desc, id asc limit @limit offset @offset`).all(o).map(row)}
+ async update(id:string,patch:EngagementUpdate){const now=new Date().toISOString(); const sets=Object.keys(patch).map(k=>`${cols[k]??k}=@${k}`); const info=sqlite.prepare(`update engagements set ${sets.join(',')}, updated_at=@now where id=@id and archived_at is null`).run({id,now,...patch,primaryContactId:patch.primaryContactId??null,summary:patch.summary??null,endDate:patch.endDate??null}); return info.changes?this.getById(id,{includeArchived:true}):null}
+ async archive(id:string,archivedAt:string){const ex=await this.getById(id,{includeArchived:true}); if(!ex)return null; if(ex.archivedAt)return ex; sqlite.prepare('update engagements set archived_at=@archivedAt, updated_at=@archivedAt where id=@id').run({id,archivedAt}); return this.getById(id,{includeArchived:true})}
+}

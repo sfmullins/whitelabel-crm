@@ -4,6 +4,18 @@ import path from 'path';
 import { closeDatabase, openDatabase, sqlite } from '../backend/src/infrastructure/database/connection';
 import { runMigrations } from '../backend/src/infrastructure/database/migrate';
 
+const expectedIndexes = [
+  'organisation_status_idx',
+  'organisation_name_idx',
+  'contact_organisation_idx',
+  'contact_email_idx',
+  'contact_organisation_primary_idx',
+  'contact_one_active_primary_per_org_idx',
+  'engagement_organisation_idx',
+  'engagement_status_idx',
+  'engagement_start_date_idx',
+];
+
 const expectedTables = [
   'settings',
   'customers',
@@ -17,6 +29,9 @@ const expectedTables = [
   'custom_objects_definition',
   'custom_objects_records',
   'custom_objects_values',
+  'organisations',
+  'contacts',
+  'engagements',
 ];
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'whitelabel-crm-db-smoke-'));
@@ -41,7 +56,16 @@ try {
     requireOk(tableNames.has(table), `Expected migrated table '${table}' to exist`);
   }
 
+  const indexRows = sqlite.prepare("select name from sqlite_master where type = 'index'").all() as Array<{ name: string }>;
+  const indexNames = new Set(indexRows.map((row) => row.name));
+  for (const indexName of expectedIndexes) {
+    requireOk(indexNames.has(indexName), `Expected migrated index '${indexName}' to exist`);
+  }
+
   runMigrations(db, migrationsFolder);
+
+  const foreignKeys = sqlite.pragma('foreign_keys') as Array<{ foreign_keys: number }>;
+  requireOk(foreignKeys[0]?.foreign_keys === 1, `Expected foreign key enforcement to be enabled: ${JSON.stringify(foreignKeys)}`);
 
   const foreignKeyRows = sqlite.pragma('foreign_key_check') as unknown[];
   requireOk(foreignKeyRows.length === 0, `Foreign key check failed: ${JSON.stringify(foreignKeyRows)}`);

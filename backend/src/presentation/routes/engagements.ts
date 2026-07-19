@@ -1,0 +1,14 @@
+import { Router } from 'express'; import { z } from 'zod';
+import { EngagementCreateBodySchema, EngagementCreateSchema, EngagementUpdateSchema, EngagementStatusSchema } from 'shared';
+import { OrganisationRepository } from '../../infrastructure/database/repositories/OrganisationRepository'; import { ContactRepository } from '../../infrastructure/database/repositories/ContactRepository'; import { EngagementRepository } from '../../infrastructure/database/repositories/EngagementRepository';
+import { EngagementService } from '../../application/services/CrmDomainServices'; import { ValidationError } from '../../application/errors';
+const router=Router(); const service=new EngagementService(new OrganisationRepository(),new ContactRepository(),new EngagementRepository());
+const Id=z.object({id:z.string().uuid('Invalid ID')}).strict(); const OrgId=z.object({organisationId:z.string().uuid('Invalid organisation ID')}).strict();
+const Query=z.object({status:EngagementStatusSchema.optional(),includeArchived:z.enum(['true','false']).optional().transform(v=>v==='true'),limit:z.coerce.number().int().min(0).max(200).default(50),offset:z.coerce.number().int().min(0).default(0)}).strict();
+const parse=(s:z.ZodTypeAny,v:unknown)=>{const r=s.safeParse(v); if(!r.success)throw new ValidationError('Request validation failed',r.error.format()); return r.data as any};
+router.post('/organisations/:organisationId/engagements',async(req,res,next)=>{try{const p=parse(OrgId,req.params); const b=parse(EngagementCreateBodySchema,req.body); res.status(201).json(await service.create(parse(EngagementCreateSchema,{...b,organisationId:p.organisationId})))}catch(e){next(e)}});
+router.get('/organisations/:organisationId/engagements',async(req,res,next)=>{try{const p=parse(OrgId,req.params); res.json(await service.list({...parse(Query,req.query),organisationId:p.organisationId}))}catch(e){next(e)}});
+router.get('/engagements/:id',async(req,res,next)=>{try{res.json(await service.get(parse(Id,req.params).id))}catch(e){next(e)}});
+router.patch('/engagements/:id',async(req,res,next)=>{try{res.json(await service.update(parse(Id,req.params).id,parse(EngagementUpdateSchema,req.body)))}catch(e){next(e)}});
+router.post('/engagements/:id/archive',async(req,res,next)=>{try{res.json(await service.archive(parse(Id,req.params).id))}catch(e){next(e)}});
+export default router;
