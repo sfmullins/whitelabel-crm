@@ -120,23 +120,22 @@ export class OrganisationRepository implements IOrganisationRepository {
   async update(id: string, patch: OrganisationUpdate): Promise<Organisation | null> {
     const update = buildUpdateRow(patch, new Date().toISOString());
 
-    db.update(organisations)
+    const result = db.update(organisations)
       .set(update)
       .where(and(eq(organisations.id, id), isNull(organisations.archivedAt)))
       .run();
+
+    if (result.changes !== 1) {
+      return null;
+    }
 
     return this.getById(id, { includeArchived: true });
   }
 
   async archive(id: string, archivedAt: string): Promise<Organisation | null> {
-    const existing = await this.getById(id, { includeArchived: true });
-    if (!existing || existing.archivedAt) {
-      return existing;
-    }
-
     db.update(organisations)
       .set({ archivedAt, updatedAt: archivedAt })
-      .where(eq(organisations.id, id))
+      .where(and(eq(organisations.id, id), isNull(organisations.archivedAt)))
       .run();
 
     return this.getById(id, { includeArchived: true });

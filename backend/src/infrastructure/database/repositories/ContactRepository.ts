@@ -12,12 +12,13 @@ import {
   type ContactCreate,
   type ContactUpdate,
 } from 'shared';
-
-export class ContactRepositoryNotFoundError extends Error {}
-export class ContactRepositoryArchivedError extends Error {}
-export class ContactRepositoryInactivePrimaryError extends Error {}
-export class ContactRepositoryAffectedRowsError extends Error {}
-export class ContactRepositoryUniquePrimaryError extends Error {}
+import {
+  ContactRepositoryAffectedRowsError,
+  ContactRepositoryArchivedError,
+  ContactRepositoryInactivePrimaryError,
+  ContactRepositoryNotFoundError,
+  ContactRepositoryUniquePrimaryError,
+} from '../../../application/errors';
 
 type ContactRow = typeof contacts.$inferSelect;
 type ContactInsert = typeof contacts.$inferInsert;
@@ -251,10 +252,14 @@ export class ContactRepository implements IContactRepository {
   }
 
   async update(id: string, patch: ContactUpdate): Promise<Contact | null> {
-    db.update(contacts)
+    const result = db.update(contacts)
       .set(updateRow(patch, new Date().toISOString()))
       .where(and(eq(contacts.id, id), isNull(contacts.archivedAt)))
       .run();
+
+    if (result.changes !== 1) {
+      return null;
+    }
 
     return this.getById(id, { includeArchived: true });
   }
@@ -317,14 +322,9 @@ export class ContactRepository implements IContactRepository {
   }
 
   async archive(id: string, archivedAt: string): Promise<Contact | null> {
-    const existing = await this.getById(id, { includeArchived: true });
-    if (!existing || existing.archivedAt) {
-      return existing;
-    }
-
     db.update(contacts)
       .set({ archivedAt, updatedAt: archivedAt, isPrimary: false })
-      .where(eq(contacts.id, id))
+      .where(and(eq(contacts.id, id), isNull(contacts.archivedAt)))
       .run();
 
     return this.getById(id, { includeArchived: true });

@@ -14,14 +14,16 @@ import type {
   EngagementCreate,
   EngagementUpdate,
 } from 'shared';
-import { ConflictError, NotFoundError, ValidationError } from '../errors';
 import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
   ContactRepositoryAffectedRowsError,
   ContactRepositoryArchivedError,
   ContactRepositoryInactivePrimaryError,
   ContactRepositoryNotFoundError,
   ContactRepositoryUniquePrimaryError,
-} from '../../infrastructure/database/repositories/ContactRepository';
+} from '../errors';
 
 export class OrganisationService {
   constructor(private readonly organisations: IOrganisationRepository) {}

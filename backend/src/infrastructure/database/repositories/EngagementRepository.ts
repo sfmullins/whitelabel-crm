@@ -108,23 +108,22 @@ export class EngagementRepository implements IEngagementRepository {
   async update(id: string, patch: EngagementUpdate): Promise<Engagement | null> {
     const update = buildUpdateRow(patch, new Date().toISOString());
 
-    db.update(engagements)
+    const result = db.update(engagements)
       .set(update)
       .where(and(eq(engagements.id, id), isNull(engagements.archivedAt)))
       .run();
+
+    if (result.changes !== 1) {
+      return null;
+    }
 
     return this.getById(id, { includeArchived: true });
   }
 
   async archive(id: string, archivedAt: string): Promise<Engagement | null> {
-    const existing = await this.getById(id, { includeArchived: true });
-    if (!existing || existing.archivedAt) {
-      return existing;
-    }
-
     db.update(engagements)
       .set({ archivedAt, updatedAt: archivedAt })
-      .where(eq(engagements.id, id))
+      .where(and(eq(engagements.id, id), isNull(engagements.archivedAt)))
       .run();
 
     return this.getById(id, { includeArchived: true });

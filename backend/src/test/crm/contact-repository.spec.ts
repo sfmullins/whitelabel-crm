@@ -61,6 +61,9 @@ describe('ContactRepository', () => {
     });
 
     const archived = await contacts.archive(first.id, '2026-01-01T00:00:00.000Z');
-    expect(archived).toMatchObject({ isPrimary: false });
+    const archivedAgain = await contacts.archive(first.id, '2026-02-01T00:00:00.000Z');
+    expect(archived).toMatchObject({ isPrimary: false, archivedAt: '2026-01-01T00:00:00.000Z' });
+    expect(archivedAgain?.archivedAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(await contacts.update(first.id, { firstName: 'Should not update' })).toBeNull();
   });
 });

@@ -58,7 +58,9 @@ describe('OrganisationRepository', () => {
 
     const archived = await organisations.archive(beta.id, '2026-01-01T00:00:00.000Z');
     const archivedAgain = await organisations.archive(beta.id, '2026-02-01T00:00:00.000Z');
+    expect(archivedAgain?.archivedAt).toBe('2026-01-01T00:00:00.000Z');
     expect(archivedAgain?.archivedAt).toBe(archived?.archivedAt);
+    expect(await organisations.update(beta.id, { name: 'Should not update' })).toBeNull();
     expect(await organisations.list({ limit: 50, offset: 0 })).toHaveLength(1);
     expect(await organisations.list({ includeArchived: true, limit: 50, offset: 0 })).toHaveLength(2);
   });

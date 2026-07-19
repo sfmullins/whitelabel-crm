@@ -37,6 +37,8 @@ describe('EngagementRepository', () => {
 
     const archived = await engagements.archive(engagement.id, '2026-01-01T00:00:00.000Z');
     const archivedAgain = await engagements.archive(engagement.id, '2026-02-01T00:00:00.000Z');
+    expect(archivedAgain?.archivedAt).toBe('2026-01-01T00:00:00.000Z');
     expect(archivedAgain?.archivedAt).toBe(archived?.archivedAt);
+    expect(await engagements.update(engagement.id, { name: 'Should not update' })).toBeNull();
   });
 });

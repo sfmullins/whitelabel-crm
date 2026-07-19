@@ -54,7 +54,7 @@ The root build runs, in order: the shared build, backend build, frontend build, 
 - Make desktop package validation progressively more reliable without broad product changes.
 
 ## Deferred work
-- Organisation/contact/engagement modelling is deferred to later domain work.
+- Frontend workflows for organisations, contacts and engagements remain deferred; the backend domain model is implemented.
 - Full reliable packaged Electron launch smoke testing in GitHub Actions is deferred until desktop hardening.
 - Runtime data migration and backup/restore hardening beyond smoke coverage is deferred.
 

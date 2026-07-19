@@ -26,3 +26,10 @@ export class ConflictError extends AppError {
     super(409, message, 'CONFLICT');
   }
 }
+
+
+export class ContactRepositoryNotFoundError extends Error {}
+export class ContactRepositoryArchivedError extends Error {}
+export class ContactRepositoryInactivePrimaryError extends Error {}
+export class ContactRepositoryAffectedRowsError extends Error {}
+export class ContactRepositoryUniquePrimaryError extends Error {}

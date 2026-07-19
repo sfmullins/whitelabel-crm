@@ -33,6 +33,19 @@ describe('CRM API', () => {
         method: 'POST',
         body: JSON.stringify({ name: 'Org' }),
       });
+      const fetched = await requestJson(server.url, `/api/organisations/${created.body.id}`);
+      expect(fetched.response.status).toBe(200);
+      expect(fetched.response.headers.get('content-type')).toContain('application/json');
+      expect(fetched.body).toMatchObject({ id: created.body.id, name: 'Org' });
+
+      const patched = await requestJson(server.url, `/api/organisations/${created.body.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: 'Renamed Org' }),
+      });
+      expect(patched.response.status).toBe(200);
+      expect(patched.response.headers.get('content-type')).toContain('application/json');
+      expect(patched.body).toMatchObject({ id: created.body.id, name: 'Renamed Org' });
+
       const firstArchive = await requestJson(server.url, `/api/organisations/${created.body.id}/archive`, {
         method: 'POST',
       });
@@ -94,6 +107,20 @@ describe('CRM API', () => {
       });
       expect(clearSecond.body.isPrimary).toBe(false);
       expect((await requestJson(server.url, `/api/contacts/${first.body.id}`)).body.isPrimary).toBe(false);
+
+      const otherOrg = await requestJson(server.url, '/api/organisations', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Other Org' }),
+      });
+      await requestJson(server.url, `/api/organisations/${otherOrg.body.id}/contacts`, {
+        method: 'POST',
+        body: JSON.stringify({ email: 'other@example.com' }),
+      });
+      const scopedContacts = await requestJson(server.url, `/api/organisations/${orgId}/contacts`);
+      expect(scopedContacts.response.status).toBe(200);
+      expect(scopedContacts.response.headers.get('content-type')).toContain('application/json');
+      expect(scopedContacts.body).toHaveLength(2);
+      expect(scopedContacts.body.every((contact: { organisationId: string }) => contact.organisationId === orgId)).toBe(true);
 
       const missing = await requestJson(server.url, '/api/contacts/00000000-0000-4000-8000-000000000001');
       expect(missing.response.status).toBe(404);
@@ -187,6 +214,24 @@ describe('CRM API', () => {
         summary: 'Keep me',
         endDate: '2026-02-02',
       });
+
+      const otherOrg = await requestJson(server.url, '/api/organisations', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'Other Org' }),
+      });
+      await requestJson(server.url, `/api/organisations/${otherOrg.body.id}/engagements`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'Other engagement',
+          type: 'diagnostic',
+          startDate: '2026-03-01',
+        }),
+      });
+      const scopedEngagements = await requestJson(server.url, `/api/organisations/${orgId}/engagements`);
+      expect(scopedEngagements.response.status).toBe(200);
+      expect(scopedEngagements.response.headers.get('content-type')).toContain('application/json');
+      expect(scopedEngagements.body).toHaveLength(1);
+      expect(scopedEngagements.body[0]).toMatchObject({ organisationId: orgId, id: equalDates.body.id });
 
       const missing = await requestJson(server.url, '/api/engagements/00000000-0000-4000-8000-000000000001');
       expect(missing.response.status).toBe(404);

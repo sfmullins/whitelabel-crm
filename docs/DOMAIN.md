@@ -17,13 +17,13 @@
 Customers own bookings, invoices, and custom object records. Services can be referenced by bookings and invoice items. Invoices own invoice items and payments. Custom field definitions are reused by core entity values and custom object record values.
 
 ## Future work and known gaps
-- Future work: Replace or extend the individual-first customer model with an organisation/contact model.
+- Future work: Decide whether and how legacy individual-first customers should relate to the implemented organisation/contact domain.
 - Future work: Client notes are currently stored as combined customer text and parsed into timeline-style entries rather than being formal engagement or activity records.
 - Future work: Invoice states are limited and do not model a complete accounting lifecycle.
 - Future work: There is no formal credit-note model.
 - Future work: Invoice calculations may be duplicated across frontend, repository, and PDF layers and should be centralized before behaviour changes.
 - Future work: Currency presentation is not consistently enforced across all layers.
-- Future work: The workflow is appointment-oriented and does not yet model B2B consulting engagements as first-class records.
+- Future work: Build frontend workflows around first-class B2B consulting engagements.
 
 ## Organisations, contacts and engagements
 
