@@ -1009,7 +1009,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------
-Package: tsx (v4.23.1)
+Package: tsx (v4.10.5)
 License: MIT
 Author: Hiroki Osame
 ------------------------------------------------------------------------
@@ -1036,7 +1036,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------
-Package: typescript (v5.9.3)
+Package: typescript (v5.4.5)
 License: Apache-2.0
 Author: Microsoft Corp.
 ------------------------------------------------------------------------
