@@ -19,9 +19,10 @@ export function parseLegacyCustomerNotes(
   notes: string,
   fallbackOccurredAt: string,
 ): LegacyNoteSegment[] {
-  const normalised = notes.replace(/\r\n?/g, '\n');
-  const marker = /\[Note logged on ([^\]\n]+)\]:[ \t]*\n/g;
-  const matches = Array.from(normalised.matchAll(marker));
+  // Match all supported line endings directly so parsing never mutates the source
+  // segment used for body preservation and SHA-256 idempotency.
+  const marker = /\[Note logged on ([^\]\r\n]+)\]:[ \t]*(?:\r\n|\r|\n)/g;
+  const matches = Array.from(notes.matchAll(marker));
   const pending: Array<{ rawSegment: string; body: string; occurredAt: string }> = [];
 
   const addFallback = (rawSegment: string) => {
@@ -30,20 +31,20 @@ export function parseLegacyCustomerNotes(
   };
 
   if (matches.length === 0) {
-    addFallback(normalised);
+    addFallback(notes);
   } else {
-    addFallback(normalised.slice(0, matches[0].index ?? 0));
+    addFallback(notes.slice(0, matches[0].index ?? 0));
 
     matches.forEach((match, index) => {
       const start = match.index ?? 0;
       const bodyStart = start + match[0].length;
       const end = index + 1 < matches.length
-        ? matches[index + 1].index ?? normalised.length
-        : normalised.length;
-      const rawSegment = normalised.slice(start, end);
+        ? matches[index + 1].index ?? notes.length
+        : notes.length;
+      const rawSegment = notes.slice(start, end);
       const rawTimestamp = match[1].trim();
       const parsedTimestamp = validIsoOrNull(rawTimestamp);
-      const bodyText = normalised.slice(bodyStart, end).trim();
+      const bodyText = notes.slice(bodyStart, end).trim();
 
       if (!bodyText) {
         addFallback(rawSegment);
