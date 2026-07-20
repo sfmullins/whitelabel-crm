@@ -47,7 +47,19 @@ replaceRequired(
                   Activity history could not be loaded. Existing appointment and invoice history remains available below.
                 </div>
               )}
-              {timelineFeed.length === 0 && !areActivitiesLoading && !activitiesFailed ? (`,
+              {timelineFeed.length === 0 ? (
+                !areActivitiesLoading && !activitiesFailed ? (`,
+);
+
+replaceRequired(
+  'frontend/src/pages/CustomerWorkspace.tsx',
+  `                </div>
+              ) : (
+                <div className="relative border-l border-border/80 pl-6 ml-4 space-y-8 py-2">`,
+  `                </div>
+                ) : null
+              ) : (
+                <div className="relative border-l border-border/80 pl-6 ml-4 space-y-8 py-2">`,
 );
 
 replaceRequired(
@@ -67,4 +79,58 @@ replaceRequired(
     sourceKey: \`company:\${comparisonName.toLocaleLowerCase('en')}\`,
   };
 }`,
+);
+
+replaceRequired(
+  'frontend/src/pages/CustomerWorkspace.tsx',
+  `  Layers, PlusCircle, Edit2, X
+} from 'lucide-react';`,
+  `  Layers, PlusCircle, Edit2, X, type LucideIcon
+} from 'lucide-react';`,
+);
+
+replaceRequired(
+  'frontend/src/pages/CustomerWorkspace.tsx',
+  `import { Customer, Booking, Service, Invoice, CustomFieldDefinition, CustomObjectDefinition, CustomObjectRecord, Activity, ActivityType } from 'shared';
+
+export default function CustomerWorkspace() {`,
+  `import { Customer, Booking, Service, Invoice, CustomFieldDefinition, CustomObjectDefinition, CustomObjectRecord, Activity, ActivityType } from 'shared';
+
+type TimelineItem = {
+  id?: string;
+  type: 'booking' | 'invoice' | 'activity';
+  title: string;
+  description: string;
+  date: string;
+  icon: LucideIcon;
+  color: string;
+  author?: string;
+  followUpDate?: string | null;
+};
+
+export default function CustomerWorkspace() {`,
+);
+
+replaceRequired(
+  'frontend/src/pages/CustomerWorkspace.tsx',
+  `    onError: (err: any) => {
+      setActivityError(err.message || 'Failed to log activity');
+    },`,
+  `    onError: (error: unknown) => {
+      setActivityError(error instanceof Error ? error.message : 'Failed to log activity');
+    },`,
+);
+
+replaceRequired(
+  'frontend/src/pages/CustomerWorkspace.tsx',
+  '    const feed: any[] = [];',
+  '    const feed: TimelineItem[] = [];',
+);
+
+replaceRequired(
+  'frontend/src/pages/CustomerWorkspace.tsx',
+  `{item.date.includes('T') ? item.date.split('T')[0] : item.date}`,
+  `{item.type === 'activity'
+    ? new Date(item.date).toLocaleString()
+    : (item.date.includes('T') ? item.date.split('T')[0] : item.date)}`,
 );
