@@ -347,12 +347,10 @@ export const LegacyOrganisationSourceTypeSchema = z.enum([
   'individual_customer',
 ]);
 
-export const IsoTimestampSchema = z.string().trim().superRefine((value, ctx) => {
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Timestamp must be a valid ISO-8601 value' });
-  }
-}).transform((value) => new Date(value).toISOString());
+export const IsoTimestampSchema = z.string()
+  .trim()
+  .datetime({ offset: true, message: 'Timestamp must be a valid ISO-8601 value' })
+  .transform((value) => new Date(value).toISOString());
 
 const ActivityCreateFieldsSchema = z.object({
   organisationId: z.string().uuid('Invalid organisation ID'),
