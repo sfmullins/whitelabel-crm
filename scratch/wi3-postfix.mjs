@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// One-time branch finaliser. Removed after the validated workspace commit.
 function replaceOnce(filePath, search, replacement) {
   const content = fs.readFileSync(filePath, 'utf8');
   if (!content.includes(search)) return false;
