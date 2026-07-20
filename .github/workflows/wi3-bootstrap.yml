@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: wi3-bootstrap
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   implement:
