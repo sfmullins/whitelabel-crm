@@ -43,6 +43,9 @@ jobs:
       - name: Generate Drizzle migration
         run: npm run db:generate
 
+      - name: Apply post-generation fixes
+        run: node scratch/wi3-postfix.mjs
+
       - name: Validate implementation
         shell: bash
         run: |
@@ -58,8 +61,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           rm -f scratch/wi3-bootstrap.generated.mjs
           git add -A
-          git commit -m "WI3: record validation diagnostics [wi3-bootstrap]"
-          git push origin HEAD:codex/wi3-normalised-activity-notes-v2
+          if ! git diff --cached --quiet; then
+            git commit -m "WI3: record validation diagnostics [wi3-bootstrap]"
+            git push origin HEAD:codex/wi3-normalised-activity-notes-v2
+          fi
 
       - name: Report validation result
         run: exit "$VALIDATION_STATUS"
