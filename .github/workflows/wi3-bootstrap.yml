@@ -1,26 +1,21 @@
-name: WI3 branch bootstrap
+name: WI3 final workspace validation
 
 on:
   push:
     branches:
       - codex/wi3-normalised-activity-notes-v2
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: wi3-bootstrap
+  group: wi3-final-workspace
   cancel-in-progress: true
 
 jobs:
-  implement:
-    if: >-
-      github.actor != 'github-actions[bot]' &&
-      (github.event_name != 'pull_request' || github.head_ref == 'codex/wi3-normalised-activity-notes-v2')
+  validate-and-commit:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -37,34 +32,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Apply WI3 implementation
-        run: node scratch/wi3-bootstrap-loader.mjs
-
-      - name: Generate Drizzle migration
-        run: npm run db:generate
-
-      - name: Apply post-generation fixes
+      - name: Finalise customer activity workspace
         run: node scratch/wi3-postfix.mjs
 
-      - name: Validate implementation
-        shell: bash
-        run: |
-          set +e
-          npm run ci:verify 2>&1 | tee scratch/wi3-validation.txt
-          validation_status=${PIPESTATUS[0]}
-          echo "VALIDATION_STATUS=${validation_status}" >> "$GITHUB_ENV"
-          exit 0
+      - name: Validate WI3
+        run: npm run ci:verify
 
-      - name: Commit generated WI3 implementation and diagnostics
+      - name: Commit final workspace changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f scratch/wi3-bootstrap.generated.mjs
-          git add -A
+          git add frontend/src/pages/CustomerWorkspace.tsx
           if ! git diff --cached --quiet; then
-            git commit -m "WI3: record validation diagnostics [wi3-bootstrap]"
+            git commit -m "WI3: finalise customer activity workspace"
             git push origin HEAD:codex/wi3-normalised-activity-notes-v2
           fi
-
-      - name: Report validation result
-        run: exit "$VALIDATION_STATUS"
