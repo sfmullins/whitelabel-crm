@@ -382,7 +382,7 @@ export const ActivityUpdateSchema = z.object({
   body: requiredTrimmedString('Activity body').optional(),
   author: requiredTrimmedString('Author').optional(),
   occurredAt: IsoTimestampSchema.optional(),
-  followUpDate: nullableIsoDateOnlyScheme,
+  followUpDate: nullableIsoDateOnlySchema,
 }).strict().refine(nonEmptyPatch, { message: 'At least one field must be supplied' });
 
 export const ActivityResponseSchema = z.object({
