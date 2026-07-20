@@ -11,7 +11,7 @@ import type {
   ActivityPersistenceCreate,
   IActivityRepository,
 } from '../../../application/interfaces/IRepositories';
-import { getSqliteConnection } from '../connection';
+import { sqlite } from '../connection';
 
 type ActivityRow = {
   id: string;
@@ -67,7 +67,7 @@ function mapRow(row: ActivityRow): Activity {
 }
 
 export class ActivityRepository implements IActivityRepository {
-  constructor(private readonly connection: Database.Database = getSqliteConnection()) {}
+  constructor(private readonly connection: Database.Database = sqlite as Database.Database) {}
 
   async create(input: ActivityPersistenceCreate): Promise<Activity> {
     const id = randomUUID();
