@@ -7,9 +7,21 @@ import { Input } from '../components/ui/input';
 import { 
   ArrowLeft, Mail, Phone, MapPin, Briefcase, Calendar, FileText, 
   DollarSign, Plus, Check, MessageSquare, AlertCircle,
-  Layers, PlusCircle, Edit2, X
+  Layers, PlusCircle, Edit2, X, type LucideIcon
 } from 'lucide-react';
 import { Customer, Booking, Service, Invoice, CustomFieldDefinition, CustomObjectDefinition, CustomObjectRecord, Activity, ActivityType } from 'shared';
+
+type TimelineItem = {
+  id?: string;
+  type: 'booking' | 'invoice' | 'activity';
+  title: string;
+  description: string;
+  date: string;
+  icon: LucideIcon;
+  color: string;
+  author?: string;
+  followUpDate?: string | null;
+};
 
 export default function CustomerWorkspace() {
   const { id } = useParams<{ id: string }>();
@@ -36,7 +48,6 @@ export default function CustomerWorkspace() {
   const [phone, setPhone] = useState('');
   const [mobile, setMobile] = useState('');
   const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [editProfileError, setEditProfileError] = useState('');
@@ -127,7 +138,6 @@ export default function CustomerWorkspace() {
       setPhone(customer.phone || '');
       setMobile(customer.mobile || '');
       setAddress(customer.address || '');
-      setNotes(customer.notes || '');
       setTagInput(customer.tags ? customer.tags.join(', ') : '');
       setCustomFieldValues(customer.customFields || {});
     }
@@ -174,8 +184,8 @@ export default function CustomerWorkspace() {
       setActivityFollowUpDate('');
       setActivityError('');
     },
-    onError: (err: any) => {
-      setActivityError(err.message || 'Failed to log activity');
+    onError: (error: unknown) => {
+      setActivityError(error instanceof Error ? error.message : 'Failed to log activity');
     },
   });
 
@@ -246,7 +256,6 @@ export default function CustomerWorkspace() {
       phone: phone || undefined,
       mobile: mobile || undefined,
       address: address || undefined,
-      notes: notes || undefined,
       tags,
       customFields: customFieldValues
     });
@@ -309,7 +318,7 @@ export default function CustomerWorkspace() {
   // Compile Timeline Data
   // ----------------------------------------
   const getTimelineFeed = () => {
-    const feed: any[] = [];
+    const feed: TimelineItem[] = [];
     
     // 1. Bookings
     for (const b of bookings) {
@@ -479,17 +488,6 @@ export default function CustomerWorkspace() {
                 )}
               </div>
             </div>
-
-            {/* Profile Clean Notes */}
-            {customer.notes && (
-              <div className="pt-4 border-t border-border/40 space-y-1.5">
-                <p className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">Profile Background</p>
-                {/* Remove timestamp logs from pure profile notes for rendering in sidebar */}
-                <p className="text-xs text-foreground/80 leading-relaxed bg-muted/30 p-3 rounded-lg border border-border/20 whitespace-pre-line max-h-40 overflow-y-auto">
-                  {customer.notes.replace(/\[Note logged on [^\]]+\]:\n[\s\S]+?(?=\n\n\[Note logged on|$)/g, '').trim() || 'No background summary logged.'}
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Card 2: Custom Properties */}
@@ -652,7 +650,9 @@ export default function CustomerWorkspace() {
                               {item.title}
                             </span>
                             <span className="text-[10px] text-muted-foreground shrink-0 font-medium bg-muted px-2 py-0.5 rounded">
-                              {item.date.includes('T') ? item.date.split('T')[0] : item.date}
+                              {item.type === 'activity'
+    ? new Date(item.date).toLocaleString()
+    : (item.date.includes('T') ? item.date.split('T')[0] : item.date)}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground leading-normal whitespace-pre-line">
@@ -983,15 +983,6 @@ export default function CustomerWorkspace() {
                 <div className="space-y-1">
                   <label className="text-xs font-semibold">Tags (comma separated)</label>
                   <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold">Internal Notes</label>
-                  <textarea 
-                    value={notes} 
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full min-h-[80px] p-3 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
-                  />
                 </div>
               </div>
 
