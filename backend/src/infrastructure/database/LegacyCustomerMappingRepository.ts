@@ -6,7 +6,7 @@ import {
   type LegacyOrganisationSourceType,
 } from 'shared';
 import type { ILegacyCustomerMappingRepository } from '../../application/interfaces/IRepositories';
-import { getSqliteConnection } from './connection';
+import { sqlite } from './connection';
 
 type CustomerRow = {
   id: string;
@@ -48,7 +48,7 @@ function mapRow(row: MappingRow): LegacyCustomerCrmMapping {
 }
 
 export class LegacyCustomerMappingRepository implements ILegacyCustomerMappingRepository {
-  constructor(private readonly connection: Database.Database = getSqliteConnection()) {}
+  constructor(private readonly connection: Database.Database = sqlite as Database.Database) {}
 
   getCustomerMapping(customerId: string): LegacyCustomerCrmMapping | null {
     const row = this.connection.prepare(`
