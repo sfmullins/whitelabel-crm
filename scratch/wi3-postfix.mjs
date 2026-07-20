@@ -1,96 +1,24 @@
 import fs from 'node:fs';
 
-function replaceRequired(filePath, search, replacement) {
+function replaceOnce(filePath, search, replacement) {
   const content = fs.readFileSync(filePath, 'utf8');
-  if (!content.includes(search)) return;
+  if (!content.includes(search)) return false;
   fs.writeFileSync(filePath, content.replace(search, replacement));
+  return true;
 }
 
-replaceRequired(
-  'shared/src/types.ts',
-  'followUpDate: nullableIsoDateOnlyScheme,',
-  'followUpDate: nullableIsoDateOnlySchema,',
-);
+const workspace = 'frontend/src/pages/CustomerWorkspace.tsx';
 
-replaceRequired(
-  'shared/src/types.ts',
-  `export const IsoTimestampSchema = z.string().trim().superRefine((value, ctx) => {
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Timestamp must be a valid ISO-8601 value' });
-  }
-}).transform((value) => new Date(value).toISOString());`,
-  `export const IsoTimestampSchema = z.string()
-  .trim()
-  .datetime({ offset: true, message: 'Timestamp must be a valid ISO-8601 value' })
-  .transform((value) => new Date(value).toISOString());`,
-);
-
-replaceRequired(
-  'frontend/src/pages/CustomerWorkspace.tsx',
-  `              {areActivitiesLoading ? (
-                <div className="border border-dashed rounded-xl p-8 text-center text-muted-foreground text-sm">
-                  Loading activity history...
-                </div>
-              ) : activitiesFailed ? (
-                <div className="border border-destructive/30 bg-destructive/5 rounded-xl p-8 text-center text-destructive text-sm">
-                  Activity history could not be loaded.
-                </div>
-              ) : timelineFeed.length === 0 ? (`,
-  `              {areActivitiesLoading && (
-                <div className="border border-dashed rounded-xl p-4 text-center text-muted-foreground text-sm">
-                  Loading activity history...
-                </div>
-              )}
-              {activitiesFailed && (
-                <div className="border border-destructive/30 bg-destructive/5 rounded-xl p-4 text-center text-destructive text-sm">
-                  Activity history could not be loaded. Existing appointment and invoice history remains available below.
-                </div>
-              )}
-              {timelineFeed.length === 0 ? (
-                !areActivitiesLoading && !activitiesFailed ? (`,
-);
-
-replaceRequired(
-  'frontend/src/pages/CustomerWorkspace.tsx',
-  `                </div>
-              ) : (
-                <div className="relative border-l border-border/80 pl-6 ml-4 space-y-8 py-2">`,
-  `                </div>
-                ) : null
-              ) : (
-                <div className="relative border-l border-border/80 pl-6 ml-4 space-y-8 py-2">`,
-);
-
-replaceRequired(
-  'backend/src/infrastructure/database/LegacyCustomerMappingRepository.ts',
-  `export function normaliseLegacyCompany(value: string): { displayName: string; sourceKey: string } {
-  const displayName = value.trim().normalize('NFKC').replace(/\\s+/g, ' ');
-  return {
-    displayName,
-    sourceKey: \`company:\${displayName.toLocaleLowerCase('en')}\`,
-  };
-}`,
-  `export function normaliseLegacyCompany(value: string): { displayName: string; sourceKey: string } {
-  const displayName = value.trim();
-  const comparisonName = displayName.normalize('NFKC').replace(/\\s+/g, ' ');
-  return {
-    displayName,
-    sourceKey: \`company:\${comparisonName.toLocaleLowerCase('en')}\`,
-  };
-}`,
-);
-
-replaceRequired(
-  'frontend/src/pages/CustomerWorkspace.tsx',
+replaceOnce(
+  workspace,
   `  Layers, PlusCircle, Edit2, X
 } from 'lucide-react';`,
   `  Layers, PlusCircle, Edit2, X, type LucideIcon
 } from 'lucide-react';`,
 );
 
-replaceRequired(
-  'frontend/src/pages/CustomerWorkspace.tsx',
+replaceOnce(
+  workspace,
   `import { Customer, Booking, Service, Invoice, CustomFieldDefinition, CustomObjectDefinition, CustomObjectRecord, Activity, ActivityType } from 'shared';
 
 export default function CustomerWorkspace() {`,
@@ -111,8 +39,45 @@ type TimelineItem = {
 export default function CustomerWorkspace() {`,
 );
 
-replaceRequired(
-  'frontend/src/pages/CustomerWorkspace.tsx',
+replaceOnce(workspace, `  const [notes, setNotes] = useState('');
+`, '');
+replaceOnce(workspace, `      setNotes(customer.notes || '');
+`, '');
+replaceOnce(workspace, `      notes: notes || undefined,
+`, '');
+
+replaceOnce(
+  workspace,
+  `            {/* Profile Clean Notes */}
+            {customer.notes && (
+              <div className="pt-4 border-t border-border/40 space-y-1.5">
+                <p className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">Profile Background</p>
+                {/* Remove timestamp logs from pure profile notes for rendering in sidebar */}
+                <p className="text-xs text-foreground/80 leading-relaxed bg-muted/30 p-3 rounded-lg border border-border/20 whitespace-pre-line max-h-40 overflow-y-auto">
+                  {customer.notes.replace(/\[Note logged on [^\]]+\]:\n[\s\S]+?(?=\n\n\[Note logged on|$)/g, '').trim() || 'No background summary logged.'}
+                </p>
+              </div>
+            )}
+`,
+  '',
+);
+
+replaceOnce(
+  workspace,
+  `                <div className="space-y-1">
+                  <label className="text-xs font-semibold">Internal Notes</label>
+                  <textarea 
+                    value={notes} 
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full min-h-[80px] p-3 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
+                  />
+                </div>
+`,
+  '',
+);
+
+replaceOnce(
+  workspace,
   `    onError: (err: any) => {
       setActivityError(err.message || 'Failed to log activity');
     },`,
@@ -121,16 +86,28 @@ replaceRequired(
     },`,
 );
 
-replaceRequired(
-  'frontend/src/pages/CustomerWorkspace.tsx',
-  '    const feed: any[] = [];',
-  '    const feed: TimelineItem[] = [];',
-);
+replaceOnce(workspace, '    const feed: any[] = [];', '    const feed: TimelineItem[] = [];');
 
-replaceRequired(
-  'frontend/src/pages/CustomerWorkspace.tsx',
+replaceOnce(
+  workspace,
   `{item.date.includes('T') ? item.date.split('T')[0] : item.date}`,
   `{item.type === 'activity'
     ? new Date(item.date).toLocaleString()
     : (item.date.includes('T') ? item.date.split('T')[0] : item.date)}`,
 );
+
+const finalContent = fs.readFileSync(workspace, 'utf8');
+for (const forbidden of [
+  "const [notes, setNotes]",
+  "setNotes(customer.notes",
+  "notes: notes || undefined",
+  "customer.notes.replace(",
+  "value={notes}",
+  "setNotes(e.target.value)",
+]) {
+  if (finalContent.includes(forbidden)) {
+    throw new Error(`Legacy customer notes UI remains: ${forbidden}`);
+  }
+}
+
+console.log('WI3 customer workspace finalisation applied.');
