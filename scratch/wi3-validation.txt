@@ -29,7 +29,7 @@ computing gzip size...
 [2mdist/[22m[2massets/[22m[36mvendor-CgevQe3H.js    [39m[1m[2m248.89 kB[22m[1m[22m[2m │ gzip:  79.50 kB[22m
 [2mdist/[22m[2massets/[22m[36mindex-EQYEg6fK.js     [39m[1m[2m249.79 kB[22m[1m[22m[2m │ gzip:  58.09 kB[22m
 [2mdist/[22m[2massets/[22m[36mrecharts-DyQPGFtj.js  [39m[1m[2m383.12 kB[22m[1m[22m[2m │ gzip: 105.65 kB[22m
-[32m✓ built in 4.58s[39m
+[32m✓ built in 4.46s[39m
 
 > desktop@1.0.0 build
 > tsc
@@ -46,186 +46,186 @@ Successfully generated THIRD_PARTY_LICENSES.txt!
 
 [7m[1m[36m RUN [39m[22m[27m [36mv1.6.1[39m [90m/home/runner/work/whitelabel-crm/whitelabel-crm/backend[39m
 
- [32m✓[39m src/test/crm/crm-migration-upgrade.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m src/test/crm/crm-migration-upgrade.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 38[2mms[22m[39m
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.910Z] GET /api/organisations/00000000-0000-4000-8000-000000000001
+[2026-07-20T18:18:49.751Z] GET /api/organisations/00000000-0000-4000-8000-000000000001
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.769Z] GET /api/organisations
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.774Z] GET /api/organisations
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.778Z] GET /api/organisations
 
 [90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
-[2026-07-20T18:16:45.912Z] POST /api/customers/00000000-0000-4000-8000-000000000201/activities
+[2026-07-20T18:18:49.770Z] POST /api/customers/00000000-0000-4000-8000-000000000201/activities
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.782Z] GET /api/organisations
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.786Z] GET /api/organisations
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.790Z] GET /api/organisations
 
 [90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
-[2026-07-20T18:16:45.927Z] GET /api/customers/00000000-0000-4000-8000-000000000201/activities
+[2026-07-20T18:18:49.788Z] GET /api/customers/00000000-0000-4000-8000-000000000201/activities
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.795Z] GET /api/organisations
+
+[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
+[2026-07-20T18:18:49.796Z] PATCH /api/activities/357eddc7-90e5-4d38-b962-d62de94f8c8d
+
+[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
+[2026-07-20T18:18:49.803Z] POST /api/customers/00000000-0000-4000-8000-000000000201/activities
+
+[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
+[2026-07-20T18:18:49.807Z] POST /api/activities/357eddc7-90e5-4d38-b962-d62de94f8c8d/archive
+
+[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
+[2026-07-20T18:18:49.811Z] POST /api/activities/357eddc7-90e5-4d38-b962-d62de94f8c8d/archive
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.812Z] POST /api/organisations
+
+[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
+[2026-07-20T18:18:49.815Z] GET /api/activities/357eddc7-90e5-4d38-b962-d62de94f8c8d
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.819Z] GET /api/organisations/7cf289f4-be3e-43f0-a404-c42350efebe5
+
+[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
+[2026-07-20T18:18:49.819Z] DELETE /api/activities/357eddc7-90e5-4d38-b962-d62de94f8c8d
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.825Z] PATCH /api/organisations/7cf289f4-be3e-43f0-a404-c42350efebe5
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.830Z] POST /api/organisations/7cf289f4-be3e-43f0-a404-c42350efebe5/archive
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
+[2026-07-20T18:18:49.834Z] POST /api/organisations/7cf289f4-be3e-43f0-a404-c42350efebe5/archive
+
+ [32m✓[39m src/test/wi3-activities.spec.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 648[2mms[22m[39m
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
+[2026-07-20T18:18:49.857Z] POST /api/organisations
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
+[2026-07-20T18:18:49.862Z] POST /api/organisations/a40a27c3-9f28-4e66-88db-a1e3b6c7e8f6/contacts
+
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
+[2026-07-20T18:18:49.868Z] POST /api/organisations/a40a27c3-9f28-4e66-88db-a1e3b6c7e8f6/contacts
 
 [90mstdout[2m | src/test/backup.spec.ts[2m > [22m[2mBackup and Recovery Suite[2m > [22m[2mshould prune old backups correctly according to GFS schedule[22m[39m
 [BackupManager] Pruned backup: mock-2.db
 [BackupManager] Pruned backup: mock-1.db
 
- [32m✓[39m src/test/backup.spec.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 76[2mms[22m[39m
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.930Z] GET /api/organisations
-
-[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
-[2026-07-20T18:16:45.934Z] PATCH /api/activities/c3f48a58-e0f8-4cd8-b383-310a249e495a
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.936Z] GET /api/organisations
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.942Z] GET /api/organisations
-
-[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
-[2026-07-20T18:16:45.942Z] POST /api/customers/00000000-0000-4000-8000-000000000201/activities
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.946Z] GET /api/organisations
-
-[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
-[2026-07-20T18:16:45.948Z] POST /api/activities/c3f48a58-e0f8-4cd8-b383-310a249e495a/archive
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.952Z] GET /api/organisations
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.957Z] GET /api/organisations
-
-[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
-[2026-07-20T18:16:45.953Z] POST /api/activities/c3f48a58-e0f8-4cd8-b383-310a249e495a/archive
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.961Z] GET /api/organisations
-
-[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
-[2026-07-20T18:16:45.963Z] GET /api/activities/c3f48a58-e0f8-4cd8-b383-310a249e495a
-
-[90mstdout[2m | src/test/wi3-activities.spec.ts[2m > [22m[2mWI3 normalised activities[2m > [22m[2msupports canonical and customer compatibility routes without writing customers.notes[22m[39m
-[2026-07-20T18:16:45.967Z] DELETE /api/activities/c3f48a58-e0f8-4cd8-b383-310a249e495a
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.978Z] POST /api/organisations
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.987Z] GET /api/organisations/8b2d54b8-fa73-4eee-8ef5-0de7f0139421
-
- [32m✓[39m src/test/wi3-activities.spec.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 678[2mms[22m[39m
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:45.994Z] PATCH /api/organisations/8b2d54b8-fa73-4eee-8ef5-0de7f0139421
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:46.000Z] POST /api/organisations/8b2d54b8-fa73-4eee-8ef5-0de7f0139421/archive
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers organisation query validation, missing records and archive idempotence[22m[39m
-[2026-07-20T18:16:46.003Z] POST /api/organisations/8b2d54b8-fa73-4eee-8ef5-0de7f0139421/archive
+ [32m✓[39m src/test/backup.spec.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 89[2mms[22m[39m
+[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
+[2026-07-20T18:18:49.872Z] PATCH /api/contacts/0836af68-18a1-4cf4-90e7-3ee33558a1bd
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.029Z] POST /api/organisations
+[2026-07-20T18:18:49.877Z] PATCH /api/contacts/0836af68-18a1-4cf4-90e7-3ee33558a1bd
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.034Z] POST /api/organisations/bf58795d-e1b1-419c-b552-f697798e7081/contacts
+[2026-07-20T18:18:49.882Z] PATCH /api/contacts/0836af68-18a1-4cf4-90e7-3ee33558a1bd
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.040Z] POST /api/organisations/bf58795d-e1b1-419c-b552-f697798e7081/contacts
+[2026-07-20T18:18:49.887Z] PATCH /api/contacts/0c72f1e9-6dcc-468d-a2c3-65882e340d5e
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.045Z] PATCH /api/contacts/bc64cfc4-138d-438d-bb0a-fd9e5c0b84b5
+[2026-07-20T18:18:49.891Z] GET /api/contacts/0836af68-18a1-4cf4-90e7-3ee33558a1bd
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.049Z] PATCH /api/contacts/bc64cfc4-138d-438d-bb0a-fd9e5c0b84b5
+[2026-07-20T18:18:49.895Z] PATCH /api/contacts/0c72f1e9-6dcc-468d-a2c3-65882e340d5e
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.053Z] PATCH /api/contacts/bc64cfc4-138d-438d-bb0a-fd9e5c0b84b5
+[2026-07-20T18:18:49.898Z] GET /api/contacts/0836af68-18a1-4cf4-90e7-3ee33558a1bd
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.060Z] PATCH /api/contacts/bfb41431-e6b3-4b0a-a1eb-69d41717412b
+[2026-07-20T18:18:49.902Z] POST /api/organisations
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.066Z] GET /api/contacts/bc64cfc4-138d-438d-bb0a-fd9e5c0b84b5
+[2026-07-20T18:18:49.905Z] POST /api/organisations/e872fba0-c4e0-4a83-8a22-321e28845118/contacts
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.073Z] PATCH /api/contacts/bfb41431-e6b3-4b0a-a1eb-69d41717412b
+[2026-07-20T18:18:49.907Z] GET /api/organisations/a40a27c3-9f28-4e66-88db-a1e3b6c7e8f6/contacts
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.077Z] GET /api/contacts/bc64cfc4-138d-438d-bb0a-fd9e5c0b84b5
+[2026-07-20T18:18:49.913Z] GET /api/contacts/00000000-0000-4000-8000-000000000001
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.086Z] POST /api/organisations
+[2026-07-20T18:18:49.916Z] POST /api/contacts/0c72f1e9-6dcc-468d-a2c3-65882e340d5e/archive
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.090Z] POST /api/organisations/b1a25bad-ad8f-4d9b-81a0-45ffcc2add36/contacts
+[2026-07-20T18:18:49.919Z] POST /api/contacts/0c72f1e9-6dcc-468d-a2c3-65882e340d5e/archive
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.092Z] GET /api/organisations/bf58795d-e1b1-419c-b552-f697798e7081/contacts
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.100Z] GET /api/contacts/00000000-0000-4000-8000-000000000001
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.104Z] POST /api/contacts/bfb41431-e6b3-4b0a-a1eb-69d41717412b/archive
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.109Z] POST /api/contacts/bfb41431-e6b3-4b0a-a1eb-69d41717412b/archive
-
-[90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers contact primary updates, duplicate email and archive behaviour[22m[39m
-[2026-07-20T18:16:46.120Z] PATCH /api/contacts/bfb41431-e6b3-4b0a-a1eb-69d41717412b
+[2026-07-20T18:18:49.923Z] PATCH /api/contacts/0c72f1e9-6dcc-468d-a2c3-65882e340d5e
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.148Z] POST /api/organisations
+[2026-07-20T18:18:49.943Z] POST /api/organisations
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.151Z] POST /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/contacts
+[2026-07-20T18:18:49.952Z] POST /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/contacts
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.155Z] POST /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/contacts
+[2026-07-20T18:18:49.962Z] POST /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/contacts
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.160Z] POST /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/contacts
+[2026-07-20T18:18:49.968Z] POST /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/contacts
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.163Z] POST /api/contacts/b9aec91e-9e0d-4e5a-b6cb-9e6d81c271fe/archive
+[2026-07-20T18:18:49.975Z] POST /api/contacts/3a577da3-4358-4714-bc80-40e12305d314/archive
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.167Z] POST /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/engagements
+[2026-07-20T18:18:49.981Z] POST /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/engagements
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.171Z] POST /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/engagements
+[2026-07-20T18:18:49.992Z] POST /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/engagements
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.174Z] POST /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/engagements
+[2026-07-20T18:18:50.001Z] POST /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/engagements
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.177Z] POST /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/engagements
+[2026-07-20T18:18:50.006Z] POST /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/engagements
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.182Z] POST /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/engagements
+[2026-07-20T18:18:50.014Z] POST /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/engagements
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.186Z] PATCH /api/engagements/6e2e216f-92d0-428b-b5de-b34ccbf01c34
+[2026-07-20T18:18:50.018Z] PATCH /api/engagements/5d95e1e8-625c-4dd5-9ad7-cef8bad442bc
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.196Z] PATCH /api/engagements/6e2e216f-92d0-428b-b5de-b34ccbf01c34
+[2026-07-20T18:18:50.021Z] PATCH /api/engagements/5d95e1e8-625c-4dd5-9ad7-cef8bad442bc
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.201Z] PATCH /api/engagements/6e2e216f-92d0-428b-b5de-b34ccbf01c34
+[2026-07-20T18:18:50.032Z] PATCH /api/engagements/5d95e1e8-625c-4dd5-9ad7-cef8bad442bc
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.210Z] POST /api/organisations
+[2026-07-20T18:18:50.036Z] POST /api/organisations
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.219Z] POST /api/organisations/ce9216d5-b0c3-401f-a0ef-5d09f20cee5e/engagements
+[2026-07-20T18:18:50.040Z] POST /api/organisations/3273ec22-3689-4760-b225-5f0024c779da/engagements
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.226Z] GET /api/organisations/c9b837c1-be78-4dcd-b005-93e28eb25c5c/engagements
+[2026-07-20T18:18:50.044Z] GET /api/organisations/9b003226-dc46-4eea-97e4-d203e876edeb/engagements
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.233Z] GET /api/engagements/00000000-0000-4000-8000-000000000001
+[2026-07-20T18:18:50.047Z] GET /api/engagements/00000000-0000-4000-8000-000000000001
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.235Z] POST /api/engagements/6e2e216f-92d0-428b-b5de-b34ccbf01c34/archive
+[2026-07-20T18:18:50.050Z] POST /api/engagements/5d95e1e8-625c-4dd5-9ad7-cef8bad442bc/archive
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mcovers engagement validation, nullable preservation and archive behaviour[22m[39m
-[2026-07-20T18:16:46.243Z] POST /api/engagements/6e2e216f-92d0-428b-b5de-b34ccbf01c34/archive
+[2026-07-20T18:18:50.054Z] POST /api/engagements/5d95e1e8-625c-4dd5-9ad7-cef8bad442bc/archive
 
 [90mstdout[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mreturns a safe generic response for unknown failures[22m[39m
-[2026-07-20T18:16:46.277Z] GET /api/__test/unknown-error
+[2026-07-20T18:18:50.078Z] GET /api/__test/unknown-error
 
 [90mstderr[2m | src/test/crm/crm-api.spec.ts[2m > [22m[2mCRM API[2m > [22m[2mreturns a safe generic response for unknown failures[22m[39m
 Unhandled Server Error: Error: internal test database path /tmp/secret.sqlite constraint stack sqlite
@@ -240,20 +240,21 @@ Unhandled Server Error: Error: internal test database path /tmp/secret.sqlite co
     at /home/runner/work/whitelabel-crm/whitelabel-crm/node_modules/express/lib/router/index.js:646:15
     at next (/home/runner/work/whitelabel-crm/whitelabel-crm/node_modules/express/lib/router/index.js:265:14)
 
- [32m✓[39m src/test/crm/crm-api.spec.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 984[2mms[22m[39m
+ [32m✓[39m src/test/crm/crm-api.spec.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 895[2mms[22m[39m
  [32m✓[39m src/test/license-check.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 4[2mms[22m[39m
- [32m✓[39m src/test/crm/crm-services.spec.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 50[2mms[22m[39m
- [32m✓[39m src/test/crm/contact-repository.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 41[2mms[22m[39m
- [32m✓[39m src/test/crm/organisation-repository.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 47[2mms[22m[39m
- [32m✓[39m src/test/crm/crm-contracts.spec.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m src/test/crm/crm-services.spec.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 54[2mms[22m[39m
+ [32m✓[39m src/test/crm/organisation-repository.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m src/test/crm/contact-repository.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/test/crm/crm-contracts.spec.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m src/test/wi3-database-constraints.spec.ts [2m ([22m[2m6 tests[22m[2m)[22m[90m 95[2mms[22m[39m
  [32m✓[39m src/test/crm.spec.ts [2m ([22m[2m4 tests[22m[2m)[22m[90m 7[2mms[22m[39m
- [32m✓[39m src/test/crm/engagement-repository.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 52[2mms[22m[39m
- [32m✓[39m src/test/crm/crm-transaction-rollback.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m src/test/crm/engagement-repository.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m src/test/crm/crm-transaction-rollback.spec.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 36[2mms[22m[39m
 
-[2m Test Files [22m [1m[32m12 passed[39m[22m[90m (12)[39m
-[2m      Tests [22m [1m[32m26 passed[39m[22m[90m (26)[39m
-[2m   Start at [22m 18:16:44
-[2m   Duration [22m 3.22s[2m (transform 618ms, setup 1ms, collect 3.34s, tests 2.01s, environment 3ms, prepare 1.38s)[22m
+[2m Test Files [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m      Tests [22m [1m[32m32 passed[39m[22m[90m (32)[39m
+[2m   Start at [22m 18:18:48
+[2m   Duration [22m 3.40s[2m (transform 619ms, setup 2ms, collect 3.60s, tests 1.97s, environment 3ms, prepare 1.45s)[22m
 
 
 > frontend@1.0.0 test
@@ -271,7 +272,7 @@ No test files found, exiting with code 0
 > whitelabel-crm-root@1.0.0 db:smoke
 > npm exec -w backend -- tsx ../scratch/db-smoke.ts
 
-Migration smoke test passed using temporary database: /tmp/whitelabel-crm-db-smoke-osoa3v/smoke.sqlite
+Migration smoke test passed using temporary database: /tmp/whitelabel-crm-db-smoke-4a5ByZ/smoke.sqlite
 
 > whitelabel-crm-root@1.0.0 desktop:preflight
 > node scratch/desktop-preflight.js
