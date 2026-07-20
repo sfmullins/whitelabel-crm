@@ -1,0 +1,20 @@
+
+> whitelabel-crm-root@1.0.0 ci:verify
+> npm run build && npm test && npm run db:smoke && npm run desktop:preflight
+
+
+> whitelabel-crm-root@1.0.0 build
+> npm run build -w shared && npm run build -w backend && npm run build -w frontend && npm run build -w desktop && node scratch/generate-licenses.js
+
+
+> shared@1.0.0 build
+> tsc && tsc -p tsconfig.cjs.json
+
+src/types.ts(385,17): error TS2552: Cannot find name 'nullableIsoDateOnlyScheme'. Did you mean 'nullableIsoDateOnlySchema'?
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/shared
+npm error workspace shared@1.0.0
+npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/shared
+npm error command failed
+npm error command sh -c tsc && tsc -p tsconfig.cjs.json
