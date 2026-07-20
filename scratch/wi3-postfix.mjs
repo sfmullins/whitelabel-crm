@@ -49,3 +49,22 @@ replaceRequired(
               )}
               {timelineFeed.length === 0 && !areActivitiesLoading && !activitiesFailed ? (`,
 );
+
+replaceRequired(
+  'backend/src/infrastructure/database/LegacyCustomerMappingRepository.ts',
+  `export function normaliseLegacyCompany(value: string): { displayName: string; sourceKey: string } {
+  const displayName = value.trim().normalize('NFKC').replace(/\\s+/g, ' ');
+  return {
+    displayName,
+    sourceKey: \`company:\${displayName.toLocaleLowerCase('en')}\`,
+  };
+}`,
+  `export function normaliseLegacyCompany(value: string): { displayName: string; sourceKey: string } {
+  const displayName = value.trim();
+  const comparisonName = displayName.normalize('NFKC').replace(/\\s+/g, ' ');
+  return {
+    displayName,
+    sourceKey: \`company:\${comparisonName.toLocaleLowerCase('en')}\`,
+  };
+}`,
+);
