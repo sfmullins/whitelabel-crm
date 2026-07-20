@@ -31,10 +31,11 @@ function nullableTrimmed(value: string | null | undefined): string | null {
 }
 
 export function normaliseLegacyCompany(value: string): { displayName: string; sourceKey: string } {
-  const displayName = value.trim().normalize('NFKC').replace(/\s+/g, ' ');
+  const displayName = value.trim();
+  const comparisonName = displayName.normalize('NFKC').replace(/\s+/g, ' ');
   return {
     displayName,
-    sourceKey: `company:${displayName.toLocaleLowerCase('en')}`,
+    sourceKey: `company:${comparisonName.toLocaleLowerCase('en')}`,
   };
 }
 

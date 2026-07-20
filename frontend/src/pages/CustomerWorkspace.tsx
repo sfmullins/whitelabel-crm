@@ -619,15 +619,17 @@ export default function CustomerWorkspace() {
               </div>
 
               {/* Feed List */}
-              {areActivitiesLoading ? (
-                <div className="border border-dashed rounded-xl p-8 text-center text-muted-foreground text-sm">
+              {areActivitiesLoading && (
+                <div className="border border-dashed rounded-xl p-4 text-center text-muted-foreground text-sm">
                   Loading activity history...
                 </div>
-              ) : activitiesFailed ? (
-                <div className="border border-destructive/30 bg-destructive/5 rounded-xl p-8 text-center text-destructive text-sm">
-                  Activity history could not be loaded.
+              )}
+              {activitiesFailed && (
+                <div className="border border-destructive/30 bg-destructive/5 rounded-xl p-4 text-center text-destructive text-sm">
+                  Activity history could not be loaded. Existing appointment and invoice history remains available below.
                 </div>
-              ) : timelineFeed.length === 0 ? (
+              )}
+              {timelineFeed.length === 0 && !areActivitiesLoading && !activitiesFailed ? (
                 <div className="border border-dashed rounded-xl p-12 text-center text-muted-foreground text-sm">
                   No activity history logged. Comments, invoices, and appointments will create a chronological timeline here.
                 </div>
