@@ -41,14 +41,21 @@ jobs:
         run: node scratch/wi3-postfix.mjs
 
       - name: Validate WI3
-        run: npm run ci:verify
+        shell: bash
+        run: |
+          set +e
+          npm run ci:verify 2>&1 | tee scratch/wi3-final-validation.txt
+          validation_status=${PIPESTATUS[0]}
+          echo "VALIDATION_STATUS=${validation_status}" >> "$GITHUB_ENV"
+          exit 0
 
-      - name: Commit final workspace changes
+      - name: Commit workspace and diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/src/pages/CustomerWorkspace.tsx
-          if ! git diff --cached --quiet; then
-            git commit -m "WI3: finalise customer activity workspace"
-            git push origin HEAD:codex/wi3-normalised-activity-notes-v2
-          fi
+          git add frontend/src/pages/CustomerWorkspace.tsx scratch/wi3-final-validation.txt
+          git commit -m "WI3: finalise customer activity workspace"
+          git push origin HEAD:codex/wi3-normalised-activity-notes-v2
+
+      - name: Report validation result
+        run: exit "$VALIDATION_STATUS"
