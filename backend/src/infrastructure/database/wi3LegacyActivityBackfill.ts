@@ -89,6 +89,23 @@ export function runWi3LegacyActivityBackfill(connection: Database.Database): voi
   }>;
 
   const mappingRepository = new LegacyCustomerMappingRepository(connection);
+  const importedActivityExists = connection.prepare(`
+    select 1
+    from activities
+    where source_reference = ?
+    limit 1
+  `);
+  const insertImportedActivity = connection.prepare(`
+    insert into activities (
+      id, organisation_id, contact_id, engagement_id,
+      type, body, author, occurred_at, follow_up_date,
+      source, source_reference, created_at, updated_at, archived_at
+    ) values (
+      @id, @organisationId, @contactId, null,
+      'note', @body, 'Legacy import', @occurredAt, null,
+      'legacy_import', @sourceReference, @now, @now, null
+    )
+  `);
 
   for (const customer of customers) {
     try {
@@ -111,19 +128,10 @@ export function runWi3LegacyActivityBackfill(connection: Database.Database): voi
           const digest = createHash('sha256').update(segment.rawSegment).digest('hex');
           const sourceReference =
             `legacy-customer-note:${customer.id}:${segment.ordinal}:${digest}`;
-          const now = new Date().toISOString();
+          if (importedActivityExists.get(sourceReference)) continue;
 
-          connection.prepare(`
-            insert or ignore into activities (
-              id, organisation_id, contact_id, engagement_id,
-              type, body, author, occurred_at, follow_up_date,
-              source, source_reference, created_at, updated_at, archived_at
-            ) values (
-              @id, @organisationId, @contactId, null,
-              'note', @body, 'Legacy import', @occurredAt, null,
-              'legacy_import', @sourceReference, @now, @now, null
-            )
-          `).run({
+          const now = new Date().toISOString();
+          insertImportedActivity.run({
             id: randomUUID(),
             organisationId: mapping.organisationId,
             contactId: mapping.contactId,
