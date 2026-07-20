@@ -69,3 +69,28 @@ The root build runs, in order: the shared build, backend build, frontend build, 
 Organisations, contacts and engagements use the dependency direction `Express route -> application service -> repository interface -> SQLite/Drizzle schema`. The service layer is intentionally small and handles cross-table business rules such as archived parent checks, one-primary-contact semantics, engagement primary-contact eligibility and date-range validation.
 
 Repository interfaces live under `backend/src/application/interfaces/`, and SQLite implementations live under `backend/src/infrastructure/database/repositories/`. The new domain coexists with the legacy customer model: bookings, invoices, payments and custom object records continue to reference `customers`, while organisations own only contacts and engagements.
+
+## WI3 activity and legacy-customer bridge
+
+Activities are the canonical interaction history. Each note, call, email, meeting,
+message or other interaction is stored as one `activities` row linked to an
+organisation and optionally to a contact and engagement. Activity ownership is
+explicit through foreign keys; archive is soft and timestamp-based.
+
+Legacy customers remain the parent of bookings, invoices, invoice items and
+payments. `legacy_organisation_mappings` and `legacy_customer_crm_mappings`
+provide an additive compatibility bridge without rewriting those financial
+relationships. Company mapping uses exact Unicode-NFKC, whitespace-collapsed,
+case-normalised keys. Individual customers receive dedicated imported
+organisations. No fuzzy matching to manually created organisations occurs.
+
+After structural migrations, a synchronous idempotent backfill maps legacy
+customers and imports the preserved `customers.notes` text into independent
+`type = note` activities. Imported rows use `Legacy import`,
+`source = legacy_import` and deterministic SHA-256 source references.
+`customers.notes` remains preserved as deprecated source data and is no longer
+parsed or appended by the production frontend.
+
+Author labels are not authenticated identities in WI3. Ordinary activity writes
+default to `Local user`. Authentication, tasks, reminders, documents, financial
+migration and a full organisation workspace remain deferred.

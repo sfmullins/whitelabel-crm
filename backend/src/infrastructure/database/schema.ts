@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, real, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex, index, check } from 'drizzle-orm/sqlite-core';
 
 // ==========================================
 // Settings Table
@@ -270,4 +270,58 @@ export const engagements = sqliteTable('engagements', {
   organisationIdx: index('engagement_organisation_idx').on(table.organisationId),
   statusIdx: index('engagement_status_idx').on(table.status),
   startDateIdx: index('engagement_start_date_idx').on(table.startDate),
+}));
+// ==========================================
+// Activities Table
+// ==========================================
+export const activities = sqliteTable('activities', {
+  id: text('id').primaryKey(),
+  organisationId: text('organisation_id').notNull().references(() => organisations.id, { onDelete: 'restrict' }),
+  contactId: text('contact_id').references(() => contacts.id, { onDelete: 'restrict' }),
+  engagementId: text('engagement_id').references(() => engagements.id, { onDelete: 'restrict' }),
+  type: text('type').notNull(),
+  body: text('body').notNull(),
+  author: text('author').notNull(),
+  occurredAt: text('occurred_at').notNull(),
+  followUpDate: text('follow_up_date'),
+  source: text('source').notNull(),
+  sourceReference: text('source_reference'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  archivedAt: text('archived_at'),
+}, (table) => ({
+  organisationOccurredIdx: index('activity_organisation_occurred_idx').on(table.organisationId, table.occurredAt),
+  contactIdx: index('activity_contact_idx').on(table.contactId),
+  engagementIdx: index('activity_engagement_idx').on(table.engagementId),
+  typeIdx: index('activity_type_idx').on(table.type),
+  followUpIdx: index('activity_follow_up_idx').on(table.followUpDate),
+  sourceReferenceIdx: uniqueIndex('activity_source_reference_idx').on(table.sourceReference).where(sql`${table.sourceReference} IS NOT NULL`),
+  typeCheck: check('activity_type_check', sql`${table.type} in ('note', 'call', 'email', 'meeting', 'message', 'other')`),
+  sourceCheck: check('activity_source_check', sql`${table.source} in ('user', 'legacy_import', 'system')`),
+  bodyCheck: check('activity_body_check', sql`length(trim(${table.body})) > 0`),
+  authorCheck: check('activity_author_check', sql`length(trim(${table.author})) > 0`),
+}));
+
+// ==========================================
+// Legacy customer compatibility mappings
+// ==========================================
+export const legacyOrganisationMappings = sqliteTable('legacy_organisation_mappings', {
+  sourceKey: text('source_key').primaryKey(),
+  sourceType: text('source_type').notNull(),
+  organisationId: text('organisation_id').notNull().references(() => organisations.id, { onDelete: 'restrict' }),
+  displayName: text('display_name').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  organisationIdx: uniqueIndex('legacy_org_mapping_organisation_idx').on(table.organisationId),
+  sourceTypeCheck: check('legacy_org_mapping_source_type_check', sql`${table.sourceType} in ('company', 'individual_customer')`),
+}));
+
+export const legacyCustomerCrmMappings = sqliteTable('legacy_customer_crm_mappings', {
+  customerId: text('customer_id').primaryKey().references(() => customers.id, { onDelete: 'restrict' }),
+  organisationId: text('organisation_id').notNull().references(() => organisations.id, { onDelete: 'restrict' }),
+  contactId: text('contact_id').notNull().references(() => contacts.id, { onDelete: 'restrict' }),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  organisationIdx: index('legacy_customer_mapping_organisation_idx').on(table.organisationId),
+  contactIdx: uniqueIndex('legacy_customer_mapping_contact_idx').on(table.contactId),
 }));

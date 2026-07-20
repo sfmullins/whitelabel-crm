@@ -23,6 +23,12 @@ import type {
   EngagementCreate,
   EngagementUpdate,
   EngagementStatus,
+  Activity,
+  ActivityCreate,
+  ActivityUpdate,
+  ActivityType,
+  ActivitySource,
+  LegacyCustomerCrmMapping,
 } from 'shared';
 
 export interface ISettingsRepository {
@@ -141,4 +147,37 @@ export interface IEngagementRepository {
   list(options: EngagementListOptions): Promise<Engagement[]>;
   update(id: string, patch: EngagementUpdate): Promise<Engagement | null>;
   archive(id: string, archivedAt: string): Promise<Engagement | null>;
+}
+export interface ActivityListOptions {
+  organisationId: string;
+  contactId?: string;
+  engagementId?: string;
+  type?: ActivityType;
+  occurredFrom?: string;
+  occurredTo?: string;
+  followUpFrom?: string;
+  followUpTo?: string;
+  includeArchived?: boolean;
+  limit: number;
+  offset: number;
+}
+
+export interface ActivityPersistenceCreate extends ActivityCreate {
+  author: string;
+  occurredAt: string;
+  source: ActivitySource;
+  sourceReference?: string | null;
+}
+
+export interface IActivityRepository {
+  create(input: ActivityPersistenceCreate): Promise<Activity>;
+  getById(id: string, options?: { includeArchived?: boolean }): Promise<Activity | null>;
+  list(options: ActivityListOptions): Promise<Activity[]>;
+  update(id: string, patch: ActivityUpdate): Promise<Activity | null>;
+  archive(id: string, archivedAt: string): Promise<Activity | null>;
+}
+
+export interface ILegacyCustomerMappingRepository {
+  getCustomerMapping(customerId: string): LegacyCustomerCrmMapping | null;
+  ensureCustomerMapping(customerId: string): LegacyCustomerCrmMapping | null;
 }

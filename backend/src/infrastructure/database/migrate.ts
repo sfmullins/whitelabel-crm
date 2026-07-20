@@ -1,10 +1,21 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import { db } from './connection';
 import path from 'path';
+import {
+  db,
+  getSqliteConnection,
+  type DatabaseInstance,
+  type SqliteConnection,
+} from './connection';
+import { runWi3LegacyActivityBackfill } from './wi3LegacyActivityBackfill';
 
-export function runMigrations(dbInstance: any, migrationsFolder?: string) {
+export function runMigrations(
+  dbInstance: DatabaseInstance,
+  migrationsFolder?: string,
+  sqliteConnection: SqliteConnection = getSqliteConnection(),
+) {
   const folder = migrationsFolder || path.resolve(__dirname, '../../../drizzle');
   migrate(dbInstance, { migrationsFolder: folder });
+  runWi3LegacyActivityBackfill(sqliteConnection);
 }
 
 // Execute migration automatically when run as a standalone CLI script

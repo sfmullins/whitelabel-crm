@@ -32,7 +32,7 @@ function copyBaselineMigration(target: string) {
 }
 
 describe('CRM staged migration upgrade', () => {
-  it('applies 0001 after existing legacy data without changing legacy rows', () => {
+  it('applies WI2 and WI3 after existing legacy data without changing legacy rows', () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'whitelabel-crm-upgrade-'));
     const databasePath = path.join(tempDir, 'upgrade.sqlite');
     const baselineMigrations = path.join(tempDir, 'baseline-migrations');
@@ -100,10 +100,27 @@ describe('CRM staged migration upgrade', () => {
       amount: 5000,
     });
 
-    for (const table of ['organisations', 'contacts', 'engagements']) {
+    for (const table of [
+      'organisations',
+      'contacts',
+      'engagements',
+      'activities',
+      'legacy_organisation_mappings',
+      'legacy_customer_crm_mappings',
+    ]) {
       expect(sqlite.prepare("select name from sqlite_master where type = 'table' and name = ?").get(table)).toBeTruthy();
-      expect(sqlite.prepare(`select count(*) as value from ${table}`).get()).toMatchObject({ value: 0 });
     }
+
+    expect(sqlite.prepare('select count(*) as value from organisations').get()).toEqual({ value: 1 });
+    expect(sqlite.prepare('select count(*) as value from contacts').get()).toEqual({ value: 1 });
+    expect(sqlite.prepare('select count(*) as value from engagements').get()).toEqual({ value: 0 });
+    expect(sqlite.prepare('select count(*) as value from activities').get()).toEqual({ value: 0 });
+    expect(sqlite.prepare('select count(*) as value from legacy_organisation_mappings').get()).toEqual({ value: 1 });
+    expect(sqlite.prepare('select count(*) as value from legacy_customer_crm_mappings').get()).toEqual({ value: 1 });
+    expect(sqlite.prepare('select customer_id from legacy_customer_crm_mappings').get()).toEqual({
+      customer_id: customerId,
+    });
+
     for (const indexName of [
       'organisation_status_idx',
       'organisation_name_idx',
@@ -114,6 +131,12 @@ describe('CRM staged migration upgrade', () => {
       'engagement_organisation_idx',
       'engagement_status_idx',
       'engagement_start_date_idx',
+      'activity_organisation_occurred_idx',
+      'activity_contact_idx',
+      'activity_engagement_idx',
+      'activity_type_idx',
+      'activity_follow_up_idx',
+      'activity_source_reference_idx',
     ]) {
       expect(sqlite.prepare("select name from sqlite_master where type = 'index' and name = ?").get(indexName)).toBeTruthy();
     }
@@ -122,6 +145,9 @@ describe('CRM staged migration upgrade', () => {
     expect(sqlite.pragma('integrity_check')).toEqual([{ integrity_check: 'ok' }]);
 
     runMigrations(database, migrationsFolder);
-    expect(sqlite.prepare('select count(*) as value from customers').get()).toMatchObject({ value: 1 });
+    expect(sqlite.prepare('select count(*) as value from customers').get()).toEqual({ value: 1 });
+    expect(sqlite.prepare('select count(*) as value from organisations').get()).toEqual({ value: 1 });
+    expect(sqlite.prepare('select count(*) as value from contacts').get()).toEqual({ value: 1 });
+    expect(sqlite.prepare('select count(*) as value from legacy_customer_crm_mappings').get()).toEqual({ value: 1 });
   });
 });

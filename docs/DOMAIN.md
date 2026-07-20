@@ -54,3 +54,32 @@ Legacy `customers` remain the appointment and financial customer model for booki
 ### Deletion and archival
 
 The organisation/contact/engagement API exposes archive endpoints and no hard-delete endpoints. Foreign keys do not cascade-delete organisations, contacts or engagements; business records are preserved for future activity, notes and reporting work.
+
+## Activity
+
+An activity is an immutable-organisation interaction record with:
+
+- required organisation ownership;
+- optional same-organisation contact and engagement links;
+- a controlled type: `note`, `call`, `email`, `meeting`, `message` or `other`;
+- trimmed body and author attribution;
+- canonical ISO event time and optional date-only follow-up;
+- backend-owned source and source reference;
+- timestamp-based soft archive.
+
+New assignments cannot target archived organisations, contacts or engagements.
+Archiving a parent later does not erase historical relationships. Archived
+activities are excluded from normal reads and cannot be edited; archive requests
+are idempotent and no hard-delete route is exposed.
+
+### Legacy customer mapping
+
+Legacy customer records are retained because the existing booking and finance
+tables still reference them. Exact imported company keys share one imported
+organisation; customers without a company receive one dedicated organisation.
+Each mapped customer receives one contact and one stable mapping row. Mapping
+creation is transactional and idempotent.
+
+The migration backfill parses recognised `[Note logged on ...]:` blocks into
+separate note activities and also imports unmatched or malformed text so no
+content is discarded. It never clears or rewrites `customers.notes`.

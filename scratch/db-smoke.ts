@@ -14,6 +14,15 @@ const expectedIndexes = [
   'engagement_organisation_idx',
   'engagement_status_idx',
   'engagement_start_date_idx',
+  'activity_organisation_occurred_idx',
+  'activity_contact_idx',
+  'activity_engagement_idx',
+  'activity_type_idx',
+  'activity_follow_up_idx',
+  'activity_source_reference_idx',
+  'legacy_org_mapping_organisation_idx',
+  'legacy_customer_mapping_organisation_idx',
+  'legacy_customer_mapping_contact_idx',
 ];
 
 const expectedTables = [
@@ -32,6 +41,9 @@ const expectedTables = [
   'organisations',
   'contacts',
   'engagements',
+  'activities',
+  'legacy_organisation_mappings',
+  'legacy_customer_crm_mappings',
 ];
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'whitelabel-crm-db-smoke-'));

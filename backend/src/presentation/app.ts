@@ -13,6 +13,7 @@ import backupsRouter from './routes/backups';
 import organisationsRouter from './routes/organisations';
 import contactsRouter from './routes/contacts';
 import engagementsRouter from './routes/engagements';
+import activitiesRouter from './routes/activities';
 import { AppError } from '../application/errors';
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/backups', backupsRouter);
 app.use('/api/organisations', organisationsRouter);
 app.use('/api', contactsRouter);
 app.use('/api', engagementsRouter);
+app.use('/api', activitiesRouter);
 
 if (process.env.NODE_ENV === 'test') {
   app.get('/api/__test/unknown-error', () => {

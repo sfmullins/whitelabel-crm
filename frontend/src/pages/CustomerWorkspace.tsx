@@ -7,9 +7,21 @@ import { Input } from '../components/ui/input';
 import { 
   ArrowLeft, Mail, Phone, MapPin, Briefcase, Calendar, FileText, 
   DollarSign, Plus, Check, MessageSquare, AlertCircle,
-  Layers, PlusCircle, Edit2, X
+  Layers, PlusCircle, Edit2, X, type LucideIcon
 } from 'lucide-react';
-import { Customer, Booking, Service, Invoice, CustomFieldDefinition, CustomObjectDefinition, CustomObjectRecord } from 'shared';
+import { Customer, Booking, Service, Invoice, CustomFieldDefinition, CustomObjectDefinition, CustomObjectRecord, Activity, ActivityType } from 'shared';
+
+type TimelineItem = {
+  id?: string;
+  type: 'booking' | 'invoice' | 'activity';
+  title: string;
+  description: string;
+  date: string;
+  icon: LucideIcon;
+  color: string;
+  author?: string;
+  followUpDate?: string | null;
+};
 
 export default function CustomerWorkspace() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +36,9 @@ export default function CustomerWorkspace() {
 
   // Note Logger state
   const [newNote, setNewNote] = useState('');
+  const [activityType, setActivityType] = useState<ActivityType>('note');
+  const [activityFollowUpDate, setActivityFollowUpDate] = useState('');
+  const [activityError, setActivityError] = useState('');
   
   // Edit Profile form state
   const [firstName, setFirstName] = useState('');
@@ -33,7 +48,6 @@ export default function CustomerWorkspace() {
   const [phone, setPhone] = useState('');
   const [mobile, setMobile] = useState('');
   const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [editProfileError, setEditProfileError] = useState('');
@@ -75,6 +89,16 @@ export default function CustomerWorkspace() {
     queryFn: () => api.get(`/api/invoices?customerId=${id}`) as Promise<Invoice[]>,
   });
 
+  const {
+    data: activities = [],
+    isLoading: areActivitiesLoading,
+    isError: activitiesFailed,
+  } = useQuery({
+    queryKey: ['activities', { customerId: id }],
+    queryFn: () => api.get(`/api/customers/${id}/activities`) as Promise<Activity[]>,
+    enabled: !!id,
+  });
+
   const { data: services = [] } = useQuery({
     queryKey: ['services'],
     queryFn: () => api.get('/api/services') as Promise<Service[]>,
@@ -114,7 +138,6 @@ export default function CustomerWorkspace() {
       setPhone(customer.phone || '');
       setMobile(customer.mobile || '');
       setAddress(customer.address || '');
-      setNotes(customer.notes || '');
       setTagInput(customer.tags ? customer.tags.join(', ') : '');
       setCustomFieldValues(customer.customFields || {});
     }
@@ -148,16 +171,22 @@ export default function CustomerWorkspace() {
     }
   });
 
-  const logNoteMutation = useMutation({
-    mutationFn: (notesText: string) => {
-      const now = new Date().toLocaleString();
-      const updatedNotes = `${customer?.notes || ''}\n\n[Note logged on ${now}]:\n${notesText}`.trim();
-      return api.put(`/api/customers/${id}`, { notes: updatedNotes });
-    },
+  const createActivityMutation = useMutation({
+    mutationFn: () => api.post(`/api/customers/${id}/activities`, {
+      type: activityType,
+      body: newNote,
+      followUpDate: activityFollowUpDate || null,
+    }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['activities', { customerId: id }] });
       setNewNote('');
-    }
+      setActivityType('note');
+      setActivityFollowUpDate('');
+      setActivityError('');
+    },
+    onError: (error: unknown) => {
+      setActivityError(error instanceof Error ? error.message : 'Failed to log activity');
+    },
   });
 
   const createBookingMutation = useMutation({
@@ -227,7 +256,6 @@ export default function CustomerWorkspace() {
       phone: phone || undefined,
       mobile: mobile || undefined,
       address: address || undefined,
-      notes: notes || undefined,
       tags,
       customFields: customFieldValues
     });
@@ -290,7 +318,7 @@ export default function CustomerWorkspace() {
   // Compile Timeline Data
   // ----------------------------------------
   const getTimelineFeed = () => {
-    const feed: any[] = [];
+    const feed: TimelineItem[] = [];
     
     // 1. Bookings
     for (const b of bookings) {
@@ -327,30 +355,26 @@ export default function CustomerWorkspace() {
       });
     }
 
-    // 3. Notes (Split from profile notes by log lines)
-    if (customer?.notes) {
-      const matches = customer.notes.match(/\[Note logged on [^\]]+\]:\n[\s\S]+?(?=\n\n\[Note logged on|$)/g);
-      if (matches) {
-        matches.forEach((m, idx) => {
-          const titleLine = m.match(/\[Note logged on ([^\]]+)\]:/);
-          const timestamp = titleLine ? titleLine[1] : '';
-          const body = m.replace(/\[Note logged on [^\]]+\]:\n/, '');
-          
-          feed.push({
-            id: `note-${idx}`,
-            type: 'note',
-            title: `Timeline Comment Logged`,
-            description: body,
-            date: timestamp,
-            icon: MessageSquare,
-            color: 'bg-indigo-500'
-          });
-        });
-      }
+    // 3. Canonical activities
+    for (const activity of activities) {
+      feed.push({
+        id: activity.id,
+        type: 'activity',
+        title: activity.type.charAt(0).toUpperCase() + activity.type.slice(1),
+        description: activity.body,
+        date: activity.occurredAt,
+        icon: MessageSquare,
+        color: 'bg-indigo-500',
+        author: activity.author,
+        followUpDate: activity.followUpDate,
+      });
     }
 
-    // Sort desc by date
-    feed.sort((a, b) => b.date.localeCompare(a.date));
+    // Sort canonical timestamps first, then IDs for deterministic ties
+    feed.sort((a, b) => {
+      const timeDifference = Date.parse(b.date) - Date.parse(a.date);
+      return timeDifference || String(a.id).localeCompare(String(b.id));
+    });
     return feed;
   };
 
@@ -464,17 +488,6 @@ export default function CustomerWorkspace() {
                 )}
               </div>
             </div>
-
-            {/* Profile Clean Notes */}
-            {customer.notes && (
-              <div className="pt-4 border-t border-border/40 space-y-1.5">
-                <p className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-wider">Profile Background</p>
-                {/* Remove timestamp logs from pure profile notes for rendering in sidebar */}
-                <p className="text-xs text-foreground/80 leading-relaxed bg-muted/30 p-3 rounded-lg border border-border/20 whitespace-pre-line max-h-40 overflow-y-auto">
-                  {customer.notes.replace(/\[Note logged on [^\]]+\]:\n[\s\S]+?(?=\n\n\[Note logged on|$)/g, '').trim() || 'No background summary logged.'}
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Card 2: Custom Properties */}
@@ -554,27 +567,67 @@ export default function CustomerWorkspace() {
           {activeTab === 'timeline' && (
             <div className="space-y-6">
               
-              {/* Note logger box */}
+              {/* Activity composer */}
               <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm space-y-3">
+                {activityError && (
+                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-xs">
+                    {activityError}
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Activity type</label>
+                    <select
+                      value={activityType}
+                      onChange={(event) => setActivityType(event.target.value as ActivityType)}
+                      className="w-full h-9 p-2 text-xs bg-background border border-input rounded-lg"
+                    >
+                      <option value="note">Note</option>
+                      <option value="call">Call</option>
+                      <option value="email">Email</option>
+                      <option value="meeting">Meeting</option>
+                      <option value="message">Message</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Follow-up date</label>
+                    <Input
+                      type="date"
+                      value={activityFollowUpDate}
+                      onChange={(event) => setActivityFollowUpDate(event.target.value)}
+                    />
+                  </div>
+                </div>
                 <textarea
                   value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder={`Write a comment or update on ${customer.firstName}...`}
+                  onChange={(event) => setNewNote(event.target.value)}
+                  placeholder={`Write an activity update for ${customer.firstName}...`}
                   className="w-full min-h-[70px] p-3 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring resize-none"
                 />
                 <div className="flex justify-end">
-                  <Button 
-                    onClick={() => logNoteMutation.mutate(newNote)}
-                    disabled={!newNote.trim() || logNoteMutation.isPending}
+                  <Button
+                    onClick={() => createActivityMutation.mutate()}
+                    disabled={!newNote.trim() || createActivityMutation.isPending}
                     className="bg-primary text-primary-foreground hover:bg-primary/95 text-xs h-8 px-4"
                   >
-                    {logNoteMutation.isPending ? 'Logging...' : 'Log Comment'}
+                    {createActivityMutation.isPending ? 'Logging...' : 'Log Activity'}
                   </Button>
                 </div>
               </div>
 
               {/* Feed List */}
-              {timelineFeed.length === 0 ? (
+              {areActivitiesLoading && (
+                <div className="border border-dashed rounded-xl p-4 text-center text-muted-foreground text-sm">
+                  Loading activity history...
+                </div>
+              )}
+              {activitiesFailed && (
+                <div className="border border-destructive/30 bg-destructive/5 rounded-xl p-4 text-center text-destructive text-sm">
+                  Activity history could not be loaded. Existing appointment and invoice history remains available below.
+                </div>
+              )}
+              {timelineFeed.length === 0 && !areActivitiesLoading && !activitiesFailed ? (
                 <div className="border border-dashed rounded-xl p-12 text-center text-muted-foreground text-sm">
                   No activity history logged. Comments, invoices, and appointments will create a chronological timeline here.
                 </div>
@@ -597,12 +650,20 @@ export default function CustomerWorkspace() {
                               {item.title}
                             </span>
                             <span className="text-[10px] text-muted-foreground shrink-0 font-medium bg-muted px-2 py-0.5 rounded">
-                              {item.date.includes('T') ? item.date.split('T')[0] : item.date}
+                              {item.type === 'activity'
+    ? new Date(item.date).toLocaleString()
+    : (item.date.includes('T') ? item.date.split('T')[0] : item.date)}
                             </span>
                           </div>
                           <p className="text-xs text-muted-foreground leading-normal whitespace-pre-line">
                             {item.description}
                           </p>
+                          {(item.author || item.followUpDate) && (
+                            <div className="flex flex-wrap gap-3 pt-2 text-[10px] text-muted-foreground">
+                              {item.author && <span>By {item.author}</span>}
+                              {item.followUpDate && <span>Follow up: {item.followUpDate}</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -922,15 +983,6 @@ export default function CustomerWorkspace() {
                 <div className="space-y-1">
                   <label className="text-xs font-semibold">Tags (comma separated)</label>
                   <Input value={tagInput} onChange={(e) => setTagInput(e.target.value)} />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold">Internal Notes</label>
-                  <textarea 
-                    value={notes} 
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full min-h-[80px] p-3 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
-                  />
                 </div>
               </div>
 
