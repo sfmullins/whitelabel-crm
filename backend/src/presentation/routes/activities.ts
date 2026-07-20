@@ -60,7 +60,7 @@ const ActivityListRequestFields = {
 
 const ActivityListRequestQuerySchema = z.object(ActivityListRequestFields)
   .strict()
-  .transform((value) => ActivityListQuerySchema.parse(value));
+  .pipe(ActivityListQuerySchema);
 
 const CustomerActivityListRequestQuerySchema = z.object({
   engagementId: ActivityListRequestFields.engagementId,
@@ -72,7 +72,7 @@ const CustomerActivityListRequestQuerySchema = z.object({
   includeArchived: ActivityListRequestFields.includeArchived,
   limit: ActivityListRequestFields.limit,
   offset: ActivityListRequestFields.offset,
-}).strict().transform((value) => ActivityListQuerySchema.parse(value));
+}).strict().pipe(ActivityListQuerySchema);
 
 router.get('/organisations/:organisationId/activities', async (req, res, next) => {
   try {
