@@ -1,0 +1,48 @@
+name: WI3 branch bootstrap
+
+on:
+  push:
+    branches:
+      - codex/wi3-normalised-activity-notes-v2
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wi3-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply WI3 implementation
+        run: node scratch/wi3-bootstrap-loader.mjs
+
+      - name: Generate Drizzle migration
+        run: npm run db:generate
+
+      - name: Validate implementation
+        run: npm run ci:verify
+
+      - name: Commit generated WI3 implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "WI3: implement normalised activity and notes system [wi3-bootstrap]"
+          git push
