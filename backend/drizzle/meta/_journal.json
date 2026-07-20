@@ -15,6 +15,13 @@
       "when": 1784423256339,
       "tag": "0001_acoustic_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784570946759,
+      "tag": "0002_mature_argent",
+      "breakpoints": true
     }
   ]
 }

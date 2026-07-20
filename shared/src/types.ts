@@ -324,3 +324,118 @@ export type EngagementCreate = z.infer<typeof EngagementCreateSchema>;
 export type EngagementCreateBody = z.infer<typeof EngagementCreateBodySchema>;
 export type EngagementUpdate = z.infer<typeof EngagementUpdateSchema>;
 export type Engagement = z.infer<typeof EngagementResponseSchema>;
+// ==========================================
+// Activities
+// ==========================================
+export const ActivityTypeSchema = z.enum([
+  'note',
+  'call',
+  'email',
+  'meeting',
+  'message',
+  'other',
+]);
+
+export const ActivitySourceSchema = z.enum([
+  'user',
+  'legacy_import',
+  'system',
+]);
+
+export const LegacyOrganisationSourceTypeSchema = z.enum([
+  'company',
+  'individual_customer',
+]);
+
+export const IsoTimestampSchema = z.string().trim().superRefine((value, ctx) => {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Timestamp must be a valid ISO-8601 value' });
+  }
+}).transform((value) => new Date(value).toISOString());
+
+const ActivityCreateFieldsSchema = z.object({
+  organisationId: z.string().uuid('Invalid organisation ID'),
+  contactId: z.string().uuid('Invalid contact ID').nullable().optional(),
+  engagementId: z.string().uuid('Invalid engagement ID').nullable().optional(),
+  type: ActivityTypeSchema,
+  body: requiredTrimmedString('Activity body'),
+  author: requiredTrimmedString('Author').optional(),
+  occurredAt: IsoTimestampSchema.optional(),
+  followUpDate: nullableIsoDateOnlySchema,
+});
+
+export const ActivityCreateSchema = ActivityCreateFieldsSchema.strict();
+
+export const ActivityCreateBodySchema = ActivityCreateFieldsSchema
+  .omit({ organisationId: true })
+  .strict();
+
+export const CustomerActivityCreateBodySchema = ActivityCreateFieldsSchema
+  .omit({ organisationId: true, contactId: true })
+  .strict();
+
+export const ActivityUpdateSchema = z.object({
+  contactId: z.string().uuid('Invalid contact ID').nullable().optional(),
+  engagementId: z.string().uuid('Invalid engagement ID').nullable().optional(),
+  type: ActivityTypeSchema.optional(),
+  body: requiredTrimmedString('Activity body').optional(),
+  author: requiredTrimmedString('Author').optional(),
+  occurredAt: IsoTimestampSchema.optional(),
+  followUpDate: nullableIsoDateOnlyScheme,
+}).strict().refine(nonEmptyPatch, { message: 'At least one field must be supplied' });
+
+export const ActivityResponseSchema = z.object({
+  id: z.string().uuid(),
+  organisationId: z.string().uuid(),
+  contactId: z.string().uuid().nullable(),
+  engagementId: z.string().uuid().nullable(),
+  type: ActivityTypeSchema,
+  body: z.string().trim().min(1),
+  author: z.string().trim().min(1),
+  occurredAt: IsoTimestampSchema,
+  followUpDate: IsoDateOnlySchema.nullable(),
+  source: ActivitySourceSchema,
+  sourceReference: z.string().nullable(),
+  createdAt: IsoTimestampSchema,
+  updatedAt: IsoTimestampSchema,
+  archivedAt: IsoTimestampSchema.nullable(),
+}).strict();
+
+export const ActivityListQuerySchema = z.object({
+  contactId: z.string().uuid('Invalid contact ID').optional(),
+  engagementId: z.string().uuid('Invalid engagement ID').optional(),
+  type: ActivityTypeSchema.optional(),
+  occurredFrom: IsoTimestampSchema.optional(),
+  occurredTo: IsoTimestampSchema.optional(),
+  followUpFrom: IsoDateOnlySchema.optional(),
+  followUpTo: IsoDateOnlySchema.optional(),
+  includeArchived: z.boolean().default(false),
+  limit: z.number().int().min(1).max(200).default(50),
+  offset: z.number().int().min(0).default(0),
+}).strict().superRefine((value, ctx) => {
+  if (value.occurredFrom && value.occurredTo && value.occurredTo < value.occurredFrom) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['occurredTo'], message: 'occurredTo cannot precede occurredFrom' });
+  }
+  if (value.followUpFrom && value.followUpTo && value.followUpTo < value.followUpFrom) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['followUpTo'], message: 'followUpTo cannot precede followUpFrom' });
+  }
+});
+
+export const LegacyCustomerCrmMappingSchema = z.object({
+  customerId: z.string().uuid(),
+  organisationId: z.string().uuid(),
+  contactId: z.string().uuid(),
+  createdAt: IsoTimestampSchema,
+}).strict();
+
+export type ActivityType = z.infer<typeof ActivityTypeSchema>;
+export type ActivitySource = z.infer<typeof ActivitySourceSchema>;
+export type LegacyOrganisationSourceType = z.infer<typeof LegacyOrganisationSourceTypeSchema>;
+export type ActivityCreate = z.infer<typeof ActivityCreateSchema>;
+export type ActivityCreateBody = z.infer<typeof ActivityCreateBodySchema>;
+export type CustomerActivityCreateBody = z.infer<typeof CustomerActivityCreateBodySchema>;
+export type ActivityUpdate = z.infer<typeof ActivityUpdateSchema>;
+export type Activity = z.infer<typeof ActivityResponseSchema>;
+export type ActivityListQuery = z.infer<typeof ActivityListQuerySchema>;
+export type LegacyCustomerCrmMapping = z.infer<typeof LegacyCustomerCrmMappingSchema>;

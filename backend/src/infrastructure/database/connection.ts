@@ -34,6 +34,15 @@ export const sqlite: any = new Proxy({} as any, {
 export type DatabaseInstance = BetterSQLite3Database<typeof schema>;
 export type SqliteConnection = Database.Database;
 
+
+export function getSqliteConnection(): SqliteConnection {
+  if (!activeSqlite) {
+    const paths = getRuntimePaths();
+    openDatabase(paths.databasePath);
+  }
+  return activeSqlite!;
+}
+
 export function openDatabase(databasePath: string): DatabaseInstance {
   // 1. Ensure target directory exists
   const dir = path.dirname(databasePath);
