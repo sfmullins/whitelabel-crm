@@ -44,12 +44,22 @@ jobs:
         run: npm run db:generate
 
       - name: Validate implementation
-        run: npm run ci:verify
+        shell: bash
+        run: |
+          set +e
+          npm run ci:verify 2>&1 | tee scratch/wi3-validation.log
+          validation_status=${PIPESTATUS[0]}
+          echo "VALIDATION_STATUS=${validation_status}" >> "$GITHUB_ENV"
+          exit 0
 
-      - name: Commit generated WI3 implementation
+      - name: Commit generated WI3 implementation and diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f scratch/wi3-bootstrap.generated.mjs
           git add -A
           git commit -m "WI3: implement normalised activity and notes system [wi3-bootstrap]"
           git push origin HEAD:codex/wi3-normalised-activity-notes-v2
+
+      - name: Report validation result
+        run: exit "$VALIDATION_STATUS"
