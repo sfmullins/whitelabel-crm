@@ -4,8 +4,8 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useBranding } from '../../hooks/useBranding';
 import Onboarding from '../../pages/Onboarding';
 import {
-  BriefcaseBusiness, Building2, Calendar, CalendarClock, FileText, LayoutDashboard,
-  Layers, Plus, Search, Settings, UserRound, Users, X,
+  BriefcaseBusiness, Building2, Calendar, CalendarClock, CheckSquare, FileText, FolderOpen, LayoutDashboard,
+  Layers, Plus, Radio, Search, Settings, UserRound, Users, Workflow, X,
 } from 'lucide-react';
 import type { SavedView, SearchResponse, SearchResult } from 'shared';
 import { Button } from '../ui/button';
@@ -20,6 +20,10 @@ const navGroups = [
     { to: '/follow-ups', label: 'Follow-ups', icon: CalendarClock },
   ] },
   { label: 'Operations', items: [
+    { to: '/work', label: 'Work', icon: CheckSquare },
+    { to: '/documents', label: 'Documents', icon: FolderOpen },
+    { to: '/communications', label: 'Communications', icon: Radio },
+    { to: '/automation', label: 'Automation', icon: Workflow },
     { to: '/customers', label: 'Customer records', icon: Users },
     { to: '/bookings', label: 'Bookings', icon: Calendar },
     { to: '/invoices', label: 'Invoices', icon: FileText },
@@ -87,7 +91,7 @@ export default function MainLayout() {
 
     <div className="flex min-w-0 flex-1 flex-col">
       <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b bg-white px-4 md:px-8">
-        <button ref={triggerRef} onClick={() => setIsSearchOpen(true)} className="flex w-full max-w-xl items-center gap-3 rounded-lg border bg-slate-50 px-3 py-2 text-left text-sm text-slate-400 hover:bg-slate-100" aria-haspopup="dialog"><Search className="h-4 w-4"/><span className="min-w-0 flex-1 truncate">Search organisations, contacts, activities and invoices…</span><kbd className="rounded border bg-white px-1.5 py-0.5 text-[10px] font-semibold">Ctrl K</kbd></button>
+        <button ref={triggerRef} onClick={() => setIsSearchOpen(true)} className="flex w-full max-w-xl items-center gap-3 rounded-lg border bg-slate-50 px-3 py-2 text-left text-sm text-slate-400 hover:bg-slate-100" aria-haspopup="dialog"><Search className="h-4 w-4"/><span className="min-w-0 flex-1 truncate">Search organisations, contacts, activities, tasks, documents and communications…</span><kbd className="rounded border bg-white px-1.5 py-0.5 text-[10px] font-semibold">Ctrl K</kbd></button>
         <Button size="sm" onClick={() => navigate('/organisations')}><Plus className="mr-1.5 h-4 w-4"/>Create</Button>
       </header>
       <main className="flex-1 overflow-y-auto p-4 md:p-8"><Outlet/></main>
@@ -111,6 +115,9 @@ function BlankPalette({ recents, views, navigate }: { recents: ReturnType<typeof
     { title: 'Create contact', route: '/organisations?intent=create-contact' },
     { title: 'Log activity', route: '/organisations?intent=log-activity' },
     { title: 'Open follow-up queue', route: '/follow-ups' },
+    { title: 'Create task', route: '/work?action=create' },
+    { title: 'Upload document', route: '/documents?action=upload' },
+    { title: 'Log communication', route: '/communications?action=create' },
   ];
   return <div className="space-y-4 p-2"><section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actions</p>{direct.map((item) => <button key={item.route} onClick={() => navigate(item.route)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted"><Plus className="h-4 w-4 text-primary"/>{item.title}</button>)}</section>{recents.length > 0 && <section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Recently viewed</p>{recents.map((item) => <button key={`${item.entityType}-${item.entityId}`} onClick={() => navigate(item.route)} className="w-full rounded-lg px-3 py-2.5 text-left hover:bg-muted"><p className="text-sm font-bold">{item.title}</p><p className="text-xs text-muted-foreground">{item.subtitle}</p></button>)}</section>}{views.length > 0 && <section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Pinned views</p>{views.map((view) => <button key={view.id} onClick={() => navigate(savedViewRoute(view))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted"><BriefcaseBusiness className="h-4 w-4 text-primary"/>{view.name}</button>)}</section>}</div>;
 }

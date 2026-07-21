@@ -22,8 +22,9 @@
     "desktop:smoke": "node scratch/desktop-smoke.js",
     "db:smoke": "npm exec -w backend -- tsx ../scratch/db-smoke.ts",
     "desktop:preflight": "node scratch/desktop-preflight.js",
-    "ci:verify": "npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run desktop:preflight",
-    "wi4:smoke": "npm exec -w backend -- tsx ../scratch/wi4-smoke.ts"
+    "ci:verify": "npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run desktop:preflight",
+    "wi4:smoke": "npm exec -w backend -- tsx ../scratch/wi4-smoke.ts",
+    "wi5:smoke": "npm exec -w backend -- tsx ../scratch/wi5-smoke.ts"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -7,6 +7,7 @@ export interface RuntimePaths {
   internalBackupDirectory: string;
   temporaryDirectory: string;
   logDirectory: string;
+  documentDirectory: string;
 }
 
 // Development default fallback directories (local to backend folder)
@@ -17,7 +18,8 @@ let activePaths: RuntimePaths = {
   databasePath: path.join(defaultDataDir, 'crm.db'),
   internalBackupDirectory: path.join(defaultDataDir, 'backups'),
   temporaryDirectory: path.join(defaultDataDir, 'temp'),
-  logDirectory: path.join(defaultDataDir, 'logs')
+  logDirectory: path.join(defaultDataDir, 'logs'),
+  documentDirectory: path.join(defaultDataDir, 'documents')
 };
 
 export function configureRuntimePaths(paths: Partial<RuntimePaths>): void {
@@ -31,7 +33,8 @@ export function configureRuntimePaths(paths: Partial<RuntimePaths>): void {
     activePaths.dataDirectory,
     activePaths.internalBackupDirectory,
     activePaths.temporaryDirectory,
-    activePaths.logDirectory
+    activePaths.logDirectory,
+    activePaths.documentDirectory
   ];
 
   for (const dir of dirs) {

@@ -23,7 +23,7 @@ CREATE TABLE `search_documents` (
 	`route` text NOT NULL,
 	`updated_at` text NOT NULL,
 	`archived_at` text,
-	CONSTRAINT `search_document_type_check` CHECK(`entity_type` in ('organisation','contact','engagement','activity','customer','invoice')),
+	CONSTRAINT `search_document_type_check` CHECK(`entity_type` in ('organisation','contact','engagement','activity','customer','invoice','task','document','communication')),
 	CONSTRAINT `search_document_title_check` CHECK(length(trim(`title`)) > 0),
 	CONSTRAINT `search_document_route_check` CHECK(length(trim(`route`)) > 0)
 );

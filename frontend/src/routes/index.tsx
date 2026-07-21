@@ -6,6 +6,10 @@ import OrganisationWorkspace from '../pages/OrganisationWorkspace';
 import Contacts from '../pages/Contacts';
 import FollowUps from '../pages/FollowUps';
 import SearchResults from '../pages/SearchResults';
+import Work from '../pages/Work';
+import Documents from '../pages/Documents';
+import Communications from '../pages/Communications';
+import Automation from '../pages/Automation';
 import Customers from '../pages/Customers';
 import CustomerWorkspace from '../pages/CustomerWorkspace';
 import Bookings from '../pages/Bookings';
@@ -23,6 +27,10 @@ export const router = createBrowserRouter([{
     { path: 'contacts', element: <Contacts /> },
     { path: 'follow-ups', element: <FollowUps /> },
     { path: 'search', element: <SearchResults /> },
+    { path: 'work', element: <Work /> },
+    { path: 'documents', element: <Documents /> },
+    { path: 'communications', element: <Communications /> },
+    { path: 'automation', element: <Automation /> },
     { path: 'customers', element: <Customers /> },
     { path: 'customers/:id', element: <CustomerWorkspace /> },
     { path: 'bookings', element: <Bookings /> },

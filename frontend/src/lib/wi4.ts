@@ -15,7 +15,7 @@ export function buildQueryString(values: Record<string, string | number | boolea
 }
 
 export function groupSearchResults(items: SearchResult[]): Array<{ type: SearchEntityType; items: SearchResult[] }> {
-  const order: SearchEntityType[] = ['organisation', 'contact', 'engagement', 'activity', 'customer', 'invoice'];
+  const order: SearchEntityType[] = ['organisation', 'contact', 'engagement', 'activity', 'task', 'document', 'communication', 'customer', 'invoice'];
   return order
     .map((type) => ({ type, items: items.filter((item) => item.entityType === type) }))
     .filter((group) => group.items.length > 0);
@@ -29,6 +29,9 @@ export function formatEntityLabel(type: SearchEntityType): string {
     activity: 'Activities',
     customer: 'Customer records',
     invoice: 'Invoices',
+    task: 'Tasks',
+    document: 'Documents',
+    communication: 'Communications',
   } as const)[type];
 }
 
