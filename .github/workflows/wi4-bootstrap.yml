@@ -1,6 +1,5 @@
-name: WI4 implementation bootstrap
+name: WI4 SOW validation
 
-# Synchronization marker: run the implementation from the open WI4 pull request.
 on:
   push:
     branches:
@@ -11,85 +10,24 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: wi4-implementation-bootstrap
+  group: wi4-sow-validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  implement-validate-commit:
-    if: >-
-      github.actor != 'github-actions[bot]' &&
-      (github.event_name != 'pull_request' || github.head_ref == 'WI4-Implementation')
+  verify:
+    if: github.event_name != 'pull_request' || github.head_ref == 'WI4-Implementation'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: WI4-Implementation
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - name: Install dependencies
         run: npm ci
-
-      - name: Apply WI4 implementation
-        shell: bash
-        run: |
-          set +e
-          {
-            python -c 'from pathlib import Path; p=Path("scratch/wi4-bootstrap-loader.mjs"); s=p.read_text(); p.write_text(s.replace("sql\\`${table.", "sql\\`\\${table."))'
-            node scratch/wi4-bootstrap-loader.mjs
-            apply_status=$?
-            if [ "$apply_status" -eq 0 ]; then
-              npm run db:generate
-              generate_status=$?
-            else
-              generate_status=1
-            fi
-            if [ "$apply_status" -eq 0 ] && [ "$generate_status" -eq 0 ]; then
-              node scratch/wi4-postgenerate.mjs
-              postgenerate_status=$?
-            else
-              postgenerate_status=1
-            fi
-            if [ "$apply_status" -eq 0 ] && [ "$generate_status" -eq 0 ] && [ "$postgenerate_status" -eq 0 ]; then
-              node scratch/wi4-corrections.mjs
-              corrections_status=$?
-            else
-              corrections_status=1
-            fi
-            if [ "$apply_status" -eq 0 ] && [ "$generate_status" -eq 0 ] && [ "$postgenerate_status" -eq 0 ] && [ "$corrections_status" -eq 0 ]; then
-              npm run ci:verify
-              validation_status=$?
-            else
-              validation_status=1
-            fi
-            echo "APPLY_STATUS=$apply_status"
-            echo "GENERATE_STATUS=$generate_status"
-            echo "POSTGENERATE_STATUS=$postgenerate_status"
-            echo "CORRECTIONS_STATUS=$corrections_status"
-            echo "VALIDATION_STATUS=$validation_status"
-            exit "$validation_status"
-          } 2>&1 | tee scratch/wi4-validation.txt
-          status=${PIPESTATUS[0]}
-          echo "WI4_STATUS=${status}" >> "$GITHUB_ENV"
-          exit 0
-
-      - name: Commit implementation and diagnostics
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "WI4: implement CRM UX, search and follow-up workspace"
-            git push origin HEAD:WI4-Implementation
-          fi
-
-      - name: Report validation result
-        run: exit "$WI4_STATUS"
+      - name: Run full WI4 verification
+        run: npm run ci:verify
