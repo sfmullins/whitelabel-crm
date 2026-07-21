@@ -13,7 +13,7 @@ const databasePath = path.join(temp, 'wi4.sqlite');
 configureRuntimePaths({ dataDirectory: temp, databasePath, internalBackupDirectory: path.join(temp, 'backups'), temporaryDirectory: path.join(temp, 'tmp'), logDirectory: path.join(temp, 'logs') });
 try {
   const db = openDatabase(databasePath);
-  runMigrations(db, path.resolve('backend/drizzle'), sqlite);
+  runMigrations(db, path.resolve('drizzle'), sqlite);
   await runSeed();
   assertFts5Available(sqlite);
   const repository = new WorkspaceRepository(sqlite);
