@@ -61,9 +61,12 @@ describe('WI6 connected communications',()=>{
     expect(events).toHaveLength(1);
     expect(events[0].organisationId).toBe(ACME);
     const work=new WorkRepository();
+    for(const existing of work.listReminders({status:'pending',dueOnly:true})){
+      work.updateReminderStatus(String(existing.id),'cancelled');
+    }
     const reminder=work.createReminder({sourceType:'calendar_event',sourceId:String(events[0].id),organisationId:ACME,scheduledAt:'2020-01-01T00:00:00.000Z'});
     const delivered:string[]=[];
-    const scheduler=new ReminderScheduler(work,async(value)=>{delivered.push(value.id);});
+    const scheduler=new ReminderScheduler(work,async(value)=>{delivered.push(String(value.id));});
     expect(await scheduler.processDue()).toEqual({delivered:1,failed:0});
     expect(await scheduler.processDue()).toEqual({delivered:0,failed:0});
     expect(delivered).toEqual([reminder.id]);
