@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - WI5-Operational-Records
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -15,7 +18,9 @@ concurrency:
 
 jobs:
   materialize:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name != 'pull_request' || github.head_ref == 'WI5-Operational-Records')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
