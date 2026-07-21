@@ -7,7 +7,8 @@ import { runMigrations } from '../backend/src/infrastructure/database/migrate';
 import { runSeed } from '../backend/src/infrastructure/database/seed';
 import { WorkspaceRepository, assertFts5Available } from '../backend/src/infrastructure/database/WorkspaceRepository';
 
-const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'whitelabel-crm-wi4-'));
+async function main() {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'whitelabel-crm-wi4-'));
 const databasePath = path.join(temp, 'wi4.sqlite');
 configureRuntimePaths({ dataDirectory: temp, databasePath, internalBackupDirectory: path.join(temp, 'backups'), temporaryDirectory: path.join(temp, 'tmp'), logDirectory: path.join(temp, 'logs') });
 try {
@@ -28,4 +29,10 @@ try {
 } finally {
   closeDatabase();
   fs.rmSync(temp, { recursive: true, force: true });
+  }
 }
+
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
