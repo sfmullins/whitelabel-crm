@@ -393,6 +393,7 @@ export const ActivityResponseSchema = z.object({
   author: z.string().trim().min(1),
   occurredAt: IsoTimestampSchema,
   followUpDate: IsoDateOnlySchema.nullable(),
+  followUpCompletedAt: IsoTimestampSchema.nullable(),
   source: ActivitySourceSchema,
   sourceReference: z.string().nullable(),
   createdAt: IsoTimestampSchema,
@@ -437,3 +438,387 @@ export type ActivityUpdate = z.infer<typeof ActivityUpdateSchema>;
 export type Activity = z.infer<typeof ActivityResponseSchema>;
 export type ActivityListQuery = z.infer<typeof ActivityListQuerySchema>;
 export type LegacyCustomerCrmMapping = z.infer<typeof LegacyCustomerCrmMappingSchema>;
+
+// ==========================================
+// WI4 CRM workspace, search, timeline and saved views
+// ==========================================
+export const SearchEntityTypeSchema = z.enum([
+  'organisation',
+  'contact',
+  'engagement',
+  'activity',
+  'customer',
+  'invoice',
+]);
+export const SearchQuerySchema = z.object({
+  q: z.string().trim().min(2).max(120),
+  types: z.array(SearchEntityTypeSchema).max(6).optional(),
+  organisationId: z.string().uuid().optional(),
+  includeArchived: z.boolean().default(false),
+  limit: z.number().int().min(1).max(50).default(20),
+  offset: z.number().int().min(0).default(0),
+}).strict();
+export const SearchResultSchema = z.object({
+  id: z.string().min(1),
+  entityType: SearchEntityTypeSchema,
+  entityId: z.string().uuid(),
+  organisationId: z.string().uuid().nullable(),
+  title: z.string(),
+  subtitle: z.string(),
+  context: z.string(),
+  route: z.string().startsWith('/'),
+  updatedAt: IsoTimestampSchema,
+  score: z.number(),
+  matchedFields: z.array(z.enum(['title', 'subtitle', 'body'])),
+}).strict();
+export const SearchResponseSchema = z.object({
+  items: z.array(SearchResultSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().positive(),
+  offset: z.number().int().min(0),
+}).strict();
+
+const PrimaryContactSummarySchema = z.object({
+  id: z.string().uuid(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  email: z.string().nullable(),
+}).strict();
+
+export const OrganisationDirectorySortSchema = z.enum([
+  'name_asc',
+  'updated_desc',
+  'recent_activity',
+  'next_follow_up',
+]);
+export const OrganisationDirectoryQuerySchema = z.object({
+  status: OrganisationStatusSchema.optional(),
+  industry: z.string().trim().min(1).optional(),
+  country: z.string().trim().min(1).optional(),
+  search: z.string().trim().min(1).optional(),
+  includeArchived: z.boolean().default(false),
+  sort: OrganisationDirectorySortSchema.default('name_asc'),
+  limit: z.number().int().min(1).max(200).default(50),
+  offset: z.number().int().min(0).default(0),
+}).strict();
+export const OrganisationDirectoryItemSchema = OrganisationResponseSchema.extend({
+  primaryContact: PrimaryContactSummarySchema.nullable(),
+  activeEngagementCount: z.number().int().min(0),
+  lastActivityAt: IsoTimestampSchema.nullable(),
+  nextFollowUpDate: IsoDateOnlySchema.nullable(),
+}).strict();
+export const OrganisationDirectoryResponseSchema = z.object({
+  items: z.array(OrganisationDirectoryItemSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().positive(),
+  offset: z.number().int().min(0),
+}).strict();
+
+export const ContactDirectoryQuerySchema = z.object({
+  organisationId: z.string().uuid().optional(),
+  status: ContactStatusSchema.optional(),
+  search: z.string().trim().min(1).optional(),
+  includeArchived: z.boolean().default(false),
+  limit: z.number().int().min(1).max(200).default(50),
+  offset: z.number().int().min(0).default(0),
+}).strict();
+export const ContactDirectoryItemSchema = ContactResponseSchema.extend({
+  organisationName: z.string(),
+}).strict();
+export const ContactDirectoryResponseSchema = z.object({
+  items: z.array(ContactDirectoryItemSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().positive(),
+  offset: z.number().int().min(0),
+}).strict();
+
+export const AssociatedCustomerSummarySchema = z.object({
+  id: z.string().uuid(),
+  firstName: z.string(),
+  lastName: z.string(),
+  company: z.string().nullable(),
+  email: z.string(),
+  bookingCount: z.number().int().min(0),
+  invoiceCount: z.number().int().min(0),
+  outstandingCents: z.number().int().min(0),
+}).strict();
+export const OrganisationWorkspaceSchema = z.object({
+  organisation: OrganisationResponseSchema,
+  primaryContact: PrimaryContactSummarySchema.nullable(),
+  contacts: z.array(ContactResponseSchema),
+  engagements: z.array(EngagementResponseSchema),
+  associatedCustomers: z.array(AssociatedCustomerSummarySchema),
+  recentActivities: z.array(ActivityResponseSchema),
+  activeEngagementCount: z.number().int().min(0),
+  nextFollowUpDate: IsoDateOnlySchema.nullable(),
+  lastActivityAt: IsoTimestampSchema.nullable(),
+}).strict();
+
+export const TimelineEventTypeSchema = z.enum([
+  'activity',
+  'engagement',
+  'booking',
+  'invoice',
+  'payment',
+]);
+export const TimelineFollowUpStatusSchema = z.enum(['open', 'completed', 'none']);
+const TimelineBaseSchema = z.object({
+  id: z.string().uuid(),
+  occurredAt: IsoTimestampSchema,
+  createdAt: IsoTimestampSchema,
+  title: z.string(),
+  description: z.string(),
+  organisationId: z.string().uuid(),
+  contactId: z.string().uuid().nullable(),
+  engagementId: z.string().uuid().nullable(),
+  customerId: z.string().uuid().nullable(),
+  sourceEntityId: z.string().uuid(),
+  sourceRoute: z.string().startsWith('/'),
+});
+export const ActivityTimelineEventSchema = TimelineBaseSchema.extend({
+  eventType: z.literal('activity'),
+  metadata: z.object({
+    activityType: ActivityTypeSchema,
+    author: z.string(),
+    followUpDate: IsoDateOnlySchema.nullable(),
+    followUpCompletedAt: IsoTimestampSchema.nullable(),
+  }).strict(),
+}).strict();
+export const EngagementTimelineEventSchema = TimelineBaseSchema.extend({
+  eventType: z.literal('engagement'),
+  metadata: z.object({
+    engagementType: EngagementTypeSchema,
+    status: EngagementStatusSchema,
+    startDate: IsoDateOnlySchema,
+    endDate: IsoDateOnlySchema.nullable(),
+  }).strict(),
+}).strict();
+export const BookingTimelineEventSchema = TimelineBaseSchema.extend({
+  eventType: z.literal('booking'),
+  metadata: z.object({
+    status: BookingStatus,
+    date: IsoDateOnlySchema,
+    time: z.string(),
+    serviceId: z.string().uuid(),
+  }).strict(),
+}).strict();
+export const InvoiceTimelineEventSchema = TimelineBaseSchema.extend({
+  eventType: z.literal('invoice'),
+  metadata: z.object({
+    status: InvoiceStatus,
+    invoiceNumber: z.string(),
+    totalCents: z.number().int(),
+  }).strict(),
+}).strict();
+export const PaymentTimelineEventSchema = TimelineBaseSchema.extend({
+  eventType: z.literal('payment'),
+  metadata: z.object({
+    amountCents: z.number().int().min(0),
+    paymentMethod: PaymentMethod,
+    invoiceNumber: z.string(),
+  }).strict(),
+}).strict();
+export const TimelineEventSchema = z.discriminatedUnion('eventType', [
+  ActivityTimelineEventSchema,
+  EngagementTimelineEventSchema,
+  BookingTimelineEventSchema,
+  InvoiceTimelineEventSchema,
+  PaymentTimelineEventSchema,
+]);
+export const TimelineQuerySchema = z.object({
+  eventTypes: z.array(TimelineEventTypeSchema).optional(),
+  contactId: z.string().uuid().optional(),
+  engagementId: z.string().uuid().optional(),
+  from: IsoTimestampSchema.optional(),
+  to: IsoTimestampSchema.optional(),
+  activityType: ActivityTypeSchema.optional(),
+  followUpStatus: TimelineFollowUpStatusSchema.optional(),
+  limit: z.number().int().min(1).max(200).default(50),
+  offset: z.number().int().min(0).default(0),
+}).strict().superRefine((value, ctx) => {
+  if (value.from && value.to && value.to < value.from) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['to'], message: 'to cannot precede from' });
+  }
+});
+export const TimelineResponseSchema = z.object({
+  items: z.array(TimelineEventSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().positive(),
+  offset: z.number().int().min(0),
+}).strict();
+
+export const FollowUpBucketSchema = z.enum(['overdue', 'today', 'upcoming', 'completed', 'open', 'all']);
+export const FollowUpStatusSchema = z.enum(['overdue', 'today', 'upcoming', 'completed']);
+export const FollowUpQuerySchema = z.object({
+  bucket: FollowUpBucketSchema.default('open'),
+  organisationId: z.string().uuid().optional(),
+  contactId: z.string().uuid().optional(),
+  engagementId: z.string().uuid().optional(),
+  type: ActivityTypeSchema.optional(),
+  from: IsoDateOnlySchema.optional(),
+  to: IsoDateOnlySchema.optional(),
+  limit: z.number().int().min(1).max(200).default(50),
+  offset: z.number().int().min(0).default(0),
+}).strict().superRefine((value, ctx) => {
+  if (value.from && value.to && value.to < value.from) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['to'], message: 'to cannot precede from' });
+  }
+});
+export const FollowUpItemSchema = z.object({
+  activityId: z.string().uuid(),
+  organisationId: z.string().uuid(),
+  organisationName: z.string(),
+  contactId: z.string().uuid().nullable(),
+  contactName: z.string().nullable(),
+  engagementId: z.string().uuid().nullable(),
+  engagementName: z.string().nullable(),
+  type: ActivityTypeSchema,
+  body: z.string(),
+  author: z.string(),
+  occurredAt: IsoTimestampSchema,
+  followUpDate: IsoDateOnlySchema,
+  followUpCompletedAt: IsoTimestampSchema.nullable(),
+  status: FollowUpStatusSchema,
+}).strict();
+export const FollowUpResponseSchema = z.object({
+  items: z.array(FollowUpItemSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().positive(),
+  offset: z.number().int().min(0),
+  today: IsoDateOnlySchema,
+}).strict();
+
+export const SavedViewContextSchema = z.enum(['organisations', 'followups', 'search', 'timeline']);
+const OrganisationSavedViewSchema = z.object({
+  version: z.literal(1),
+  context: z.literal('organisations'),
+  filters: z.object({
+    status: OrganisationStatusSchema.optional(),
+    industry: z.string().optional(),
+    country: z.string().optional(),
+    includeArchived: z.boolean().optional(),
+    search: z.string().optional(),
+  }).strict(),
+  sort: OrganisationDirectorySortSchema.default('name_asc'),
+}).strict();
+const FollowUpSavedViewSchema = z.object({
+  version: z.literal(1),
+  context: z.literal('followups'),
+  filters: z.object({
+    bucket: FollowUpBucketSchema.optional(),
+    organisationId: z.string().uuid().optional(),
+    contactId: z.string().uuid().optional(),
+    engagementId: z.string().uuid().optional(),
+    type: ActivityTypeSchema.optional(),
+  }).strict(),
+  sort: z.literal('due_asc').default('due_asc'),
+}).strict();
+const SearchSavedViewSchema = z.object({
+  version: z.literal(1),
+  context: z.literal('search'),
+  filters: z.object({
+    types: z.array(SearchEntityTypeSchema).optional(),
+    organisationId: z.string().uuid().optional(),
+    includeArchived: z.boolean().optional(),
+  }).strict(),
+  sort: z.enum(['relevance', 'updated_desc']).default('relevance'),
+}).strict();
+const TimelineSavedViewSchema = z.object({
+  version: z.literal(1),
+  context: z.literal('timeline'),
+  filters: z.object({
+    eventTypes: z.array(TimelineEventTypeSchema).optional(),
+    contactId: z.string().uuid().optional(),
+    engagementId: z.string().uuid().optional(),
+    activityType: ActivityTypeSchema.optional(),
+    followUpStatus: TimelineFollowUpStatusSchema.optional(),
+  }).strict(),
+  sort: z.literal('occurred_desc').default('occurred_desc'),
+}).strict();
+export const SavedViewDefinitionSchema = z.discriminatedUnion('context', [
+  OrganisationSavedViewSchema,
+  FollowUpSavedViewSchema,
+  SearchSavedViewSchema,
+  TimelineSavedViewSchema,
+]);
+export const SavedViewCreateSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  definition: SavedViewDefinitionSchema,
+  isPinned: z.boolean().default(false),
+}).strict();
+export const SavedViewUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  definition: SavedViewDefinitionSchema.optional(),
+  isPinned: z.boolean().optional(),
+}).strict().refine(nonEmptyPatch, { message: 'At least one field must be supplied' });
+export const SavedViewResponseSchema = z.object({
+  id: z.string().uuid(),
+  context: SavedViewContextSchema,
+  name: z.string(),
+  definition: SavedViewDefinitionSchema,
+  isPinned: z.boolean(),
+  createdAt: IsoTimestampSchema,
+  updatedAt: IsoTimestampSchema,
+}).strict();
+
+export const DashboardRecentActivitySchema = z.object({
+  id: z.string().uuid(),
+  type: ActivityTypeSchema,
+  body: z.string(),
+  author: z.string(),
+  occurredAt: IsoTimestampSchema,
+  organisationId: z.string().uuid(),
+  organisationName: z.string(),
+}).strict();
+export const DashboardOperationalSummarySchema = z.object({
+  activeClientOrganisations: z.number().int().min(0),
+  activeEngagements: z.number().int().min(0),
+  overdueFollowUps: z.number().int().min(0),
+  dueTodayFollowUps: z.number().int().min(0),
+  collectedRevenueCents: z.number().int(),
+  outstandingCents: z.number().int(),
+  recentActivities: z.array(DashboardRecentActivitySchema),
+  recentlyUpdatedOrganisations: z.array(z.object({
+    id: z.string().uuid(), name: z.string(), status: OrganisationStatusSchema, updatedAt: IsoTimestampSchema,
+  }).strict()),
+  needsAttention: z.object({
+    followUps: z.array(FollowUpItemSchema),
+    staleOrganisations: z.array(z.object({
+      id: z.string().uuid(), name: z.string(), lastActivityAt: IsoTimestampSchema.nullable(),
+    }).strict()),
+    engagementsEndingSoon: z.array(z.object({
+      id: z.string().uuid(), name: z.string(), endDate: IsoDateOnlySchema,
+      organisationId: z.string().uuid(), organisationName: z.string(),
+    }).strict()),
+  }).strict(),
+  staleAfterDays: z.number().int().positive(),
+  today: IsoDateOnlySchema,
+}).strict();
+
+export type SearchEntityType = z.infer<typeof SearchEntityTypeSchema>;
+export type SearchQuery = z.infer<typeof SearchQuerySchema>;
+export type SearchResult = z.infer<typeof SearchResultSchema>;
+export type SearchResponse = z.infer<typeof SearchResponseSchema>;
+export type OrganisationDirectorySort = z.infer<typeof OrganisationDirectorySortSchema>;
+export type OrganisationDirectoryQuery = z.infer<typeof OrganisationDirectoryQuerySchema>;
+export type OrganisationDirectoryItem = z.infer<typeof OrganisationDirectoryItemSchema>;
+export type OrganisationDirectoryResponse = z.infer<typeof OrganisationDirectoryResponseSchema>;
+export type ContactDirectoryQuery = z.infer<typeof ContactDirectoryQuerySchema>;
+export type ContactDirectoryItem = z.infer<typeof ContactDirectoryItemSchema>;
+export type ContactDirectoryResponse = z.infer<typeof ContactDirectoryResponseSchema>;
+export type OrganisationWorkspace = z.infer<typeof OrganisationWorkspaceSchema>;
+export type TimelineEventType = z.infer<typeof TimelineEventTypeSchema>;
+export type TimelineFollowUpStatus = z.infer<typeof TimelineFollowUpStatusSchema>;
+export type TimelineQuery = z.infer<typeof TimelineQuerySchema>;
+export type TimelineEvent = z.infer<typeof TimelineEventSchema>;
+export type TimelineResponse = z.infer<typeof TimelineResponseSchema>;
+export type FollowUpBucket = z.infer<typeof FollowUpBucketSchema>;
+export type FollowUpQuery = z.infer<typeof FollowUpQuerySchema>;
+export type FollowUpItem = z.infer<typeof FollowUpItemSchema>;
+export type FollowUpResponse = z.infer<typeof FollowUpResponseSchema>;
+export type SavedViewContext = z.infer<typeof SavedViewContextSchema>;
+export type SavedViewDefinition = z.infer<typeof SavedViewDefinitionSchema>;
+export type SavedViewCreate = z.infer<typeof SavedViewCreateSchema>;
+export type SavedViewUpdate = z.infer<typeof SavedViewUpdateSchema>;
+export type SavedView = z.infer<typeof SavedViewResponseSchema>;
+export type DashboardOperationalSummary = z.infer<typeof DashboardOperationalSummarySchema>;

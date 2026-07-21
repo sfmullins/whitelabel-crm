@@ -1,215 +1,30 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { AlertTriangle, BriefcaseBusiness, Building2, CalendarClock, CircleDollarSign, MessageSquare, WalletCards } from 'lucide-react';
+import type { DashboardOperationalSummary } from 'shared';
 import { api } from '../lib/api';
-import { 
-  TrendingUp, Users, Calendar, DollarSign, Clock 
-} from 'lucide-react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-
-interface DashboardMetrics {
-  activeCustomers: number;
-  bookingsCount: number;
-  revenueCents: number;
-  outstandingCents: number;
-  recentActivity: Array<{
-    id: string;
-    type: 'booking' | 'payment';
-    title: string;
-    description: string;
-    date: string;
-    metadata: any;
-  }>;
-}
 
 export default function Dashboard() {
-  
-  const { data: metrics, isLoading } = useQuery<DashboardMetrics>({
-    queryKey: ['dashboardMetrics'],
-    queryFn: () => api.get('/api/dashboard/metrics'),
-    refetchInterval: 10000, // Auto refresh every 10 seconds for real-time updates!
+  const metrics = useQuery<DashboardOperationalSummary>({
+    queryKey: ['workspace-dashboard'],
+    queryFn: () => api.get('/api/workspace/dashboard'),
+    refetchInterval: 30_000,
   });
-
-  const formatCents = (cents: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(cents / 100);
-  };
-
-  if (isLoading || !metrics) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="flex justify-between items-center">
-          <div className="h-10 bg-muted rounded w-1/4" />
-          <div className="h-10 bg-muted rounded w-24" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-28 bg-muted rounded-xl" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="h-80 bg-muted rounded-xl lg:col-span-2" />
-          <div className="h-80 bg-muted rounded-xl lg:col-span-1" />
-        </div>
-      </div>
-    );
-  }
-
-  // Generate nice chart data based on current month revenue (and simulate previous months for a nice curve)
-  const chartData = [
-    { name: 'Jan', revenue: Math.round(metrics.revenueCents * 0.4 / 100) },
-    { name: 'Feb', revenue: Math.round(metrics.revenueCents * 0.5 / 100) },
-    { name: 'Mar', revenue: Math.round(metrics.revenueCents * 0.7 / 100) },
-    { name: 'Apr', revenue: Math.round(metrics.revenueCents * 0.6 / 100) },
-    { name: 'May', revenue: Math.round(metrics.revenueCents * 0.9 / 100) },
-    { name: 'Jun', revenue: Math.round(metrics.revenueCents * 1.0 / 100) },
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Real-time indicators and operational activity feed.</p>
-      </div>
-
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* Metric 1: Monthly Cash */}
-        <div className="bg-card border border-border/60 rounded-xl p-6 shadow-sm flex items-center justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Revenue Collected</p>
-            <h3 className="text-2xl font-black text-foreground">{formatCents(metrics.revenueCents)}</h3>
-            <span className="text-[10px] text-emerald-600 font-bold bg-emerald-500/10 px-2 py-0.5 rounded flex items-center gap-0.5 w-fit">
-              <TrendingUp className="h-3 w-3" /> MTD Cash
-            </span>
-          </div>
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/15 flex items-center justify-center text-emerald-600 border border-emerald-500/20 shadow-inner">
-            <DollarSign className="h-6 w-6" />
-          </div>
-        </div>
-
-        {/* Metric 2: Bookings Count */}
-        <div className="bg-card border border-border/60 rounded-xl p-6 shadow-sm flex items-center justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Bookings</p>
-            <h3 className="text-2xl font-black text-foreground">{metrics.bookingsCount}</h3>
-            <span className="text-[10px] text-blue-600 font-bold bg-blue-500/10 px-2 py-0.5 rounded flex items-center gap-0.5 w-fit">
-              This Month
-            </span>
-          </div>
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500/10 to-indigo-500/15 flex items-center justify-center text-blue-600 border border-blue-500/20 shadow-inner">
-            <Calendar className="h-6 w-6" />
-          </div>
-        </div>
-
-        {/* Metric 3: Active Clients */}
-        <div className="bg-card border border-border/60 rounded-xl p-6 shadow-sm flex items-center justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Customers</p>
-            <h3 className="text-2xl font-black text-foreground">{metrics.activeCustomers}</h3>
-            <span className="text-[10px] text-indigo-600 font-bold bg-indigo-500/10 px-2 py-0.5 rounded flex items-center gap-0.5 w-fit">
-              In Directory
-            </span>
-          </div>
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500/10 to-purple-500/15 flex items-center justify-center text-indigo-600 border border-indigo-500/20 shadow-inner">
-            <Users className="h-6 w-6" />
-          </div>
-        </div>
-
-        {/* Metric 4: Outstanding Invoices */}
-        <div className="bg-card border border-border/60 rounded-xl p-6 shadow-sm flex items-center justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Unpaid Balance</p>
-            <h3 className="text-2xl font-black text-foreground">{formatCents(metrics.outstandingCents)}</h3>
-            <span className="text-[10px] text-amber-600 font-bold bg-amber-500/10 px-2 py-0.5 rounded flex items-center gap-0.5 w-fit">
-              Awaiting Payment
-            </span>
-          </div>
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/15 flex items-center justify-center text-amber-600 border border-amber-500/20 shadow-inner">
-            <Clock className="h-6 w-6" />
-          </div>
-        </div>
-      </div>
-
-      {/* Charts & Activity Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Revenue Area Chart */}
-        <div className="bg-card border border-border/60 rounded-xl p-6 shadow-sm lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-base">Revenue Trajectory</h3>
-              <p className="text-xs text-muted-foreground">Historical billing trend matching collections.</p>
-            </div>
-            <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-lg border border-border/25">USD ($)</span>
-          </div>
-          
-          <div className="h-64 w-full pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--secondary)" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="var(--secondary)" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} style={{ fontSize: 10, fill: '#888' }} />
-                <YAxis axisLine={false} tickLine={false} style={{ fontSize: 10, fill: '#888' }} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'white', borderColor: '#ddd', borderRadius: 8, fontSize: 12 }} 
-                  formatter={(value: any) => [`$${value}`, 'Revenue']}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="var(--secondary)" strokeWidth={2.5} fillOpacity={1} fill="url(#colorRevenue)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Activity Feed */}
-        <div className="bg-card border border-border/60 rounded-xl p-6 shadow-sm lg:col-span-1 space-y-6">
-          <div>
-            <h3 className="font-bold text-base">Recent Business Logs</h3>
-            <p className="text-xs text-muted-foreground">Chronological logs of transactions and bookings.</p>
-          </div>
-
-          {metrics.recentActivity.length === 0 ? (
-            <div className="border border-dashed rounded-xl p-10 text-center text-xs text-muted-foreground">
-              No recent logs found. Start scheduling or invoicing to see activity events!
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {metrics.recentActivity.map(activity => {
-                const isPayment = activity.type === 'payment';
-                
-                return (
-                  <div key={activity.id} className="flex gap-3 text-xs items-start">
-                    <div className={`h-8 w-8 rounded-lg shrink-0 flex items-center justify-center border shadow-sm ${
-                      isPayment 
-                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
-                        : 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-                    }`}>
-                      {isPayment ? <DollarSign className="h-4 w-4" /> : <Calendar className="h-4 w-4" />}
-                    </div>
-                    
-                    <div className="space-y-0.5 flex-1 min-w-0">
-                      <p className="font-bold text-foreground truncate">{activity.title}</p>
-                      <p className="text-muted-foreground truncate leading-normal">{activity.description}</p>
-                      {isPayment && activity.metadata?.amount && (
-                        <p className="text-[10px] text-emerald-600 font-bold mt-0.5">
-                          Amount: ${parseFloat((activity.metadata.amount / 100).toFixed(2))}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+  if (metrics.isLoading) return <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted"/>)}</div>;
+  if (metrics.isError || !metrics.data) return <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-destructive">{(metrics.error as Error)?.message || 'Dashboard could not be loaded'}</div>;
+  const data = metrics.data;
+  const money = (cents: number) => new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+  return <div className="space-y-7">
+    <div><h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1><p className="mt-1 text-sm text-muted-foreground">Operational signals from persisted CRM and financial records.</p></div>
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <Card label="Active clients" value={data.activeClientOrganisations} icon={Building2}/><Card label="Active engagements" value={data.activeEngagements} icon={BriefcaseBusiness}/><Card label="Overdue follow-ups" value={data.overdueFollowUps} icon={AlertTriangle} danger/><Card label="Due today" value={data.dueTodayFollowUps} icon={CalendarClock}/><Card label="Collected this month" value={money(data.collectedRevenueCents)} icon={CircleDollarSign}/><Card label="Outstanding invoices" value={money(data.outstandingCents)} icon={WalletCards}/>
     </div>
-  );
+    <div className="grid gap-6 xl:grid-cols-3">
+      <section className="rounded-xl border bg-card p-6 shadow-sm xl:col-span-2"><div className="flex justify-between"><div><h2 className="font-bold">Needs attention</h2><p className="text-xs text-muted-foreground">Open commitments, quiet accounts and engagements ending soon.</p></div><Link to="/follow-ups" className="text-xs font-semibold text-primary">Open follow-up queue</Link></div><div className="mt-5 grid gap-5 lg:grid-cols-3"><Attention title="Follow-ups" empty="No open follow-ups" items={data.needsAttention.followUps.map((item) => ({ id: item.activityId, title: item.organisationName, detail: `${item.status} · ${item.followUpDate}`, route: `/organisations/${item.organisationId}?tab=timeline&activityId=${item.activityId}` }))}/><Attention title={`No activity in ${data.staleAfterDays}+ days`} empty="No stale active clients" items={data.needsAttention.staleOrganisations.map((item) => ({ id: item.id, title: item.name, detail: item.lastActivityAt ? `Last activity ${new Date(item.lastActivityAt).toLocaleDateString()}` : 'No activity recorded', route: `/organisations/${item.id}` }))}/><Attention title="Engagements ending soon" empty="No engagements ending soon" items={data.needsAttention.engagementsEndingSoon.map((item) => ({ id: item.id, title: item.name, detail: `${item.organisationName} · ${item.endDate}`, route: `/organisations/${item.organisationId}?tab=engagements&engagementId=${item.id}` }))}/></div></section>
+      <section className="rounded-xl border bg-card p-6 shadow-sm"><h2 className="font-bold">Recently updated organisations</h2><div className="mt-4 divide-y">{data.recentlyUpdatedOrganisations.map((organisation) => <Link key={organisation.id} to={`/organisations/${organisation.id}`} className="block py-3 hover:text-primary"><p className="text-sm font-bold">{organisation.name}</p><p className="text-xs text-muted-foreground">{organisation.status.replace('_',' ')} · {new Date(organisation.updatedAt).toLocaleDateString()}</p></Link>)}</div></section>
+    </div>
+    <section className="rounded-xl border bg-card p-6 shadow-sm"><div><h2 className="font-bold">Recent CRM activity</h2><p className="text-xs text-muted-foreground">Canonical activities only; no simulated trend data.</p></div>{data.recentActivities.length === 0 ? <div className="mt-5 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No activity recorded.</div> : <div className="mt-4 divide-y">{data.recentActivities.map((activity) => <Link key={activity.id} to={`/organisations/${activity.organisationId}?tab=timeline&activityId=${activity.id}`} className="flex gap-3 py-4 hover:bg-muted/30"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><MessageSquare className="h-4 w-4"/></div><div className="min-w-0"><p className="text-sm font-bold">{activity.organisationName} · <span className="capitalize">{activity.type}</span></p><p className="truncate text-xs text-muted-foreground">{activity.body}</p><p className="mt-1 text-[10px] text-muted-foreground">{activity.author} · {new Date(activity.occurredAt).toLocaleString()}</p></div></Link>)}</div>}</section>
+  </div>;
 }
+function Card({ label, value, icon: Icon, danger = false }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; danger?: boolean }) { return <div className="flex items-center justify-between rounded-xl border bg-card p-5 shadow-sm"><div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-2 text-2xl font-black ${danger && Number(value) > 0 ? 'text-red-700' : ''}`}>{value}</p></div><div className={`flex h-11 w-11 items-center justify-center rounded-xl ${danger ? 'bg-red-100 text-red-700' : 'bg-primary/10 text-primary'}`}><Icon className="h-5 w-5"/></div></div>; }
+function Attention({ title, empty, items }: { title: string; empty: string; items: Array<{ id: string; title: string; detail: string; route: string }> }) { return <div><h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{title}</h3><div className="mt-3 space-y-2">{items.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">{empty}</p> : items.slice(0,5).map((item) => <Link key={item.id} to={item.route} className="block rounded-lg border p-3 hover:bg-muted/40"><p className="text-sm font-bold">{item.title}</p><p className="text-xs text-muted-foreground">{item.detail}</p></Link>)}</div></div>; }
