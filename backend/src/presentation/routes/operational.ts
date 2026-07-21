@@ -17,7 +17,7 @@ const timeline = new OperationalTimelineRepository();
 const uuid = z.string().uuid();
 const optionalUuid = uuid.nullable().optional();
 const iso = z.string().datetime({ offset: true });
-const booleanQuery = z.preprocess((value) => value === true || value === 'true',z.boolean().default(false));
+const booleanQuery: z.ZodType<boolean,z.ZodTypeDef,unknown> = z.preprocess((value) => value === true || value === 'true',z.boolean().default(false));
 const idParams = z.object({ id: uuid }).strict();
 const organisationParams = z.object({ organisationId: uuid }).strict();
 
@@ -39,7 +39,7 @@ const WorkQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
   offset: z.coerce.number().int().min(0).default(0),
 }).strict();
-const TaskCreate = z.object({
+const TaskCreateBase = z.object({
   organisationId: uuid,
   contactId: optionalUuid,
   engagementId: optionalUuid,
@@ -54,10 +54,11 @@ const TaskCreate = z.object({
   reminderAt: iso.nullable().optional(),
   recurrenceRule: z.string().trim().max(500).nullable().optional(),
   assignedTo: z.string().trim().max(120).nullable().optional(),
-}).strict().superRefine((value,ctx) => {
+}).strict();
+const TaskCreate = TaskCreateBase.superRefine((value,ctx) => {
   if (value.reminderAt && value.dueAt && value.reminderAt > value.dueAt) ctx.addIssue({ code: z.ZodIssueCode.custom,path:['reminderAt'],message:'Reminder cannot follow the task due time' });
 });
-const TaskPatch = TaskCreate.omit({ organisationId: true,contactId: true,engagementId: true,activityId: true,sourceType: true,sourceId: true }).partial().refine((value) => Object.keys(value).length > 0,{ message:'At least one task field is required' });
+const TaskPatch = TaskCreateBase.omit({ organisationId: true,contactId: true,engagementId: true,activityId: true,sourceType: true,sourceId: true }).partial().refine((value) => Object.keys(value).length > 0,{ message:'At least one task field is required' });
 
 router.get('/work',(req,res,next) => {
   try { res.json(work.listWork(parse(WorkQuery,req.query))); } catch (error) { forward(next,error); }
@@ -205,7 +206,7 @@ router.post('/workflows/:id/run',(req,res,next) => {
   try {
     const { id }=parse(idParams,req.params);
     const input=parse(z.object({ sourceType: z.string().min(1).max(80),sourceId: z.string().min(1).max(160),triggerEvent: z.string().min(1).max(100),idempotencyKey: z.string().min(8).max(300),context: z.record(z.unknown()).default({}) }).strict(),req.body);
-    res.json(workflows.run({ workflowId:id,...input }));
+    res.json(workflows.run({ workflowId:id,...input,context:input.context ?? {} }));
   } catch (error) { forward(next,error); }
 });
 router.get('/workflow-runs',(_req,res,next) => { try { res.json(workflows.listRuns()); } catch (error) { forward(next,error); } });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode,useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Workflow } from 'lucide-react';
 import { api } from '../lib/api';
@@ -35,5 +35,5 @@ function RunDialog({workflow,onClose,onRun,onError}:{workflow:WorkflowDefinition
   const run=useMutation({mutationFn:()=>api.post(`/api/workflows/${workflow.id}/run`,{sourceType:'organisation',sourceId:organisationId,triggerEvent:'manual',idempotencyKey:`manual:${workflow.id}:${organisationId}:${Date.now()}`,context:{organisationId}}),onSuccess:onRun,onError:(value:Error)=>onError(value.message)});
   return <Modal title={`Run ${workflow.name}`} onClose={onClose}><div className="space-y-4"><select required value={organisationId} onChange={(event)=>setOrganisationId(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select organisation context</option>{organisations.data?.items.map((org)=><option key={org.id} value={org.id}>{org.name}</option>)}</select><p className="text-sm text-muted-foreground">The run is recorded with an idempotency key and action-level results.</p><div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!organisationId||run.isPending} onClick={()=>run.mutate()}><Play className="mr-2 h-4 w-4"/>Run workflow</Button></div></div></Modal>;
 }
-function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:React.ReactNode}){return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-xl border bg-card p-6 shadow-2xl"><div className="mb-5 flex justify-between"><h2 className="text-xl font-bold">{title}</h2><button onClick={onClose}>×</button></div>{children}</div></div>;}
+function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}){return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-xl border bg-card p-6 shadow-2xl"><div className="mb-5 flex justify-between"><h2 className="text-xl font-bold">{title}</h2><button onClick={onClose}>×</button></div>{children}</div></div>;}
 function State({text}:{text:string}){return <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">{text}</div>;}

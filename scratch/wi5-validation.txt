@@ -1,5 +1,6 @@
 WI5 patcher is idempotent.
 Applied WI5 integration patches.
+Applied WI5 compile hotfixes.
 
 > whitelabel-crm-root@1.0.0 ci:verify
 > npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run desktop:preflight
@@ -16,24 +17,18 @@ Applied WI5 integration patches.
 > backend@1.0.0 build
 > tsc
 
-src/presentation/routes/operational.ts(60,30): error TS2339: Property 'omit' does not exist on type 'ZodEffects<ZodObject<{ organisationId: ZodString; contactId: ZodOptional<ZodNullable<ZodString>>; engagementId: ZodOptional<ZodNullable<ZodString>>; ... 10 more ...; assignedTo: ZodOptional<...>; }, "strict", ZodTypeAny, { ...; }, { ...; }>, { ...; }, { ...; }>'.
-src/presentation/routes/operational.ts(60,163): error TS7006: Parameter 'value' implicitly has an 'any' type.
-src/presentation/routes/operational.ts(68,29): error TS2345: Argument of type '{ organisationId?: string | undefined; includeArchived?: unknown; }' is not assignable to parameter of type '{ organisationId?: string | undefined; includeArchived?: boolean | undefined; }'.
+src/presentation/routes/operational.ts(69,29): error TS2345: Argument of type '{ organisationId?: string | undefined; includeArchived?: unknown; }' is not assignable to parameter of type '{ organisationId?: string | undefined; includeArchived?: boolean | undefined; }'.
   Types of property 'includeArchived' are incompatible.
     Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(97,33): error TS2345: Argument of type '{ status?: "cancelled" | "pending" | "delivered" | "dismissed" | "failed" | undefined; dueOnly?: unknown; }' is not assignable to parameter of type '{ status?: string | undefined; dueOnly?: boolean | undefined; }'.
+src/presentation/routes/operational.ts(98,33): error TS2345: Argument of type '{ status?: "cancelled" | "pending" | "delivered" | "dismissed" | "failed" | undefined; dueOnly?: unknown; }' is not assignable to parameter of type '{ status?: string | undefined; dueOnly?: boolean | undefined; }'.
   Types of property 'dueOnly' are incompatible.
     Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(125,29): error TS2345: Argument of type '{ organisationId?: string | undefined; includeArchived?: unknown; }' is not assignable to parameter of type '{ organisationId?: string | undefined; includeArchived?: boolean | undefined; }'.
+src/presentation/routes/operational.ts(126,29): error TS2345: Argument of type '{ organisationId?: string | undefined; includeArchived?: unknown; }' is not assignable to parameter of type '{ organisationId?: string | undefined; includeArchived?: boolean | undefined; }'.
   Types of property 'includeArchived' are incompatible.
     Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(183,34): error TS2345: Argument of type '{ status?: "draft" | "failed" | "logged" | "matched" | "unmatched" | "ignored" | "sent" | undefined; organisationId?: string | undefined; limit?: number | undefined; includeArchived?: unknown; channel?: "email" | ... 8 more ... | undefined; }' is not assignable to parameter of type '{ organisationId?: string | undefined; channel?: string | undefined; status?: string | undefined; includeArchived?: boolean | undefined; limit?: number | undefined; }'.
+src/presentation/routes/operational.ts(184,34): error TS2345: Argument of type '{ status?: "draft" | "failed" | "logged" | "matched" | "unmatched" | "ignored" | "sent" | undefined; organisationId?: string | undefined; limit?: number | undefined; includeArchived?: unknown; channel?: "email" | ... 8 more ... | undefined; }' is not assignable to parameter of type '{ organisationId?: string | undefined; channel?: string | undefined; status?: string | undefined; includeArchived?: boolean | undefined; limit?: number | undefined; }'.
   Types of property 'includeArchived' are incompatible.
     Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(208,28): error TS2345: Argument of type '{ sourceType: string; sourceId: string; triggerEvent: string; idempotencyKey: string; context?: Record<string, unknown> | undefined; workflowId: string; }' is not assignable to parameter of type '{ workflowId: string; sourceType: string; sourceId: string; triggerEvent: string; idempotencyKey: string; context: Record<string, unknown>; }'.
-  Types of property 'context' are incompatible.
-    Type 'Record<string, unknown> | undefined' is not assignable to type 'Record<string, unknown>'.
-      Type 'undefined' is not assignable to type 'Record<string, unknown>'.
 npm error Lifecycle script `build` failed with error:
 npm error code 2
 npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
@@ -43,4 +38,5 @@ npm error command failed
 npm error command sh -c tsc
 PREP_STATUS=0
 PATCH_STATUS=0
+HOTFIX_STATUS=0
 VERIFY_STATUS=2
