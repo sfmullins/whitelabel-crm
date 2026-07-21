@@ -59,6 +59,12 @@ jobs:
               postgenerate_status=1
             fi
             if [ "$apply_status" -eq 0 ] && [ "$generate_status" -eq 0 ] && [ "$postgenerate_status" -eq 0 ]; then
+              node scratch/wi4-corrections.mjs
+              corrections_status=$?
+            else
+              corrections_status=1
+            fi
+            if [ "$apply_status" -eq 0 ] && [ "$generate_status" -eq 0 ] && [ "$postgenerate_status" -eq 0 ] && [ "$corrections_status" -eq 0 ]; then
               npm run ci:verify
               validation_status=$?
             else
@@ -67,6 +73,7 @@ jobs:
             echo "APPLY_STATUS=$apply_status"
             echo "GENERATE_STATUS=$generate_status"
             echo "POSTGENERATE_STATUS=$postgenerate_status"
+            echo "CORRECTIONS_STATUS=$corrections_status"
             echo "VALIDATION_STATUS=$validation_status"
             exit "$validation_status"
           } 2>&1 | tee scratch/wi4-validation.txt
