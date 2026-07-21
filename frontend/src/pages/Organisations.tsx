@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Archive, Building2, Filter, Plus, Save, Search } from 'lucide-react';
+import { Building2, Filter, Plus, Save, Search } from 'lucide-react';
 import type {
   Organisation,
   OrganisationCreate,

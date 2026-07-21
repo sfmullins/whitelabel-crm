@@ -1,7 +1,7 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Archive, BriefcaseBusiness, Building2, CalendarClock, ExternalLink, Mail, MessageSquare, Pencil, Plus, Star, UserRound } from 'lucide-react';
+import { Archive, BriefcaseBusiness, Building2, ExternalLink, Mail, MessageSquare, Pencil, Star, UserRound } from 'lucide-react';
 import type {
   ActivityCreateBody,
   ActivityType,
@@ -57,7 +57,7 @@ export default function OrganisationWorkspace() {
   const organisation = data.organisation;
 
   const setTab = (nextTab: Tab) => { const next = new URLSearchParams(searchParams); next.set('tab', nextTab); setSearchParams(next); };
-  const primaryName = data.primaryContact ? `${data.primaryContact.firstName ?? ''} ${data.primaryContact.lastName ?? ''}`.trim() || data.primaryContact.email : 'Not assigned';
+  const primaryName = data.primaryContact ? `${data.primaryContact.firstName ?? ''} ${data.primaryContact.lastName ?? ''}`.trim() || data.primaryContact.email || 'Unnamed contact' : 'Not assigned';
 
   return <div className="space-y-6">
     <div className="rounded-xl border bg-card p-6 shadow-sm">

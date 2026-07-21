@@ -6,7 +6,7 @@ const base = {
   entityId: '10000000-0000-4000-8000-000000000001',
   organisationId: '10000000-0000-4000-8000-000000000001',
   title: 'Acme Ltd', subtitle: 'Technology services', context: 'Acme Ltd', route: '/organisations/10000000-0000-4000-8000-000000000001',
-  updatedAt: '2026-07-20T10:00:00.000Z', score: 0, matchedFields: ['title'] as const,
+  updatedAt: '2026-07-20T10:00:00.000Z', score: 0, matchedFields: ['title'],
 };
 
 describe('WI4 frontend helpers', () => {
