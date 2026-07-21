@@ -66,7 +66,7 @@ router.get('/work',(req,res,next) => {
 router.get('/tasks',(req,res,next) => {
   try {
     const query = parse(z.object({ organisationId: uuid.optional(),includeArchived: booleanQuery }).strict(),req.query);
-    res.json(work.listTasks(query));
+    res.json(work.listTasks({ organisationId: query.organisationId,includeArchived: query.includeArchived === true }));
   } catch (error) { forward(next,error); }
 });
 router.post('/tasks',(req,res,next) => {
@@ -95,7 +95,7 @@ const ReminderCreate = z.object({
 router.get('/reminders',(req,res,next) => {
   try {
     const query=parse(z.object({ status: z.enum(['pending','delivered','dismissed','failed','cancelled']).optional(),dueOnly: booleanQuery }).strict(),req.query);
-    res.json(work.listReminders(query));
+    res.json(work.listReminders({ status: query.status,dueOnly: query.dueOnly === true }));
   } catch (error) { forward(next,error); }
 });
 router.post('/reminders',(req,res,next) => {
@@ -123,7 +123,7 @@ const DocumentUpload = z.object({
 router.get('/documents',(req,res,next) => {
   try {
     const query=parse(z.object({ organisationId: uuid.optional(),includeArchived: booleanQuery }).strict(),req.query);
-    res.json(documents.list(query));
+    res.json(documents.list({ organisationId: query.organisationId,includeArchived: query.includeArchived === true }));
   } catch (error) { forward(next,error); }
 });
 router.get('/documents/integrity',(req,res,next) => {
@@ -181,7 +181,7 @@ const CommunicationCreate = z.object({
 router.get('/communications',(req,res,next) => {
   try {
     const query=parse(z.object({ organisationId: uuid.optional(),channel: CommunicationCreate.shape.channel.optional(),status: CommunicationCreate.shape.status.optional(),includeArchived: booleanQuery,limit: z.coerce.number().int().min(1).max(500).default(200) }).strict(),req.query);
-    res.json(communications.list(query));
+    res.json(communications.list({ organisationId: query.organisationId,channel: query.channel,status: query.status,includeArchived: query.includeArchived === true,limit: query.limit }));
   } catch (error) { forward(next,error); }
 });
 router.post('/communications',(req,res,next) => {

@@ -1,6 +1,7 @@
 WI5 patcher is idempotent.
 Applied WI5 integration patches.
 Applied WI5 compile hotfixes.
+Applied WI5 boolean query hotfixes.
 
 > whitelabel-crm-root@1.0.0 ci:verify
 > npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run desktop:preflight
@@ -17,26 +18,26 @@ Applied WI5 compile hotfixes.
 > backend@1.0.0 build
 > tsc
 
-src/presentation/routes/operational.ts(69,29): error TS2345: Argument of type '{ organisationId?: string | undefined; includeArchived?: unknown; }' is not assignable to parameter of type '{ organisationId?: string | undefined; includeArchived?: boolean | undefined; }'.
-  Types of property 'includeArchived' are incompatible.
-    Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(98,33): error TS2345: Argument of type '{ status?: "cancelled" | "pending" | "delivered" | "dismissed" | "failed" | undefined; dueOnly?: unknown; }' is not assignable to parameter of type '{ status?: string | undefined; dueOnly?: boolean | undefined; }'.
-  Types of property 'dueOnly' are incompatible.
-    Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(126,29): error TS2345: Argument of type '{ organisationId?: string | undefined; includeArchived?: unknown; }' is not assignable to parameter of type '{ organisationId?: string | undefined; includeArchived?: boolean | undefined; }'.
-  Types of property 'includeArchived' are incompatible.
-    Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(184,34): error TS2345: Argument of type '{ status?: "draft" | "failed" | "logged" | "matched" | "unmatched" | "ignored" | "sent" | undefined; organisationId?: string | undefined; limit?: number | undefined; includeArchived?: unknown; channel?: "email" | ... 8 more ... | undefined; }' is not assignable to parameter of type '{ organisationId?: string | undefined; channel?: string | undefined; status?: string | undefined; includeArchived?: boolean | undefined; limit?: number | undefined; }'.
-  Types of property 'includeArchived' are incompatible.
-    Type 'unknown' is not assignable to type 'boolean | undefined'.
+
+> frontend@1.0.0 build
+> tsc && vite build
+
+src/lib/wi4.ts(25,3): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/wi4.ts(25,10): error TS2339: Property 'communication' does not exist on type '{ readonly organisation: "Organisations"; readonly contact: "Contacts"; readonly engagement: "Engagements"; readonly activity: "Activities"; readonly customer: "Customer records"; readonly invoice: "Invoices"; }'.
+src/lib/wi4.ts(25,10): error TS2339: Property 'document' does not exist on type '{ readonly organisation: "Organisations"; readonly contact: "Contacts"; readonly engagement: "Engagements"; readonly activity: "Activities"; readonly customer: "Customer records"; readonly invoice: "Invoices"; }'.
+src/lib/wi4.ts(25,10): error TS2339: Property 'task' does not exist on type '{ readonly organisation: "Organisations"; readonly contact: "Contacts"; readonly engagement: "Engagements"; readonly activity: "Activities"; readonly customer: "Customer records"; readonly invoice: "Invoices"; }'.
+src/pages/SearchResults.tsx(36,326): error TS7053: Element implicitly has an 'any' type because expression of type '"document" | "organisation" | "contact" | "engagement" | "activity" | "customer" | "invoice" | "task" | "communication"' can't be used to index type '{ organisation: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; ... 4 more ...; invoice: ForwardRefExoticComponent<...>; }'.
+  Property 'document' does not exist on type '{ organisation: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; ... 4 more ...; invoice: ForwardRefExoticComponent<...>; }'.
 npm error Lifecycle script `build` failed with error:
 npm error code 2
-npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
-npm error workspace backend@1.0.0
-npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/backend
+npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
+npm error workspace frontend@1.0.0
+npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
 npm error command failed
-npm error command sh -c tsc
+npm error command sh -c tsc && vite build
 PREP_STATUS=0
 PATCH_STATUS=0
 HOTFIX_STATUS=0
+HOTFIX2_STATUS=0
 VERIFY_STATUS=2
