@@ -1,5 +1,6 @@
 name: WI4 SOW validation
 
+# Read-only final verification for the WI4 implementation branch and pull request.
 on:
   push:
     branches:
