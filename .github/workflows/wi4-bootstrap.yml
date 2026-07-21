@@ -1,5 +1,6 @@
 name: WI4 implementation bootstrap
 
+# Synchronization marker: run the implementation from the open WI4 pull request.
 on:
   push:
     branches:
