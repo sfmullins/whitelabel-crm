@@ -1,4 +1,4 @@
-import type { SearchEntityType, SearchResult } from 'shared';
+import type { SavedView, SearchEntityType, SearchResult } from 'shared';
 
 export function buildQueryString(values: Record<string, string | number | boolean | string[] | undefined | null>): string {
   const params = new URLSearchParams();
@@ -30,6 +30,21 @@ export function formatEntityLabel(type: SearchEntityType): string {
     customer: 'Customer records',
     invoice: 'Invoices',
   } as const)[type];
+}
+
+export function savedViewRoute(view: SavedView): string {
+  const definition = view.definition;
+  if (definition.context === 'organisations') {
+    return `/organisations${buildQueryString({ ...definition.filters, sort: definition.sort })}`;
+  }
+  if (definition.context === 'followups') {
+    return `/follow-ups${buildQueryString(definition.filters)}`;
+  }
+  if (definition.context === 'search') {
+    return `/search${buildQueryString(definition.filters)}`;
+  }
+  const { organisationId, ...filters } = definition.filters;
+  return `/organisations/${organisationId}${buildQueryString({ tab: 'timeline', ...filters })}`;
 }
 
 export function rememberRecentRecord(result: Pick<SearchResult, 'entityType' | 'entityId' | 'title' | 'subtitle' | 'route'>): void {
