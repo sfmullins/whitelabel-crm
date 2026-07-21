@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { SearchResult } from 'shared';
 import { buildQueryString, groupSearchResults } from './wi4';
 
 const base = {
@@ -6,7 +7,7 @@ const base = {
   entityId: '10000000-0000-4000-8000-000000000001',
   organisationId: '10000000-0000-4000-8000-000000000001',
   title: 'Acme Ltd', subtitle: 'Technology services', context: 'Acme Ltd', route: '/organisations/10000000-0000-4000-8000-000000000001',
-  updatedAt: '2026-07-20T10:00:00.000Z', score: 0, matchedFields: ['title'],
+  updatedAt: '2026-07-20T10:00:00.000Z', score: 0, matchedFields: ['title'] as SearchResult['matchedFields'],
 };
 
 describe('WI4 frontend helpers', () => {
