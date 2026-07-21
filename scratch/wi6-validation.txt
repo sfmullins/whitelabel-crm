@@ -19,7 +19,7 @@ Applied WI6 integration patches.
 > frontend@1.0.0 build
 > tsc && vite build
 
-src/pages/Integrations.tsx(11,11): error TS6196: 'OrganisationDirectory' is declared but never used.
+src/pages/Integrations.tsx(22,171): error TS1005: '}' expected.
 npm error Lifecycle script `build` failed with error:
 npm error code 2
 npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
