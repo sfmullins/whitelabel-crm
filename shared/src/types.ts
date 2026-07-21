@@ -449,10 +449,13 @@ export const SearchEntityTypeSchema = z.enum([
   'activity',
   'customer',
   'invoice',
+  'task',
+  'document',
+  'communication',
 ]);
 export const SearchQuerySchema = z.object({
   q: z.string().trim().min(2).max(120),
-  types: z.array(SearchEntityTypeSchema).max(6).optional(),
+  types: z.array(SearchEntityTypeSchema).max(9).optional(),
   organisationId: z.string().uuid().optional(),
   includeArchived: z.boolean().default(false),
   limit: z.number().int().min(1).max(50).default(20),

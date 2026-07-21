@@ -35,6 +35,9 @@ const SEARCH_ENTITY_TYPES = [
   'activity',
   'customer',
   'invoice',
+  'task',
+  'document',
+  'communication',
 ] as const;
 
 function buildFtsQuery(value: string): string {
@@ -232,6 +235,26 @@ export function rebuildSearchIndex(connection: Database.Database = sqlite as Dat
       join customers c on c.id = i.customer_id
       left join legacy_customer_crm_mappings m on m.customer_id = i.customer_id
       left join organisations o on o.id = m.organisation_id
+    `).run();
+
+    connection.prepare(`
+      insert into search_documents(id,entity_type,entity_id,organisation_id,title,subtitle,body,route,updated_at,archived_at)
+      select 'task:' || id,'task',id,organisation_id,title,upper(priority) || ' · ' || replace(status,'_',' '),
+        coalesce(description,''),'/work?taskId=' || id,updated_at,archived_at from tasks
+    `).run();
+    connection.prepare(`
+      insert into search_documents(id,entity_type,entity_id,organisation_id,title,subtitle,body,route,updated_at,archived_at)
+      select 'document:' || d.id,'document',d.id,
+        (select entity_id from document_links where document_id=d.id and entity_type='organisation' limit 1),
+        d.title,d.current_filename || ' · ' || d.mime_type,trim(coalesce(d.description,'') || ' ' || coalesce(d.category,'')),
+        '/documents?documentId=' || d.id,d.updated_at,d.archived_at from documents d
+    `).run();
+    connection.prepare(`
+      insert into search_documents(id,entity_type,entity_id,organisation_id,title,subtitle,body,route,updated_at,archived_at)
+      select 'communication:' || id,'communication',id,organisation_id,
+        coalesce(nullif(trim(subject),''),upper(substr(channel,1,1)) || substr(channel,2)),
+        upper(direction) || ' · ' || channel,body,'/communications?communicationId=' || id,updated_at,archived_at
+      from communications
     `).run();
   })();
 }

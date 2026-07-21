@@ -346,7 +346,7 @@ export const searchDocuments = sqliteTable('search_documents', {
   entityIdx: uniqueIndex('search_document_entity_idx').on(table.entityType, table.entityId),
   organisationIdx: index('search_document_organisation_idx').on(table.organisationId),
   updatedIdx: index('search_document_updated_idx').on(table.updatedAt),
-  typeCheck: check('search_document_type_check', sql`${table.entityType} in ('organisation', 'contact', 'engagement', 'activity', 'customer', 'invoice')`),
+  typeCheck: check('search_document_type_check', sql`${table.entityType} in ('organisation', 'contact', 'engagement', 'activity', 'customer', 'invoice', 'task', 'document', 'communication')`),
 }));
 
 export const savedViews = sqliteTable('saved_views', {

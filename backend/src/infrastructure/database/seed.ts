@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { db, getSqliteConnection } from './connection';
 import * as schema from './schema';
 import { rebuildSearchIndex } from './WorkspaceRepository';
+import { LocalDocumentStorage } from '../storage/LocalDocumentStorage';
 
 const IDS = {
   goodOrderOrganisation: '10000000-0000-4000-8000-000000000001',
@@ -23,6 +24,17 @@ const IDS = {
   acmeCompletedActivity: '20000000-0000-4000-8000-000000000015',
   acmeNoteActivity: '20000000-0000-4000-8000-000000000016',
   acmeInvoiceItem: '20000000-0000-4000-8000-000000000017',
+  acmeTask: '20000000-0000-4000-8000-000000000018',
+  acmeCompletedTask: '20000000-0000-4000-8000-000000000019',
+  acmeReminder: '20000000-0000-4000-8000-000000000020',
+  acmeDocument: '20000000-0000-4000-8000-000000000021',
+  acmeDocumentVersion: '20000000-0000-4000-8000-000000000022',
+  acmeDocumentLink: '20000000-0000-4000-8000-000000000023',
+  acmeEmailCommunication: '20000000-0000-4000-8000-000000000024',
+  acmeMeetingCommunication: '20000000-0000-4000-8000-000000000025',
+  acmeWorkflow: '20000000-0000-4000-8000-000000000026',
+  acmeWorkflowRun: '20000000-0000-4000-8000-000000000027',
+  acmeWorkflowActionRun: '20000000-0000-4000-8000-000000000028',
   northstarOrganisation: '30000000-0000-4000-8000-000000000001',
 } as const;
 
@@ -45,6 +57,12 @@ export async function runSeed(): Promise<void> {
   const overdueDate = addDays(nowDate, -5);
   const upcomingDate = addDays(nowDate, 7);
   const endingSoonDate = addDays(nowDate, 21);
+
+  sqlite.exec(`
+    DELETE FROM workflow_action_runs; DELETE FROM workflow_runs; DELETE FROM workflow_definitions;
+    DELETE FROM document_links; DELETE FROM document_versions; DELETE FROM documents;
+    DELETE FROM reminders; DELETE FROM tasks; DELETE FROM communications;
+  `);
 
   sqlite.transaction(() => {
     db.delete(schema.savedViews).run();
@@ -363,8 +381,25 @@ export async function runSeed(): Promise<void> {
     ]).run();
   })();
 
+  const storage = new LocalDocumentStorage();
+  const content = Buffer.from('Acme Ltd diagnostic proposal and evidence summary.','utf8');
+  const stored = storage.write(IDS.acmeDocument,IDS.acmeDocumentVersion,'acme-diagnostic-proposal.txt',content);
+  sqlite.transaction(() => {
+    sqlite.prepare(`INSERT INTO tasks(id,organisation_id,contact_id,engagement_id,activity_id,source_type,source_id,title,description,status,priority,due_at,reminder_at,recurrence_rule,assigned_to,created_by_source,workflow_run_id,completed_at,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(IDS.acmeTask,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,null,'engagement',IDS.acmeDiagnostic,'Prepare leadership readout','Consolidate diagnostic evidence and prepare the leadership readout.','in_progress','high',upcomingDate+'T10:00:00.000Z',today+'T16:00:00.000Z',null,'Stephen Mullins','user',null,null,now,now);
+    sqlite.prepare(`INSERT INTO tasks(id,organisation_id,contact_id,engagement_id,title,description,status,priority,due_at,created_by_source,completed_at,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(IDS.acmeCompletedTask,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'Issue evidence request','Evidence request issued and acknowledged.','completed','normal',overdueDate+'T09:00:00.000Z','user',overdueDate+'T16:00:00.000Z',overdueDate+'T09:00:00.000Z',now);
+    sqlite.prepare(`INSERT INTO reminders(id,source_type,source_id,organisation_id,scheduled_at,delivery_method,status,created_at,updated_at) VALUES(?,?,?,?,?,'desktop','pending',?,?)`).run(IDS.acmeReminder,'task',IDS.acmeTask,IDS.acmeOrganisation,today+'T16:00:00.000Z',now,now);
+    sqlite.prepare(`INSERT INTO documents(id,title,current_filename,mime_type,byte_size,checksum,storage_provider,storage_key,description,category,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,'local',?,?,?, ?,?,NULL)`).run(IDS.acmeDocument,'Acme diagnostic proposal','acme-diagnostic-proposal.txt','text/plain',stored.byteSize,stored.checksum,stored.storageKey,'Proposal and evidence summary for the active diagnostic.','proposal',now,now);
+    sqlite.prepare(`INSERT INTO document_versions(id,document_id,version_number,filename,mime_type,byte_size,checksum,storage_key,version_note,created_at) VALUES(?,?,1,?,?,?,?,?,'Initial WI5 fixture',?)`).run(IDS.acmeDocumentVersion,IDS.acmeDocument,'acme-diagnostic-proposal.txt','text/plain',stored.byteSize,stored.checksum,stored.storageKey,now);
+    sqlite.prepare(`INSERT INTO document_links(id,document_id,entity_type,entity_id,created_at) VALUES(?,?,'organisation',?,?)`).run(IDS.acmeDocumentLink,IDS.acmeDocument,IDS.acmeOrganisation,now);
+    sqlite.prepare(`INSERT INTO communications(id,organisation_id,contact_id,engagement_id,channel,direction,subject,body,occurred_at,status,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,'logged',?,?,NULL)`).run(IDS.acmeEmailCommunication,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'email','inbound','Diagnostic evidence','Aisling confirmed the evidence pack is complete.',addDays(nowDate,-2)+'T11:00:00.000Z',now,now);
+    sqlite.prepare(`INSERT INTO communications(id,organisation_id,contact_id,engagement_id,channel,direction,subject,body,occurred_at,status,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,'logged',?,?,NULL)`).run(IDS.acmeMeetingCommunication,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'meeting','internal','Leadership review','Reviewed initial findings and agreed the leadership readout.',addDays(nowDate,-1)+'T14:00:00.000Z',now,now);
+    sqlite.prepare(`INSERT INTO workflow_definitions(id,name,description,enabled,version,trigger_type,condition_json,action_json,created_at,updated_at,archived_at) VALUES(?,?,?,1,1,'manual','{}',?,?,?,NULL)`).run(IDS.acmeWorkflow,'Post-meeting follow-up','Create a follow-up task after a meeting.',JSON.stringify([{type:'create_task',title:'Send meeting follow-up',priority:'high'}]),now,now);
+    sqlite.prepare(`INSERT INTO workflow_runs(id,workflow_definition_id,workflow_version,source_type,source_id,trigger_event,idempotency_key,status,output_summary,started_at,completed_at) VALUES(?, ?,1,'organisation',?,'seed','wi5-seed-workflow','succeeded','[]',?,?)`).run(IDS.acmeWorkflowRun,IDS.acmeWorkflow,IDS.acmeOrganisation,now,now);
+    sqlite.prepare(`INSERT INTO workflow_action_runs(id,workflow_run_id,action_index,action_type,status,output_json,started_at,completed_at) VALUES(?,?,0,'create_task','succeeded','{}',?,?)`).run(IDS.acmeWorkflowActionRun,IDS.acmeWorkflowRun,now,now);
+  })();
+
   rebuildSearchIndex(sqlite);
-  console.log(`WI4 seed complete. Acme Ltd is ready; today is ${today}.`);
+  console.log(`WI5 seed complete. Acme Ltd operational records are ready; today is ${today}.`);
 }
 
 if (require.main === module) {

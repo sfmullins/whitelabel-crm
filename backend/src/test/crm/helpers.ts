@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { closeDatabase, openDatabase, sqlite } from '../../infrastructure/database/connection';
+import { configureRuntimePaths } from '../../config/runtimePaths';
 import { runMigrations } from '../../infrastructure/database/migrate';
 import { OrganisationRepository } from '../../infrastructure/database/repositories/OrganisationRepository';
 import { ContactRepository, type ContactRepositoryOptions } from '../../infrastructure/database/repositories/ContactRepository';
@@ -13,7 +14,9 @@ let tempDir: string | null = null;
 
 export function setupTempDatabase() {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'whitelabel-crm-test-'));
-  const database = openDatabase(path.join(tempDir, 'test.sqlite'));
+  const databasePath = path.join(tempDir, 'test.sqlite');
+  configureRuntimePaths({ dataDirectory: tempDir, databasePath, internalBackupDirectory: path.join(tempDir, 'backups'), temporaryDirectory: path.join(tempDir, 'tmp'), logDirectory: path.join(tempDir, 'logs'), documentDirectory: path.join(tempDir, 'documents') });
+  const database = openDatabase(databasePath);
   runMigrations(database, migrationsFolder);
 }
 

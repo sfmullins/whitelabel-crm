@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { Archive, BriefcaseBusiness, Building2, ExternalLink, Mail, MessageSquare, Pencil, Star, UserRound } from 'lucide-react';
+import { Archive, BriefcaseBusiness, Building2, CheckSquare, ExternalLink, FolderOpen, Mail, MessageSquare, Pencil, Radio, Star, UserRound } from 'lucide-react';
 import type {
   ActivityCreateBody,
   ActivityType,
@@ -19,7 +19,7 @@ import { buildQueryString } from '../lib/wi4';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
-type Tab = 'overview' | 'timeline' | 'contacts' | 'engagements';
+type Tab = 'overview' | 'timeline' | 'contacts' | 'engagements' | 'work' | 'documents' | 'communications';
 
 export default function OrganisationWorkspace() {
   const { organisationId = '' } = useParams();
@@ -69,12 +69,15 @@ export default function OrganisationWorkspace() {
       <div className="mt-6 grid gap-4 border-t pt-5 sm:grid-cols-2 lg:grid-cols-4"><Metric label="Primary contact" value={primaryName}/><Metric label="Open engagements" value={String(data.activeEngagementCount)}/><Metric label="Next follow-up" value={data.nextFollowUpDate || 'None'}/><Metric label="Last activity" value={data.lastActivityAt ? new Date(data.lastActivityAt).toLocaleDateString() : 'None'}/></div>
     </div>
 
-    <div className="flex gap-5 overflow-x-auto border-b">{(['overview','timeline','contacts','engagements'] as Tab[]).map((name) => <button key={name} onClick={() => setTab(name)} className={`border-b-2 px-1 pb-3 text-sm font-semibold capitalize ${tab === name ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{name}</button>)}</div>
+    <div className="flex gap-5 overflow-x-auto border-b">{(['overview','timeline','contacts','engagements','work','documents','communications'] as Tab[]).map((name) => <button key={name} onClick={() => setTab(name)} className={`border-b-2 px-1 pb-3 text-sm font-semibold capitalize ${tab === name ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>{name}</button>)}</div>
 
     {tab === 'overview' && <Overview data={data} setTab={setTab}/>} 
     {tab === 'timeline' && <TimelineView data={timeline.data} loading={timeline.isLoading} error={timeline.error as Error | null} type={timelineType} onType={setTimelineType}/>} 
     {tab === 'contacts' && <ContactsView data={data} onEdit={(contactId) => setDialog(contactId ? 'contact' : 'contact')}/>} 
     {tab === 'engagements' && <EngagementsView data={data}/>} 
+    {tab === 'work' && <OperationalSection organisationId={organisationId} kind="work"/>}
+    {tab === 'documents' && <OperationalSection organisationId={organisationId} kind="documents"/>}
+    {tab === 'communications' && <OperationalSection organisationId={organisationId} kind="communications"/>} 
 
     {dialog === 'organisation' && <OrganisationForm organisation={organisation} onClose={() => setDialog(null)} onSubmit={(body) => mutation.mutate({ path: `/api/organisations/${organisationId}`, body, method: 'patch' })}/>} 
     {dialog === 'contact' && <ContactForm onClose={() => setDialog(null)} onSubmit={(body) => mutation.mutate({ path: `/api/organisations/${organisationId}/contacts`, body })}/>} 
@@ -98,6 +101,12 @@ function TimelineView({ data, loading, error, type, onType }: { data?: TimelineR
 
 function ContactsView({ data }: { data: OrganisationWorkspaceData; onEdit: (id?: string) => void }) { return <div className="grid gap-4 md:grid-cols-2">{data.contacts.map((contact) => <article key={contact.id} className={`rounded-xl border bg-card p-5 shadow-sm ${contact.archivedAt ? 'opacity-60' : ''}`}><div className="flex justify-between"><div className="flex gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary"><UserRound className="h-5 w-5"/></div><div><h3 className="flex items-center gap-1 font-bold">{`${contact.firstName ?? ''} ${contact.lastName ?? ''}`.trim() || contact.email || 'Unnamed'}{contact.isPrimary && <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500"/>}</h3><p className="text-xs text-muted-foreground">{contact.jobTitle || 'Role not recorded'} · {contact.status}</p></div></div></div>{contact.email && <p className="mt-4 flex items-center gap-2 text-sm"><Mail className="h-4 w-4 text-muted-foreground"/>{contact.email}</p>}</article>)}{data.contacts.length === 0 && <Empty text="No contacts."/>}</div>; }
 function EngagementsView({ data }: { data: OrganisationWorkspaceData }) { return <div className="grid gap-4 md:grid-cols-2">{data.engagements.map((engagement) => <article key={engagement.id} className={`rounded-xl border bg-card p-5 shadow-sm ${engagement.archivedAt ? 'opacity-60' : ''}`}><div className="flex justify-between gap-3"><div><h3 className="font-bold">{engagement.name}</h3><p className="text-xs capitalize text-muted-foreground">{engagement.type.replace('_',' ')} · {engagement.status}</p></div><BriefcaseBusiness className="h-5 w-5 text-primary"/></div>{engagement.summary && <p className="mt-3 text-sm text-foreground/75">{engagement.summary}</p>}<p className="mt-3 text-xs text-muted-foreground">{engagement.startDate}{engagement.endDate ? ` → ${engagement.endDate}` : ''}</p></article>)}{data.engagements.length === 0 && <Empty text="No engagements."/>}</div>; }
+
+function OperationalSection({ organisationId,kind }: { organisationId:string;kind:'work'|'documents'|'communications' }) {
+  const config = kind === 'work' ? { icon: CheckSquare,title:'Work and reminders',text:'Open the consolidated queue filtered to this organisation.' } : kind === 'documents' ? { icon: FolderOpen,title:'Documents and attachments',text:'Open the local versioned document library.' } : { icon: Radio,title:'Communications',text:'Open email, meeting, call and future-channel records.' };
+  const Icon=config.icon;
+  return <section className="rounded-xl border bg-card p-8 shadow-sm"><div className="flex items-start gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-6 w-6"/></div><div><h2 className="text-xl font-bold">{config.title}</h2><p className="mt-1 text-sm text-muted-foreground">{config.text}</p><Link className="mt-4 inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-bold text-primary-foreground" to={`/${kind}?organisationId=${organisationId}`}>Open {kind}</Link></div></div></section>;
+}
 
 function OrganisationForm({ organisation, onClose, onSubmit }: { organisation: OrganisationWorkspaceData['organisation']; onClose: () => void; onSubmit: (body: OrganisationUpdate) => void }) { const [form,setForm] = useState<OrganisationUpdate>({ name: organisation.name, legalName: organisation.legalName, website: organisation.website, industry: organisation.industry, country: organisation.country, status: organisation.status, source: organisation.source }); return <Modal title="Edit organisation" onClose={onClose}><form className="space-y-3" onSubmit={(e) => { e.preventDefault(); onSubmit(form); }}><Input required value={form.name ?? ''} onChange={(e) => setForm({...form,name:e.target.value})}/><div className="grid gap-3 sm:grid-cols-2"><Input value={form.industry ?? ''} onChange={(e) => setForm({...form,industry:e.target.value || null})} placeholder="Industry"/><Input value={form.country ?? ''} onChange={(e) => setForm({...form,country:e.target.value.toUpperCase() || null})} placeholder="Country"/></div><div className="flex justify-end gap-2"><Button variant="outline" type="button" onClick={onClose}>Cancel</Button><Button>Save</Button></div></form></Modal>; }
 function ContactForm({ onClose, onSubmit }: { onClose: () => void; onSubmit: (body: ContactCreateBody) => void }) { const [form,setForm] = useState<ContactCreateBody>({ firstName: '', lastName: '', email: null, jobTitle: null, phone: null, isPrimary: false, status: 'active' }); return <Modal title="Create contact" onClose={onClose}><form className="space-y-3" onSubmit={(e) => { e.preventDefault(); onSubmit(form); }}><div className="grid gap-3 sm:grid-cols-2"><Input value={form.firstName ?? ''} onChange={(e) => setForm({...form,firstName:e.target.value || null})} placeholder="First name"/><Input value={form.lastName ?? ''} onChange={(e) => setForm({...form,lastName:e.target.value || null})} placeholder="Last name"/></div><Input type="email" value={form.email ?? ''} onChange={(e) => setForm({...form,email:e.target.value || null})} placeholder="Email"/><Input value={form.jobTitle ?? ''} onChange={(e) => setForm({...form,jobTitle:e.target.value || null})} placeholder="Role"/><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isPrimary} onChange={(e) => setForm({...form,isPrimary:e.target.checked})}/>Primary contact</label><div className="flex justify-end gap-2"><Button variant="outline" type="button" onClick={onClose}>Cancel</Button><Button>Create</Button></div></form></Modal>; }
