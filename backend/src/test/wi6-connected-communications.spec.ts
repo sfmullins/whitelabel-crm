@@ -41,7 +41,7 @@ describe('WI6 connected communications',()=>{
     expect(vaultText).not.toContain('not-stored-in-sqlite');
     const result=await service.syncAccount(String(account.id));
     expect(result.status).toBe('succeeded');
-    const threads=repository.listEmailThreads({status:'matched'});
+    const threads=repository.listEmailThreads({status:'matched'}).filter((thread)=>thread.accountId===account.id);
     expect(threads).toHaveLength(1);
     expect(threads[0].organisationId).toBe(ACME);
     expect(threads[0].contactId).toBe(AISLING);
@@ -55,7 +55,9 @@ describe('WI6 connected communications',()=>{
     const account=service.createAccount({kind:'calendar',name:'Good Order calendar',serverUrl:'https://dav.example/calendars/',username:'consultant@goodorder.example',password:'secret',settings:{}});
     const result=await service.syncAccount(String(account.id));
     expect(result.status).toBe('succeeded');
-    const events=repository.listCalendarEvents({status:'matched'});
+    const calendars=repository.listCalendars(String(account.id));
+    expect(calendars).toHaveLength(1);
+    const events=repository.listCalendarEvents({status:'matched'}).filter((event)=>event.calendarId===calendars[0].id);
     expect(events).toHaveLength(1);
     expect(events[0].organisationId).toBe(ACME);
     const work=new WorkRepository();
