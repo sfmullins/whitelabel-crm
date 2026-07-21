@@ -48,6 +48,12 @@ jobs:
               patch_status=1
             fi
             if [ "$patch_status" -eq 0 ]; then
+              node scratch/wi5-hotfix.mjs
+              hotfix_status=$?
+            else
+              hotfix_status=1
+            fi
+            if [ "$hotfix_status" -eq 0 ]; then
               npm run ci:verify
               verify_status=$?
             else
@@ -55,6 +61,7 @@ jobs:
             fi
             echo "PREP_STATUS=$prep_status"
             echo "PATCH_STATUS=$patch_status"
+            echo "HOTFIX_STATUS=$hotfix_status"
             echo "VERIFY_STATUS=$verify_status"
             exit "$verify_status"
           } 2>&1 | tee scratch/wi5-validation.txt
