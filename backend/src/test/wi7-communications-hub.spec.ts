@@ -81,7 +81,7 @@ describe('WI7 communications hub',()=>{
   it('allows workflows to create drafts and dry-runs without external side effects',()=>{
     const {sender,service,workflows,repository}=fixture();
     const definition=workflows.createDefinition({name:'Draft Acme response',triggerType:'email_received',actions:[{type:'create_email_draft',accountId:EMAIL_ACCOUNT,organisationId:ACME,to:[{address:'aisling.byrne@acme.example'}],subject:'Draft response',body:'Review before sending.'}]});
-    const dry=service.dryRunWorkflow(String(definition.id),{organisationId:ACME,accountId:EMAIL_ACCOUNT});
+    const dry=service.dryRunWorkflow(String(definition.id),{organisationId:ACME,accountId:EMAIL_ACCOUNT}) as {dryRun?:boolean};
     expect(dry.dryRun).toBe(true);
     expect(repository.listDrafts({organisationId:ACME}).filter((item)=>item.subject==='Draft response')).toHaveLength(0);
     const run=workflows.run({workflowId:String(definition.id),sourceType:'email_message',sourceId:'20000000-0000-4000-8000-000000000032',triggerEvent:'email_received',idempotencyKey:'wi7-draft-test',context:{organisationId:ACME,accountId:EMAIL_ACCOUNT}});
