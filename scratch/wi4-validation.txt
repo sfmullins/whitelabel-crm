@@ -34,8 +34,9 @@ search_documents 10 columns 3 indexes 0 fks
 services 9 columns 0 indexes 0 fks
 settings 17 columns 0 indexes 0 fks
 
-[✓] Your SQL migration file ➜ drizzle/0003_needy_carmella_unuscione.sql 🚀
-Appended WI4 FTS5 projection and synchronisation triggers to 0003_needy_carmella_unuscione.sql
+No schema changes, nothing to migrate 😴
+WI4 FTS5 projection already present in 0003_needy_carmella_unuscione.sql
+Applied WI4 compile corrections.
 
 > whitelabel-crm-root@1.0.0 ci:verify
 > npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run desktop:preflight
@@ -52,9 +53,7 @@ Appended WI4 FTS5 projection and synchronisation triggers to 0003_needy_carmella
 > backend@1.0.0 build
 > tsc
 
-src/infrastructure/database/WorkspaceRepository.ts(817,13): error TS18046: 'row.follow_up_date' is of type 'unknown'.
 src/presentation/routes/workspace.ts(52,3): error TS2783: 'includeArchived' is specified more than once, so this usage will be overwritten.
-src/presentation/routes/workspace.ts(61,3): error TS2783: 'includeArchived' is specified more than once, so this usage will be overwritten.
 npm error Lifecycle script `build` failed with error:
 npm error code 2
 npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
@@ -65,4 +64,5 @@ npm error command sh -c tsc
 APPLY_STATUS=0
 GENERATE_STATUS=0
 POSTGENERATE_STATUS=0
+CORRECTIONS_STATUS=0
 VALIDATION_STATUS=2

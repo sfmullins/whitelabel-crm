@@ -814,9 +814,9 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         followUpCompletedAt: row.follow_up_completed_at,
         status: row.follow_up_completed_at
           ? 'completed'
-          : row.follow_up_date < today
+          : String(row.follow_up_date) < today
             ? 'overdue'
-            : row.follow_up_date === today
+            : String(row.follow_up_date) === today
               ? 'today'
               : 'upcoming',
       })),

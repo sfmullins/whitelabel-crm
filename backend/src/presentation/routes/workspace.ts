@@ -58,7 +58,6 @@ const ContactDirectoryRequestSchema = z.object({
   organisationId: z.string().uuid('Invalid organisation ID').optional(),
   status: ContactStatusSchema.optional(),
   search: optionalString,
-  includeArchived: includeArchivedQueryField,
   ...paginationQueryFields,
 }).strict().pipe(ContactDirectoryQuerySchema);
 
