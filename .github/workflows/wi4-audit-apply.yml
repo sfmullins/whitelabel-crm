@@ -1,0 +1,56 @@
+name: WI4 SOW audit apply
+
+on:
+  push:
+    branches:
+      - WI4-Implementation
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wi4-sow-audit-apply
+  cancel-in-progress: true
+
+jobs:
+  apply-audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: WI4-Implementation
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply second-pass SOW corrections
+        shell: bash
+        run: |
+          set +e
+          node scratch/wi4-audit-loader.mjs 2>&1 | tee scratch/wi4-audit-validation.txt
+          apply_status=${PIPESTATUS[0]}
+          if [ "$apply_status" -eq 0 ]; then
+            npm run ci:verify 2>&1 | tee -a scratch/wi4-audit-validation.txt
+            verify_status=${PIPESTATUS[0]}
+          else
+            verify_status=1
+          fi
+          echo "AUDIT_STATUS=$verify_status" >> "$GITHUB_ENV"
+          exit 0
+      - name: Commit corrected implementation and diagnostics
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "WI4: apply second-pass SOW corrections"
+            git push origin HEAD:WI4-Implementation
+          fi
+      - name: Report audit result
+        run: exit "$AUDIT_STATUS"
