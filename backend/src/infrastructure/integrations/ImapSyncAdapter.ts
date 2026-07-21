@@ -19,9 +19,10 @@ class ImapSession {
   async connect(serverUrl:string):Promise<void> {
     const options=parseUrl(serverUrl);
     this.socket=await new Promise<tls.TLSSocket>((resolve,reject)=>{
-      const socket=tls.connect({...options,minVersion:'TLSv1.2',rejectUnauthorized:true},()=>resolve(socket));
-      socket.setTimeout(30_000,()=>socket.destroy(new Error('IMAP connection timed out')));
-      socket.on('error',reject);
+      let client:tls.TLSSocket;
+      client=tls.connect({...options,minVersion:'TLSv1.2',rejectUnauthorized:true},()=>resolve(client));
+      client.setTimeout(30_000,()=>client.destroy(new Error('IMAP connection timed out')));
+      client.on('error',reject);
     });
     const greeting=await this.readUntilLine();
     if(!/^\* (OK|PREAUTH)/i.test(greeting))throw new Error(`IMAP server rejected connection: ${greeting.slice(0,200)}`);
