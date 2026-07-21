@@ -1,6 +1,6 @@
 
 > whitelabel-crm-root@1.0.0 ci:verify
-> npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run wi6:smoke && npm run desktop:preflight
+> npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run wi6:smoke && npm run wi7:smoke && npm run desktop:preflight
 
 
 > whitelabel-crm-root@1.0.0 build
