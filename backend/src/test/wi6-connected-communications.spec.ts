@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach,beforeEach,describe,expect,it } from 'vitest';
-import { cleanupTempDatabase,getTempDatabasePath,setupTempDatabase } from './crm/helpers';
+import { cleanupTempDatabase,setupTempDatabase } from './crm/helpers';
+import { getRuntimePaths } from '../config/runtimePaths';
 import { runSeed } from '../infrastructure/database/seed';
 import { ConnectedCommunicationsRepository } from '../infrastructure/database/ConnectedCommunicationsRepository';
 import { CredentialVault } from '../infrastructure/security/CredentialVault';
@@ -29,7 +30,7 @@ describe('WI6 connected communications',()=>{
   afterEach(cleanupTempDatabase);
 
   it('encrypts credentials and synchronises matched email with attachments and workflow triggers',async()=>{
-    const root=path.join(path.dirname(getTempDatabasePath()),'vault');
+    const root=path.join(getRuntimePaths().dataDirectory,'vault');
     const repository=new ConnectedCommunicationsRepository();
     const vault=new CredentialVault(root);
     const workflow=new WorkflowRepository();

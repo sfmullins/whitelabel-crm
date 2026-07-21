@@ -77,7 +77,7 @@ export class ConnectedCommunicationsService {
     if(match.status==='suggested'&&match.organisationId){this.repository.createSuggestion({sourceType:'email_thread',sourceId:stored.threadId,organisationId:match.organisationId,contactId:match.contactId,reason:match.reason,confidence:match.confidence});}
     if(stored.created){
       for(const attachment of message.attachments??[]){
-        const links:[{entityType:'communication';entityId:string},...Array<{entityType:'organisation';entityId:string}>]=[{entityType:'communication',entityId:stored.communicationId}];
+        const links:Array<{entityType:'communication'|'organisation';entityId:string}>=[{entityType:'communication',entityId:stored.communicationId}];
         if(match.organisationId)links.push({entityType:'organisation',entityId:match.organisationId});
         const document=this.documents.upload({title:attachment.filename,filename:attachment.filename,mimeType:attachment.mimeType,contentBase64:attachment.contentBase64,description:`Attachment from ${message.subject??'email'}`,category:'email_attachment',links});
         this.repository.linkEmailAttachment(stored.messageId,String(document.id),attachment.contentId??null,Boolean(attachment.inline));

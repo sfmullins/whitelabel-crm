@@ -16,6 +16,7 @@ import engagementsRouter from './routes/engagements';
 import activitiesRouter from './routes/activities';
 import workspaceRouter from './routes/workspace';
 import operationalRouter from './routes/operational';
+import connectedCommunicationsRouter from './routes/connectedCommunications';
 import { AppError } from '../application/errors';
 
 const app = express();
@@ -50,6 +51,7 @@ app.use('/api', engagementsRouter);
 app.use('/api', activitiesRouter);
 app.use('/api', workspaceRouter);
 app.use('/api', operationalRouter);
+app.use('/api', connectedCommunicationsRouter);
 
 if (process.env.NODE_ENV === 'test') {
   app.get('/api/__test/unknown-error', () => {

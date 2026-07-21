@@ -4,8 +4,8 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useBranding } from '../../hooks/useBranding';
 import Onboarding from '../../pages/Onboarding';
 import {
-  BriefcaseBusiness, Building2, Calendar, CalendarClock, CheckSquare, FileText, FolderOpen, LayoutDashboard,
-  Layers, Plus, Radio, Search, Settings, UserRound, Users, Workflow, X,
+  BriefcaseBusiness, Building2, Calendar, CalendarClock, CheckSquare, FileText, FolderOpen, Inbox, LayoutDashboard,
+  Layers, Link2, Plus, Radio, Search, Settings, UserRound, Users, Workflow, X,
 } from 'lucide-react';
 import type { SavedView, SearchResponse, SearchResult } from 'shared';
 import { Button } from '../ui/button';
@@ -23,6 +23,9 @@ const navGroups = [
     { to: '/work', label: 'Work', icon: CheckSquare },
     { to: '/documents', label: 'Documents', icon: FolderOpen },
     { to: '/communications', label: 'Communications', icon: Radio },
+    { to: '/email', label: 'Email inbox', icon: Inbox },
+    { to: '/calendar-workspace', label: 'Calendar', icon: Calendar },
+    { to: '/integrations', label: 'Connected accounts', icon: Link2 },
     { to: '/automation', label: 'Automation', icon: Workflow },
     { to: '/customers', label: 'Customer records', icon: Users },
     { to: '/bookings', label: 'Bookings', icon: Calendar },

@@ -1,0 +1,28 @@
+Applied WI6 integration patches.
+
+> whitelabel-crm-root@1.0.0 ci:verify
+> npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run wi6:smoke && npm run desktop:preflight
+
+
+> whitelabel-crm-root@1.0.0 build
+> npm run build -w shared && npm run build -w backend && npm run build -w frontend && npm run build -w desktop && node scratch/generate-licenses.js
+
+
+> shared@1.0.0 build
+> tsc && tsc -p tsconfig.cjs.json
+
+
+> backend@1.0.0 build
+> tsc
+
+src/infrastructure/integrations/ImapSyncAdapter.ts(22,13): error TS7022: 'socket' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+src/test/wi6-connected-communications.spec.ts(53,60): error TS2304: Cannot find name 'getTempDatabasePath'.
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
+npm error workspace backend@1.0.0
+npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/backend
+npm error command failed
+npm error command sh -c tsc
+PATCH_STATUS=0
+VERIFY_STATUS=2
