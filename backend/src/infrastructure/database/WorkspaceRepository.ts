@@ -136,7 +136,7 @@ export function rebuildSearchIndex(connection: Database.Database = sqlite as Dat
         'contact',
         c.id,
         c.organisation_id,
-        trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')),
+        coalesce(nullif(trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')), ''), nullif(trim(coalesce(c.email, '')), ''), 'Unnamed contact'),
         trim(coalesce(c.job_title, '') || case when c.email is not null then ' · ' || c.email else '' end),
         trim(coalesce(c.email, '') || ' ' || coalesce(c.phone, '') || ' ' || o.name),
         '/organisations/' || c.organisation_id || '?tab=contacts&contactId=' || c.id,
@@ -180,7 +180,7 @@ export function rebuildSearchIndex(connection: Database.Database = sqlite as Dat
         a.author || ' · ' || substr(a.occurred_at, 1, 10),
         trim(
           a.body || ' ' || o.name || ' ' ||
-          coalesce(trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')), '') || ' ' ||
+          coalesce(coalesce(nullif(trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')), ''), nullif(trim(coalesce(c.email, '')), ''), 'Unnamed contact'), '') || ' ' ||
           coalesce(e.name, '')
         ),
         '/organisations/' || a.organisation_id || '?tab=timeline&activityId=' || a.id,
@@ -792,7 +792,7 @@ export class WorkspaceRepository implements IWorkspaceRepository {
     const rows = this.connection.prepare(`
       select
         a.*, o.name as organisation_name,
-        trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')) as contact_name,
+        coalesce(nullif(trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')), ''), nullif(trim(coalesce(c.email, '')), ''), 'Unnamed contact') as contact_name,
         e.name as engagement_name
       from activities a
       join organisations o on o.id = a.organisation_id

@@ -97,7 +97,7 @@ CREATE TRIGGER wi4_contacts_search_ai AFTER INSERT ON contacts BEGIN
   INSERT INTO search_documents (id, entity_type, entity_id, organisation_id, title, subtitle, body, route, updated_at, archived_at)
   VALUES (
     'contact:' || new.id, 'contact', new.id, new.organisation_id,
-    trim(coalesce(new.first_name, '') || ' ' || coalesce(new.last_name, '')),
+    coalesce(nullif(trim(coalesce(new.first_name, '') || ' ' || coalesce(new.last_name, '')), ''), nullif(trim(coalesce(new.email, '')), ''), 'Unnamed contact'),
     trim(coalesce(new.job_title, '') || case when new.email is not null then ' · ' || new.email else '' end),
     trim(coalesce(new.email, '') || ' ' || coalesce(new.phone, '') || ' ' || coalesce((select name from organisations where id = new.organisation_id), '')),
     '/organisations/' || new.organisation_id || '?tab=contacts&contactId=' || new.id,
@@ -112,7 +112,7 @@ CREATE TRIGGER wi4_contacts_search_au AFTER UPDATE ON contacts BEGIN
   INSERT INTO search_documents (id, entity_type, entity_id, organisation_id, title, subtitle, body, route, updated_at, archived_at)
   VALUES (
     'contact:' || new.id, 'contact', new.id, new.organisation_id,
-    trim(coalesce(new.first_name, '') || ' ' || coalesce(new.last_name, '')),
+    coalesce(nullif(trim(coalesce(new.first_name, '') || ' ' || coalesce(new.last_name, '')), ''), nullif(trim(coalesce(new.email, '')), ''), 'Unnamed contact'),
     trim(coalesce(new.job_title, '') || case when new.email is not null then ' · ' || new.email else '' end),
     trim(coalesce(new.email, '') || ' ' || coalesce(new.phone, '') || ' ' || coalesce((select name from organisations where id = new.organisation_id), '')),
     '/organisations/' || new.organisation_id || '?tab=contacts&contactId=' || new.id,
