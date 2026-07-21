@@ -64,12 +64,13 @@ replaceIfPresent(
 );
 
 const smokePath = 'scratch/wi4-smoke.ts';
-const smokeSource = fs.readFileSync(smokePath, 'utf8');
+let smokeSource = fs.readFileSync(smokePath, 'utf8');
 if (!smokeSource.includes('async function main()')) {
-  const wrapped = smokeSource
+  smokeSource = smokeSource
     .replace("const temp = fs.mkdtempSync", "async function main() {\n  const temp = fs.mkdtempSync")
     .replace(/\n}\s*$/, `\n  }\n}\n\nmain().catch((error: unknown) => {\n  console.error(error);\n  process.exitCode = 1;\n});\n`);
-  fs.writeFileSync(smokePath, wrapped);
 }
+smokeSource = smokeSource.replace("path.resolve('backend/drizzle')", "path.resolve('drizzle')");
+fs.writeFileSync(smokePath, smokeSource);
 
 console.log('Applied WI4 compile and smoke corrections.');
