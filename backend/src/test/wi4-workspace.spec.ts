@@ -57,4 +57,57 @@ describe('WI4 CRM workspace repository', () => {
     expect((await repository.search({ q: 'Exact Search', includeArchived: false, limit: 10, offset: 0 })).items).toHaveLength(0);
     expect((await repository.search({ q: 'Exact Search', includeArchived: true, limit: 10, offset: 0 })).items[0].entityId).toBe(id);
   });
+
+  it('refreshes contextual search fields and legacy mappings', async () => {
+    const repository = new WorkspaceRepository(sqlite);
+    const contactId = '50000000-0000-4000-8000-000000000002';
+    const engagementId = '50000000-0000-4000-8000-000000000003';
+    const activityId = '50000000-0000-4000-8000-000000000004';
+    const now = new Date().toISOString();
+
+    sqlite.prepare(`insert into contacts (
+      id, organisation_id, first_name, last_name, job_title, email, phone, is_primary,
+      status, created_at, updated_at, archived_at
+    ) values (?, ?, 'Context', 'Person', 'Advisor', null, null, 0, 'active', ?, ?, null)`)
+      .run(contactId, ACME, now, now);
+    sqlite.prepare(`insert into engagements (
+      id, organisation_id, primary_contact_id, name, type, status, summary, start_date,
+      end_date, created_at, updated_at, archived_at
+    ) values (?, ?, ?, 'Context Engagement', 'other', 'active', null, '2026-07-20',
+      null, ?, ?, null)`).run(engagementId, ACME, contactId, now, now);
+    sqlite.prepare(`insert into activities (
+      id, organisation_id, contact_id, engagement_id, type, body, author, occurred_at,
+      follow_up_date, follow_up_completed_at, source, source_reference, created_at,
+      updated_at, archived_at
+    ) values (?, ?, ?, ?, 'note', 'Context-only note', 'Local user', ?, null, null,
+      'user', null, ?, ?, null)`).run(activityId, ACME, contactId, engagementId, now, now, now);
+
+    expect((await repository.search({ q: 'Acme Context', includeArchived: false, limit: 30, offset: 0 }))
+      .items.some((item) => item.entityId === activityId)).toBe(true);
+
+    sqlite.prepare(`update organisations set name = 'Acme Renewed Ltd', updated_at = ? where id = ?`).run(now, ACME);
+    expect((await repository.search({ q: 'Acme Renewed Context', includeArchived: false, limit: 30, offset: 0 }))
+      .items.some((item) => item.entityId === activityId)).toBe(true);
+  });
+
+  it('enforces WI4 database constraints and uses payment_date in the timeline', async () => {
+    const timestamp = new Date().toISOString();
+    expect(() => sqlite.prepare(`insert into saved_views (
+      id, context, name, normalized_name, definition_json, is_pinned, created_at, updated_at
+    ) values (?, 'invalid', 'Bad', 'bad', '{}', 0, ?, ?)`)
+      .run('50000000-0000-4000-8000-000000000010', timestamp, timestamp))
+      .toThrow();
+
+    const completed = sqlite.prepare(`select id from activities where follow_up_completed_at is not null limit 1`)
+      .get() as { id: string };
+    expect(() => sqlite.prepare(`update activities
+      set follow_up_date = null, follow_up_completed_at = ? where id = ?`)
+      .run(timestamp, completed.id)).toThrow();
+
+    const payment = sqlite.prepare(`select payment_date from payments where id = '20000000-0000-4000-8000-000000000009'`)
+      .get() as { payment_date: string };
+    const repository = new WorkspaceRepository(sqlite);
+    const timeline = await repository.listTimeline(ACME, { eventTypes: ['payment'], limit: 10, offset: 0 });
+    expect(timeline.items[0]?.occurredAt).toBe(payment.payment_date);
+  });
 });

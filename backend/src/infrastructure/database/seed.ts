@@ -16,6 +16,13 @@ const IDS = {
   acmeInvoice: '20000000-0000-4000-8000-000000000008',
   acmePayment: '20000000-0000-4000-8000-000000000009',
   acmeService: '20000000-0000-4000-8000-000000000010',
+  acmeMeetingActivity: '20000000-0000-4000-8000-000000000011',
+  acmeOverdueActivity: '20000000-0000-4000-8000-000000000012',
+  acmeTodayActivity: '20000000-0000-4000-8000-000000000013',
+  acmeUpcomingActivity: '20000000-0000-4000-8000-000000000014',
+  acmeCompletedActivity: '20000000-0000-4000-8000-000000000015',
+  acmeNoteActivity: '20000000-0000-4000-8000-000000000016',
+  acmeInvoiceItem: '20000000-0000-4000-8000-000000000017',
   northstarOrganisation: '30000000-0000-4000-8000-000000000001',
 } as const;
 
@@ -248,32 +255,32 @@ export async function runSeed(): Promise<void> {
 
     const activityRows = [
       {
-        id: crypto.randomUUID(), organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
+        id: IDS.acmeMeetingActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
         type: 'meeting', body: 'Diagnostic kickoff completed. Agreed scope, evidence request and leadership interviews.', author: 'Stephen Mullins',
         occurredAt: addDays(nowDate, -12) + 'T10:00:00.000Z', followUpDate: null, followUpCompletedAt: null,
       },
       {
-        id: crypto.randomUUID(), organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
+        id: IDS.acmeOverdueActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
         type: 'call', body: 'Review the outstanding service-data extract with Aisling.', author: 'Stephen Mullins',
         occurredAt: addDays(nowDate, -7) + 'T14:00:00.000Z', followUpDate: overdueDate, followUpCompletedAt: null,
       },
       {
-        id: crypto.randomUUID(), organisationId: IDS.acmeOrganisation, contactId: IDS.acmeMark, engagementId: IDS.acmeDiagnostic,
+        id: IDS.acmeTodayActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeMark, engagementId: IDS.acmeDiagnostic,
         type: 'email', body: 'Confirm invoice coding and payment workflow with Finance.', author: 'Stephen Mullins',
         occurredAt: addDays(nowDate, -2) + 'T09:30:00.000Z', followUpDate: today, followUpCompletedAt: null,
       },
       {
-        id: crypto.randomUUID(), organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeRedesign,
+        id: IDS.acmeUpcomingActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeRedesign,
         type: 'note', body: 'Prepare redesign options for the leadership workshop.', author: 'Stephen Mullins',
         occurredAt: now, followUpDate: upcomingDate, followUpCompletedAt: null,
       },
       {
-        id: crypto.randomUUID(), organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
+        id: IDS.acmeCompletedActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
         type: 'message', body: 'Evidence request acknowledged and completed.', author: 'Stephen Mullins',
         occurredAt: addDays(nowDate, -9) + 'T12:00:00.000Z', followUpDate: addDays(nowDate, -8), followUpCompletedAt: addDays(nowDate, -8) + 'T16:00:00.000Z',
       },
       {
-        id: crypto.randomUUID(), organisationId: IDS.acmeOrganisation, contactId: null, engagementId: null,
+        id: IDS.acmeNoteActivity, organisationId: IDS.acmeOrganisation, contactId: null, engagementId: null,
         type: 'note', body: 'Acme Ltd is the principal WI4 demonstration account.', author: 'Stephen Mullins',
         occurredAt: now, followUpDate: null, followUpCompletedAt: null,
       },
@@ -313,7 +320,7 @@ export async function runSeed(): Promise<void> {
       updatedAt: now,
     }).run();
     db.insert(schema.invoiceItems).values({
-      id: crypto.randomUUID(),
+      id: IDS.acmeInvoiceItem,
       invoiceId: IDS.acmeInvoice,
       serviceId: IDS.acmeService,
       name: 'Service Delivery Diagnostic',

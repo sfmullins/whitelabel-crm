@@ -10,7 +10,7 @@ import {
 import type { SavedView, SearchResponse, SearchResult } from 'shared';
 import { Button } from '../ui/button';
 import { api } from '../../lib/api';
-import { buildQueryString, formatEntityLabel, groupSearchResults, readRecentRecords, rememberRecentRecord } from '../../lib/wi4';
+import { buildQueryString, formatEntityLabel, groupSearchResults, readRecentRecords, rememberRecentRecord, savedViewRoute } from '../../lib/wi4';
 
 const navGroups = [
   { label: 'Workspace', items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }] },
@@ -106,7 +106,12 @@ export default function MainLayout() {
 }
 
 function BlankPalette({ recents, views, navigate }: { recents: ReturnType<typeof readRecentRecords>; views: SavedView[]; navigate: (route: string) => void }) {
-  const direct = [{ title: 'Create organisation', route: '/organisations' }, { title: 'Open follow-up queue', route: '/follow-ups' }, { title: 'Browse contacts', route: '/contacts' }];
-  return <div className="space-y-4 p-2"><section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actions</p>{direct.map((item) => <button key={item.route} onClick={() => navigate(item.route)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted"><Plus className="h-4 w-4 text-primary"/>{item.title}</button>)}</section>{recents.length > 0 && <section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Recently viewed</p>{recents.map((item) => <button key={`${item.entityType}-${item.entityId}`} onClick={() => navigate(item.route)} className="w-full rounded-lg px-3 py-2.5 text-left hover:bg-muted"><p className="text-sm font-bold">{item.title}</p><p className="text-xs text-muted-foreground">{item.subtitle}</p></button>)}</section>}{views.length > 0 && <section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Pinned views</p>{views.map((view) => <button key={view.id} onClick={() => navigate(view.context === 'organisations' ? '/organisations' : view.context === 'followups' ? '/follow-ups' : '/search')} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted"><BriefcaseBusiness className="h-4 w-4 text-primary"/>{view.name}</button>)}</section>}</div>;
+  const direct = [
+    { title: 'Create organisation', route: '/organisations?action=create' },
+    { title: 'Create contact', route: '/organisations?intent=create-contact' },
+    { title: 'Log activity', route: '/organisations?intent=log-activity' },
+    { title: 'Open follow-up queue', route: '/follow-ups' },
+  ];
+  return <div className="space-y-4 p-2"><section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actions</p>{direct.map((item) => <button key={item.route} onClick={() => navigate(item.route)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted"><Plus className="h-4 w-4 text-primary"/>{item.title}</button>)}</section>{recents.length > 0 && <section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Recently viewed</p>{recents.map((item) => <button key={`${item.entityType}-${item.entityId}`} onClick={() => navigate(item.route)} className="w-full rounded-lg px-3 py-2.5 text-left hover:bg-muted"><p className="text-sm font-bold">{item.title}</p><p className="text-xs text-muted-foreground">{item.subtitle}</p></button>)}</section>}{views.length > 0 && <section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Pinned views</p>{views.map((view) => <button key={view.id} onClick={() => navigate(savedViewRoute(view))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted"><BriefcaseBusiness className="h-4 w-4 text-primary"/>{view.name}</button>)}</section>}</div>;
 }
 function PaletteState({ text, danger = false }: { text: string; danger?: boolean }) { return <div className={`p-10 text-center text-sm ${danger ? 'text-destructive' : 'text-muted-foreground'}`}>{text}</div>; }

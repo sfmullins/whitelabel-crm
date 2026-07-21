@@ -710,7 +710,13 @@ const FollowUpSavedViewSchema = z.object({
     contactId: z.string().uuid().optional(),
     engagementId: z.string().uuid().optional(),
     type: ActivityTypeSchema.optional(),
-  }).strict(),
+    from: IsoDateOnlySchema.optional(),
+    to: IsoDateOnlySchema.optional(),
+  }).strict().superRefine((value, ctx) => {
+    if (value.from && value.to && value.to < value.from) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['to'], message: 'to cannot precede from' });
+    }
+  }),
   sort: z.literal('due_asc').default('due_asc'),
 }).strict();
 const SearchSavedViewSchema = z.object({
@@ -727,12 +733,19 @@ const TimelineSavedViewSchema = z.object({
   version: z.literal(1),
   context: z.literal('timeline'),
   filters: z.object({
+    organisationId: z.string().uuid(),
     eventTypes: z.array(TimelineEventTypeSchema).optional(),
     contactId: z.string().uuid().optional(),
     engagementId: z.string().uuid().optional(),
     activityType: ActivityTypeSchema.optional(),
     followUpStatus: TimelineFollowUpStatusSchema.optional(),
-  }).strict(),
+    from: IsoTimestampSchema.optional(),
+    to: IsoTimestampSchema.optional(),
+  }).strict().superRefine((value, ctx) => {
+    if (value.from && value.to && value.to < value.from) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['to'], message: 'to cannot precede from' });
+    }
+  }),
   sort: z.literal('occurred_desc').default('occurred_desc'),
 }).strict();
 export const SavedViewDefinitionSchema = z.discriminatedUnion('context', [

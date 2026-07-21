@@ -6,7 +6,10 @@ CREATE TABLE `saved_views` (
 	`definition_json` text NOT NULL,
 	`is_pinned` integer DEFAULT false NOT NULL,
 	`created_at` text NOT NULL,
-	`updated_at` text NOT NULL
+	`updated_at` text NOT NULL,
+	CONSTRAINT `saved_view_context_check` CHECK(`context` in ('organisations','followups','search','timeline')),
+	CONSTRAINT `saved_view_name_check` CHECK(length(trim(`name`)) > 0),
+	CONSTRAINT `saved_view_definition_check` CHECK(json_valid(`definition_json`))
 );
 --> statement-breakpoint
 CREATE TABLE `search_documents` (
@@ -19,7 +22,10 @@ CREATE TABLE `search_documents` (
 	`body` text DEFAULT '' NOT NULL,
 	`route` text NOT NULL,
 	`updated_at` text NOT NULL,
-	`archived_at` text
+	`archived_at` text,
+	CONSTRAINT `search_document_type_check` CHECK(`entity_type` in ('organisation','contact','engagement','activity','customer','invoice')),
+	CONSTRAINT `search_document_title_check` CHECK(length(trim(`title`)) > 0),
+	CONSTRAINT `search_document_route_check` CHECK(length(trim(`route`)) > 0)
 );
 --> statement-breakpoint
 ALTER TABLE `activities` ADD `follow_up_completed_at` text;--> statement-breakpoint
@@ -93,7 +99,7 @@ CREATE TRIGGER wi4_contacts_search_ai AFTER INSERT ON contacts BEGIN
     'contact:' || new.id, 'contact', new.id, new.organisation_id,
     trim(coalesce(new.first_name, '') || ' ' || coalesce(new.last_name, '')),
     trim(coalesce(new.job_title, '') || case when new.email is not null then ' · ' || new.email else '' end),
-    trim(coalesce(new.email, '') || ' ' || coalesce(new.phone, '')),
+    trim(coalesce(new.email, '') || ' ' || coalesce(new.phone, '') || ' ' || coalesce((select name from organisations where id = new.organisation_id), '')),
     '/organisations/' || new.organisation_id || '?tab=contacts&contactId=' || new.id,
     new.updated_at, new.archived_at
   )
@@ -108,7 +114,7 @@ CREATE TRIGGER wi4_contacts_search_au AFTER UPDATE ON contacts BEGIN
     'contact:' || new.id, 'contact', new.id, new.organisation_id,
     trim(coalesce(new.first_name, '') || ' ' || coalesce(new.last_name, '')),
     trim(coalesce(new.job_title, '') || case when new.email is not null then ' · ' || new.email else '' end),
-    trim(coalesce(new.email, '') || ' ' || coalesce(new.phone, '')),
+    trim(coalesce(new.email, '') || ' ' || coalesce(new.phone, '') || ' ' || coalesce((select name from organisations where id = new.organisation_id), '')),
     '/organisations/' || new.organisation_id || '?tab=contacts&contactId=' || new.id,
     new.updated_at, new.archived_at
   )
@@ -125,7 +131,8 @@ CREATE TRIGGER wi4_engagements_search_ai AFTER INSERT ON engagements BEGIN
   INSERT INTO search_documents (id, entity_type, entity_id, organisation_id, title, subtitle, body, route, updated_at, archived_at)
   VALUES (
     'engagement:' || new.id, 'engagement', new.id, new.organisation_id, new.name,
-    new.type || ' · ' || new.status, coalesce(new.summary, ''),
+    new.type || ' · ' || new.status,
+    trim(coalesce(new.summary, '') || ' ' || coalesce((select name from organisations where id = new.organisation_id), '')),
     '/organisations/' || new.organisation_id || '?tab=engagements&engagementId=' || new.id,
     new.updated_at, new.archived_at
   )
@@ -138,7 +145,8 @@ CREATE TRIGGER wi4_engagements_search_au AFTER UPDATE ON engagements BEGIN
   INSERT INTO search_documents (id, entity_type, entity_id, organisation_id, title, subtitle, body, route, updated_at, archived_at)
   VALUES (
     'engagement:' || new.id, 'engagement', new.id, new.organisation_id, new.name,
-    new.type || ' · ' || new.status, coalesce(new.summary, ''),
+    new.type || ' · ' || new.status,
+    trim(coalesce(new.summary, '') || ' ' || coalesce((select name from organisations where id = new.organisation_id), '')),
     '/organisations/' || new.organisation_id || '?tab=engagements&engagementId=' || new.id,
     new.updated_at, new.archived_at
   )
@@ -156,7 +164,12 @@ CREATE TRIGGER wi4_activities_search_ai AFTER INSERT ON activities BEGIN
   VALUES (
     'activity:' || new.id, 'activity', new.id, new.organisation_id,
     upper(substr(new.type, 1, 1)) || substr(new.type, 2), new.author || ' · ' || substr(new.occurred_at, 1, 10),
-    new.body, '/organisations/' || new.organisation_id || '?tab=timeline&activityId=' || new.id,
+    trim(
+      new.body || ' ' || coalesce((select name from organisations where id = new.organisation_id), '') || ' ' ||
+      coalesce((select trim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')) from contacts where id = new.contact_id), '') || ' ' ||
+      coalesce((select name from engagements where id = new.engagement_id), '')
+    ),
+    '/organisations/' || new.organisation_id || '?tab=timeline&activityId=' || new.id,
     new.updated_at, new.archived_at
   )
   ON CONFLICT(entity_type, entity_id) DO UPDATE SET
@@ -169,7 +182,12 @@ CREATE TRIGGER wi4_activities_search_au AFTER UPDATE ON activities BEGIN
   VALUES (
     'activity:' || new.id, 'activity', new.id, new.organisation_id,
     upper(substr(new.type, 1, 1)) || substr(new.type, 2), new.author || ' · ' || substr(new.occurred_at, 1, 10),
-    new.body, '/organisations/' || new.organisation_id || '?tab=timeline&activityId=' || new.id,
+    trim(
+      new.body || ' ' || coalesce((select name from organisations where id = new.organisation_id), '') || ' ' ||
+      coalesce((select trim(coalesce(first_name, '') || ' ' || coalesce(last_name, '')) from contacts where id = new.contact_id), '') || ' ' ||
+      coalesce((select name from engagements where id = new.engagement_id), '')
+    ),
+    '/organisations/' || new.organisation_id || '?tab=timeline&activityId=' || new.id,
     new.updated_at, new.archived_at
   )
   ON CONFLICT(entity_type, entity_id) DO UPDATE SET
@@ -222,7 +240,16 @@ CREATE TRIGGER wi4_invoices_search_ai AFTER INSERT ON invoices BEGIN
     (select organisation_id from legacy_customer_crm_mappings where customer_id = new.customer_id),
     new.invoice_number,
     upper(new.status) || ' · ' || (select trim(first_name || ' ' || last_name) from customers where id = new.customer_id),
-    coalesce(new.notes, ''), '/invoices?invoiceId=' || new.id, new.updated_at, null
+    trim(
+      coalesce(new.notes, '') || ' ' ||
+      coalesce((
+        select o.name
+        from legacy_customer_crm_mappings m
+        join organisations o on o.id = m.organisation_id
+        where m.customer_id = new.customer_id
+      ), '')
+    ),
+    '/invoices?invoiceId=' || new.id, new.updated_at, null
   )
   ON CONFLICT(entity_type, entity_id) DO UPDATE SET
     organisation_id = excluded.organisation_id, title = excluded.title, subtitle = excluded.subtitle,
@@ -236,7 +263,16 @@ CREATE TRIGGER wi4_invoices_search_au AFTER UPDATE ON invoices BEGIN
     (select organisation_id from legacy_customer_crm_mappings where customer_id = new.customer_id),
     new.invoice_number,
     upper(new.status) || ' · ' || (select trim(first_name || ' ' || last_name) from customers where id = new.customer_id),
-    coalesce(new.notes, ''), '/invoices?invoiceId=' || new.id, new.updated_at, null
+    trim(
+      coalesce(new.notes, '') || ' ' ||
+      coalesce((
+        select o.name
+        from legacy_customer_crm_mappings m
+        join organisations o on o.id = m.organisation_id
+        where m.customer_id = new.customer_id
+      ), '')
+    ),
+    '/invoices?invoiceId=' || new.id, new.updated_at, null
   )
   ON CONFLICT(entity_type, entity_id) DO UPDATE SET
     organisation_id = excluded.organisation_id, title = excluded.title, subtitle = excluded.subtitle,
@@ -251,4 +287,66 @@ CREATE TRIGGER wi4_mapping_search_ai AFTER INSERT ON legacy_customer_crm_mapping
   UPDATE search_documents SET organisation_id = new.organisation_id
   WHERE (entity_type = 'customer' AND entity_id = new.customer_id)
      OR (entity_type = 'invoice' AND entity_id in (select id from invoices where customer_id = new.customer_id));
+END;
+
+--> statement-breakpoint
+-- WI4_CONTEXT_REFRESH_TRIGGERS
+CREATE TRIGGER wi4_activity_follow_up_completion_insert
+BEFORE INSERT ON activities
+WHEN new.follow_up_completed_at IS NOT NULL AND new.follow_up_date IS NULL
+BEGIN
+  SELECT RAISE(ABORT, 'follow_up_completed_at requires follow_up_date');
+END;
+--> statement-breakpoint
+CREATE TRIGGER wi4_activity_follow_up_completion_update
+BEFORE UPDATE OF follow_up_completed_at, follow_up_date ON activities
+WHEN new.follow_up_completed_at IS NOT NULL AND new.follow_up_date IS NULL
+BEGIN
+  SELECT RAISE(ABORT, 'follow_up_completed_at requires follow_up_date');
+END;
+--> statement-breakpoint
+CREATE TRIGGER wi4_organisation_context_refresh
+AFTER UPDATE OF name ON organisations
+BEGIN
+  UPDATE contacts SET updated_at = updated_at WHERE organisation_id = new.id;
+  UPDATE engagements SET updated_at = updated_at WHERE organisation_id = new.id;
+  UPDATE activities SET updated_at = updated_at WHERE organisation_id = new.id;
+  UPDATE invoices
+  SET updated_at = updated_at
+  WHERE customer_id IN (
+    SELECT customer_id FROM legacy_customer_crm_mappings WHERE organisation_id = new.id
+  );
+END;
+--> statement-breakpoint
+CREATE TRIGGER wi4_contact_context_refresh
+AFTER UPDATE OF first_name, last_name, email, phone, job_title ON contacts
+BEGIN
+  UPDATE activities SET updated_at = updated_at WHERE contact_id = new.id;
+END;
+--> statement-breakpoint
+CREATE TRIGGER wi4_engagement_context_refresh
+AFTER UPDATE OF name, summary, type, status ON engagements
+BEGIN
+  UPDATE activities SET updated_at = updated_at WHERE engagement_id = new.id;
+END;
+--> statement-breakpoint
+CREATE TRIGGER wi4_mapping_context_insert
+AFTER INSERT ON legacy_customer_crm_mappings
+BEGIN
+  UPDATE customers SET updated_at = updated_at WHERE id = new.customer_id;
+  UPDATE invoices SET updated_at = updated_at WHERE customer_id = new.customer_id;
+END;
+--> statement-breakpoint
+CREATE TRIGGER wi4_mapping_context_update
+AFTER UPDATE OF organisation_id, contact_id ON legacy_customer_crm_mappings
+BEGIN
+  UPDATE customers SET updated_at = updated_at WHERE id = new.customer_id;
+  UPDATE invoices SET updated_at = updated_at WHERE customer_id = new.customer_id;
+END;
+--> statement-breakpoint
+CREATE TRIGGER wi4_mapping_context_delete
+AFTER DELETE ON legacy_customer_crm_mappings
+BEGIN
+  UPDATE customers SET updated_at = updated_at WHERE id = old.customer_id;
+  UPDATE invoices SET updated_at = updated_at WHERE customer_id = old.customer_id;
 END;

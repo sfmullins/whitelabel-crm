@@ -138,11 +138,12 @@ export function rebuildSearchIndex(connection: Database.Database = sqlite as Dat
         c.organisation_id,
         trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')),
         trim(coalesce(c.job_title, '') || case when c.email is not null then ' · ' || c.email else '' end),
-        trim(coalesce(c.email, '') || ' ' || coalesce(c.phone, '')),
+        trim(coalesce(c.email, '') || ' ' || coalesce(c.phone, '') || ' ' || o.name),
         '/organisations/' || c.organisation_id || '?tab=contacts&contactId=' || c.id,
         c.updated_at,
         c.archived_at
       from contacts c
+      join organisations o on o.id = c.organisation_id
     `).run();
 
     connection.prepare(`
@@ -157,11 +158,12 @@ export function rebuildSearchIndex(connection: Database.Database = sqlite as Dat
         e.organisation_id,
         e.name,
         e.type || ' · ' || e.status,
-        coalesce(e.summary, ''),
+        trim(coalesce(e.summary, '') || ' ' || o.name),
         '/organisations/' || e.organisation_id || '?tab=engagements&engagementId=' || e.id,
         e.updated_at,
         e.archived_at
       from engagements e
+      join organisations o on o.id = e.organisation_id
     `).run();
 
     connection.prepare(`
@@ -176,11 +178,18 @@ export function rebuildSearchIndex(connection: Database.Database = sqlite as Dat
         a.organisation_id,
         upper(substr(a.type, 1, 1)) || substr(a.type, 2),
         a.author || ' · ' || substr(a.occurred_at, 1, 10),
-        a.body,
+        trim(
+          a.body || ' ' || o.name || ' ' ||
+          coalesce(trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')), '') || ' ' ||
+          coalesce(e.name, '')
+        ),
         '/organisations/' || a.organisation_id || '?tab=timeline&activityId=' || a.id,
         a.updated_at,
         a.archived_at
       from activities a
+      join organisations o on o.id = a.organisation_id
+      left join contacts c on c.id = a.contact_id
+      left join engagements e on e.id = a.engagement_id
     `).run();
 
     connection.prepare(`
@@ -215,13 +224,14 @@ export function rebuildSearchIndex(connection: Database.Database = sqlite as Dat
         m.organisation_id,
         i.invoice_number,
         upper(i.status) || ' · ' || trim(c.first_name || ' ' || c.last_name),
-        coalesce(i.notes, ''),
+        trim(coalesce(i.notes, '') || ' ' || coalesce(o.name, '')),
         '/invoices?invoiceId=' || i.id,
         i.updated_at,
         null
       from invoices i
       join customers c on c.id = i.customer_id
       left join legacy_customer_crm_mappings m on m.customer_id = i.customer_id
+      left join organisations o on o.id = m.organisation_id
     `).run();
   })();
 }
@@ -707,7 +717,7 @@ export class WorkspaceRepository implements IWorkspaceRepository {
         select
           'payment',
           p.id,
-          p.created_at,
+          p.payment_date,
           p.created_at,
           'Payment received',
           'Payment against ' || i.invoice_number,
@@ -876,7 +886,7 @@ export class WorkspaceRepository implements IWorkspaceRepository {
       id,
       context: input.definition.context,
       name: input.name.trim(),
-      normalizedName: input.name.trim().toLocaleLowerCase('en'),
+      normalizedName: input.name.trim().normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase('en'),
       definitionJson: JSON.stringify(input.definition),
       isPinned: input.isPinned ? 1 : 0,
       now,
@@ -915,7 +925,7 @@ export class WorkspaceRepository implements IWorkspaceRepository {
       id,
       context: definition.context,
       name,
-      normalizedName: name.toLocaleLowerCase('en'),
+      normalizedName: name.normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase('en'),
       definitionJson: JSON.stringify(definition),
       isPinned: isPinned ? 1 : 0,
       now,
