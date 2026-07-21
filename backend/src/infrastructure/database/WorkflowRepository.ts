@@ -88,7 +88,7 @@ export class WorkflowRepository {
     if(existing)return {...this.getRun(existing.id),reused:true};
     const workflow=this.getDefinition(input.workflowId);
     if(!workflow||workflow.archivedAt||!workflow.enabled)throw new Error('Workflow is not available');
-    const policy=workflow.policy;
+    const policy=workflow.policy as {maxRunsPerHour:number;timeoutMs:number;maxDepth:number;dryRun:boolean};
     const depth=Number(input.context.workflowDepth??0);
     const ancestry=Array.isArray(input.context.workflowAncestry)?input.context.workflowAncestry.map(String):[];
     if(depth>=policy.maxDepth)throw new Error('Workflow recursion depth exceeded');
@@ -129,7 +129,7 @@ export class WorkflowRepository {
     return {...this.getRun(runId),reused:false,dryRun};
   }
 
-  retryRun(id:string){const run=this.getRun(id);if(!run)throw new Error('Workflow run not found');if(!['failed','partially_failed'].includes(run.status))throw new Error('Only failed workflow runs can be retried');const context=this.resolveSourceContext(run.sourceType,run.sourceId);return this.run({workflowId:run.workflowDefinitionId,sourceType:run.sourceType,sourceId:run.sourceId,triggerEvent:`${run.triggerEvent}:retry`,idempotencyKey:`retry:${id}:${randomUUID()}`,context});}
+  retryRun(id:string){const run=this.getRun(id) as any;if(!run)throw new Error('Workflow run not found');if(!['failed','partially_failed'].includes(run.status))throw new Error('Only failed workflow runs can be retried');const context=this.resolveSourceContext(run.sourceType,run.sourceId);return this.run({workflowId:run.workflowDefinitionId,sourceType:run.sourceType,sourceId:run.sourceId,triggerEvent:`${run.triggerEvent}:retry`,idempotencyKey:`retry:${id}:${randomUUID()}`,context});}
 
   private resolveSourceContext(sourceType:string,sourceId:string):Record<string,unknown>{
     if(sourceType==='email_message'){const row=this.connection.prepare(`SELECT m.account_id,m.thread_id,m.sender_json,t.organisation_id,t.contact_id FROM email_messages m JOIN email_threads t ON t.id=m.thread_id WHERE m.id=?`).get(sourceId) as Record<string,unknown>|undefined;if(row){const sender=parseJson<EmailAddress>(row.sender_json,{address:''});return {accountId:row.account_id,threadId:row.thread_id,organisationId:row.organisation_id,contactId:row.contact_id,replyToAddress:sender.address};}}

@@ -26,7 +26,7 @@ export class CommunicationsHubService {
   ){}
 
   listDrafts(input:{status?:string;organisationId?:string;limit?:number}={}){return this.repository.listDrafts(input);}
-  getDraft(id:string){const value=this.repository.getDraft(id);if(!value)throw new Error('Draft not found');return value;}
+  getDraft(id:string):any{const value=this.repository.getDraft(id);if(!value)throw new Error('Draft not found');return value;}
   createDraft(input:DraftInput){this.validateRecipients(input.to,input.cc??[],input.bcc??[]);return this.repository.createDraft(input);}
   updateDraft(id:string,input:Partial<DraftInput>){if(input.to||input.cc||input.bcc)this.validateRecipients(input.to??[],input.cc??[],input.bcc??[]);return this.repository.updateDraft(id,input);}
   discardDraft(id:string){return this.repository.discardDraft(id);}
@@ -52,7 +52,7 @@ export class CommunicationsHubService {
     this.validateRecipients(draft.to,draft.cc,draft.bcc);
     if(!draft.subject.trim())throw new Error('Email subject is required');
     if(!draft.bodyText.trim()&&!draft.bodyHtml?.trim())throw new Error('Email body is required');
-    const account=this.repository.getAccount(draft.accountId);if(!account||!account.enabled)throw new Error('Email account is unavailable');
+    const account=this.repository.getAccount(draft.accountId) as any;if(!account||!account.enabled)throw new Error('Email account is unavailable');
     const secret=this.vault.read(String(account.credentialKey));
     const original=draft.inReplyToMessageId?this.repository.getOriginalMessage(draft.inReplyToMessageId):null;
     const fromAddress=String(account.settings.fromAddress??account.username);const fromName=String(account.settings.fromName??'');
@@ -80,11 +80,11 @@ export class CommunicationsHubService {
   listWorkflows(includeArchived=false){return this.workflows.listDefinitions(includeArchived);}
   listWorkflowRuns(limit=100){return this.workflows.listRuns(limit);}
   createWorkflow(input:{name:string;description?:string|null;enabled?:boolean;triggerType:string;conditions?:unknown;actions:WorkflowAction[];policy?:{maxRunsPerHour:number;timeoutMs:number;maxDepth:number;dryRun:boolean}}){const workflow=this.workflows.createDefinition(input);if(input.policy)this.repository.setWorkflowPolicy(String(workflow.id),input.policy);return this.workflows.getDefinition(String(workflow.id));}
-  createWorkflowFromTemplate(key:string,name?:string){const template=this.repository.getTemplate(key);if(!template)throw new Error('Workflow template not found');return this.workflows.createDefinition({name:name?.trim()||template.name,description:template.description,enabled:false,triggerType:template.triggerType,conditions:template.conditions,actions:template.actions as WorkflowAction[]});}
+  createWorkflowFromTemplate(key:string,name?:string){const template=this.repository.getTemplate(key) as any;if(!template)throw new Error('Workflow template not found');return this.workflows.createDefinition({name:name?.trim()||template.name,description:template.description,enabled:false,triggerType:template.triggerType,conditions:template.conditions,actions:template.actions as WorkflowAction[]});}
   updateWorkflow(id:string,input:{name?:string;description?:string|null;triggerType?:string;conditions?:unknown;actions?:WorkflowAction[]}){return this.workflows.updateDefinition(id,input);}
   setWorkflowEnabled(id:string,enabled:boolean){return this.workflows.setEnabled(id,enabled);}
   archiveWorkflow(id:string){return this.workflows.archiveDefinition(id);}
-  duplicateWorkflow(id:string,name:string){const newId=this.repository.duplicateWorkflow(id,name);const source=this.repository.getWorkflowPolicy(id);this.repository.setWorkflowPolicy(newId,{maxRunsPerHour:source.maxRunsPerHour,timeoutMs:source.timeoutMs,maxDepth:source.maxDepth,dryRun:source.dryRun});return this.workflows.getDefinition(newId);}
+  duplicateWorkflow(id:string,name:string){const newId=this.repository.duplicateWorkflow(id,name);const source=this.repository.getWorkflowPolicy(id) as any;this.repository.setWorkflowPolicy(newId,{maxRunsPerHour:source.maxRunsPerHour,timeoutMs:source.timeoutMs,maxDepth:source.maxDepth,dryRun:source.dryRun});return this.workflows.getDefinition(newId);}
   setWorkflowPolicy(id:string,input:{maxRunsPerHour:number;timeoutMs:number;maxDepth:number;dryRun:boolean}){if(!this.workflows.getDefinition(id))throw new Error('Workflow not found');return this.repository.setWorkflowPolicy(id,input);}
   dryRunWorkflow(id:string,context:Record<string,unknown>){return this.workflows.run({workflowId:id,sourceType:'manual_test',sourceId:crypto.randomUUID(),triggerEvent:'dry_run',idempotencyKey:`dry-run:${crypto.randomUUID()}`,context,dryRun:true});}
   retryWorkflowRun(id:string){return this.workflows.retryRun(id);}
@@ -96,8 +96,8 @@ export class CommunicationsHubService {
   }
 
   private validateRecipients(...groups:EmailAddress[][]){const addresses=groups.flat().map((item)=>item.address.trim().toLowerCase()).filter(Boolean);if(!addresses.length)throw new Error('At least one email recipient is required');for(const value of addresses)if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))throw new Error(`Invalid email address: ${value}`);}
-  private requireCalendar(id:string){const value=this.repository.getCalendar(id);if(!value||!value.enabled)throw new Error('Calendar is unavailable');return value;}
-  private requireEvent(id:string){const value=this.repository.getCalendarEvent(id);if(!value)throw new Error('Calendar event not found');return value;}
+  private requireCalendar(id:string):any{const value=this.repository.getCalendar(id);if(!value||!value.enabled)throw new Error('Calendar is unavailable');return value;}
+  private requireEvent(id:string):any{const value=this.repository.getCalendarEvent(id);if(!value)throw new Error('Calendar event not found');return value;}
   private config(account:{id:unknown;serverUrl:unknown;username:unknown;settings:Record<string,unknown>}):ConnectedAccountConfig{return {id:String(account.id),serverUrl:String(account.serverUrl),username:String(account.username),settings:account.settings};}
   private finishCalendarFailure(operationId:string,error:unknown){const message=error instanceof Error?error.message:String(error);this.repository.finishCalendarOperation(operationId,{status:message==='CALDAV_CONFLICT'?'conflict':'failed',error:message});}
 }

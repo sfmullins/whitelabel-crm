@@ -1,3 +1,4 @@
+Applied WI7 repository-boundary type fixes.
 
 > whitelabel-crm-root@1.0.0 ci:verify
 > npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run wi6:smoke && npm run desktop:preflight
@@ -14,62 +15,11 @@
 > backend@1.0.0 build
 > tsc
 
-src/application/services/CommunicationsHubService.ts(51,67): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(53,9): error TS18046: 'draft.subject' is of type 'unknown'.
-src/application/services/CommunicationsHubService.ts(54,9): error TS18046: 'draft.bodyText' is of type 'unknown'.
-src/application/services/CommunicationsHubService.ts(54,49): error TS2339: Property 'trim' does not exist on type '{}'.
-src/application/services/CommunicationsHubService.ts(55,46): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(57,80): error TS2345: Argument of type '{}' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(60,93): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(61,55): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(63,172): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(63,194): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(63,218): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
+src/application/services/CommunicationsHubService.ts(60,44): error TS7006: Parameter 'document' implicitly has an 'any' type.
 src/application/services/CommunicationsHubService.ts(63,242): error TS2322: Type '{} | null' is not assignable to type 'string | null | undefined'.
   Type '{}' is not assignable to type 'string'.
 src/application/services/CommunicationsHubService.ts(73,593): error TS2322: Type 'unknown' is not assignable to type 'string'.
 src/application/services/CommunicationsHubService.ts(73,612): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(75,137): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(75,212): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(75,430): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(75,472): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
-src/application/services/CommunicationsHubService.ts(75,559): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(75,601): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
-src/application/services/CommunicationsHubService.ts(76,112): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(76,164): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(76,206): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
-src/application/services/CommunicationsHubService.ts(76,224): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(76,244): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
-src/application/services/CommunicationsHubService.ts(76,276): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
-src/application/services/CommunicationsHubService.ts(76,302): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(76,328): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(76,350): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(76,505): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(77,132): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/application/services/CommunicationsHubService.ts(77,315): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
-src/application/services/CommunicationsHubService.ts(77,331): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
-src/application/services/CommunicationsHubService.ts(83,203): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(83,236): error TS2322: Type 'unknown' is not assignable to type 'string | null | undefined'.
-src/application/services/CommunicationsHubService.ts(83,283): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(87,191): error TS2322: Type 'unknown' is not assignable to type 'number'.
-src/application/services/CommunicationsHubService.ts(87,228): error TS2322: Type 'unknown' is not assignable to type 'number'.
-src/application/services/CommunicationsHubService.ts(87,255): error TS2322: Type 'unknown' is not assignable to type 'number'.
-src/infrastructure/database/CommunicationsHubRepository.ts(24,163): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/infrastructure/database/WorkflowRepository.ts(94,15): error TS18046: 'policy.maxDepth' is of type 'unknown'.
-src/infrastructure/database/WorkflowRepository.ts(97,61): error TS18046: 'policy.maxRunsPerHour' is of type 'unknown'.
-src/infrastructure/database/WorkflowRepository.ts(106,33): error TS18046: 'policy.timeoutMs' is of type 'unknown'.
-src/infrastructure/database/WorkflowRepository.ts(132,142): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/infrastructure/database/WorkflowRepository.ts(132,254): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
-src/infrastructure/database/WorkflowRepository.ts(132,300): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/infrastructure/database/WorkflowRepository.ts(132,336): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/infrastructure/database/WorkflowRepository.ts(132,362): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/presentation/routes/communicationsHub.ts(22,91): error TS2345: Argument of type '{ to: { address: string; name?: string | undefined; }[]; accountId: string; mode?: "new" | "reply" | "reply_all" | "forward" | undefined; organisationId?: string | null | undefined; contactId?: string | ... 1 more ... | undefined; ... 8 more ...; documentIds?: string[] | undefined; }' is not assignable to parameter of type 'DraftInput'.
-  Types of property 'subject' are incompatible.
-    Type 'string | undefined' is not assignable to type 'string'.
-      Type 'undefined' is not assignable to type 'string'.
-src/presentation/routes/communicationsHub.ts(43,228): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'boolean | undefined'.
-src/presentation/routes/communicationsHub.ts(51,229): error TS2345: Argument of type 'Record<string, unknown> | undefined' is not assignable to parameter of type 'Record<string, unknown>'.
-  Type 'undefined' is not assignable to type 'Record<string, unknown>'.
 npm error Lifecycle script `build` failed with error:
 npm error code 2
 npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
