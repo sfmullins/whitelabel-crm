@@ -10,6 +10,7 @@ import { runWi3LegacyActivityBackfill } from './wi3LegacyActivityBackfill';
 import { rebuildSearchIndex } from './WorkspaceRepository';
 import { ensureOperationalSchema } from './operationalSchema';
 import { ensureConnectedCommunicationsSchema } from './connectedCommunicationsSchema';
+import { ensureCommunicationsHubSchema } from './communicationsHubSchema';
 
 export function runMigrations(
   dbInstance: DatabaseInstance,
@@ -20,11 +21,11 @@ export function runMigrations(
   migrate(dbInstance, { migrationsFolder: folder });
   ensureOperationalSchema(sqliteConnection);
   ensureConnectedCommunicationsSchema(sqliteConnection);
+  ensureCommunicationsHubSchema(sqliteConnection);
   runWi3LegacyActivityBackfill(sqliteConnection);
   rebuildSearchIndex(sqliteConnection);
 }
 
-// Execute migration automatically when run as a standalone CLI script
 if (require.main === module) {
   console.log('Running Drizzle migrations on SQLite database CLI...');
   try {

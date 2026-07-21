@@ -13,6 +13,7 @@ import Automation from '../pages/Automation';
 import Integrations from '../pages/Integrations';
 import EmailInbox from '../pages/EmailInbox';
 import CalendarWorkspace from '../pages/CalendarWorkspace';
+import OperationsHealth from '../pages/OperationsHealth';
 import Customers from '../pages/Customers';
 import CustomerWorkspace from '../pages/CustomerWorkspace';
 import Bookings from '../pages/Bookings';
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([{
     { path: 'integrations', element: <Integrations /> },
     { path: 'email', element: <EmailInbox /> },
     { path: 'calendar-workspace', element: <CalendarWorkspace /> },
+    { path: 'operations-health', element: <OperationsHealth /> },
     { path: 'customers', element: <Customers /> },
     { path: 'customers/:id', element: <CustomerWorkspace /> },
     { path: 'bookings', element: <Bookings /> },

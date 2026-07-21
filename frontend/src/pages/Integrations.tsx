@@ -228,6 +228,8 @@ function AccountDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
   const [serverUrl, setServerUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [smtpUrl, setSmtpUrl] = useState('');
+  const [fromAddress, setFromAddress] = useState('');
   const [error, setError] = useState('');
 
   const create = useMutation({
@@ -238,7 +240,12 @@ function AccountDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
         serverUrl,
         username,
         password,
-        settings: kind === 'email' ? { mailbox: 'INBOX', batchSize: 100 } : {},
+        settings: kind === 'email' ? {
+          mailbox: 'INBOX',
+          batchSize: 100,
+          smtpUrl: smtpUrl.trim() || undefined,
+          fromAddress: fromAddress.trim() || username.trim(),
+        } : {},
       }),
     onSuccess: onCreated,
     onError: (value: Error) => setError(value.message),
@@ -283,7 +290,11 @@ function AccountDialog({ onClose, onCreated }: { onClose: () => void; onCreated:
             value={serverUrl}
             onChange={(event) => setServerUrl(event.target.value)}
           />
-          <Input required placeholder="Username" value={username} onChange={(event) => setUsername(event.target.value)} />
+          <Input required placeholder="Username" value={username} onChange={(event) => { setUsername(event.target.value); if (!fromAddress) setFromAddress(event.target.value); }} />
+          {kind === 'email' && <>
+            <Input placeholder="smtps://mail.example.com:465 (optional standard fallback)" value={smtpUrl} onChange={(event) => setSmtpUrl(event.target.value)} />
+            <Input type="email" placeholder="Outbound From address" value={fromAddress} onChange={(event) => setFromAddress(event.target.value)} />
+          </>}
           <Input
             required
             type="password"
