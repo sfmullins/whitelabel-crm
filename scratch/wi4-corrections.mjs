@@ -27,4 +27,30 @@ replaceIfPresent(
   "  search: optionalString,\n  ...paginationQueryFields,",
 );
 
+replaceIfPresent(
+  'frontend/src/lib/wi4.test.ts',
+  "matchedFields: ['title'] as const",
+  "matchedFields: ['title']",
+);
+replaceIfPresent(
+  'frontend/src/pages/OrganisationWorkspace.tsx',
+  "import { FormEvent, useMemo, useState } from 'react';",
+  "import { useMemo, useState } from 'react';",
+);
+replaceIfPresent(
+  'frontend/src/pages/OrganisationWorkspace.tsx',
+  "import { Archive, BriefcaseBusiness, Building2, CalendarClock, ExternalLink, Mail, MessageSquare, Pencil, Plus, Star, UserRound } from 'lucide-react';",
+  "import { Archive, BriefcaseBusiness, Building2, ExternalLink, Mail, MessageSquare, Pencil, Star, UserRound } from 'lucide-react';",
+);
+replaceIfPresent(
+  'frontend/src/pages/OrganisationWorkspace.tsx',
+  "const primaryName = data.primaryContact ? `${data.primaryContact.firstName ?? ''} ${data.primaryContact.lastName ?? ''}`.trim() || data.primaryContact.email : 'Not assigned';",
+  "const primaryName = data.primaryContact ? `${data.primaryContact.firstName ?? ''} ${data.primaryContact.lastName ?? ''}`.trim() || data.primaryContact.email || 'Unnamed contact' : 'Not assigned';",
+);
+replaceIfPresent(
+  'frontend/src/pages/Organisations.tsx',
+  "import { Archive, Building2, Filter, Plus, Save, Search } from 'lucide-react';",
+  "import { Building2, Filter, Plus, Save, Search } from 'lucide-react';",
+);
+
 console.log('Applied WI4 compile corrections.');
