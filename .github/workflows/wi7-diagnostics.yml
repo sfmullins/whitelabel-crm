@@ -28,11 +28,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Apply type fixes and capture full verification output
+      - name: Apply final type conversions and capture verification
         shell: bash
         run: |
           set +e
-          node scratch/wi7-typefix.mjs 2>&1 | tee scratch/wi7-validation.txt
+          node scratch/wi7-typefix2.mjs 2>&1 | tee scratch/wi7-validation.txt
           patch_status=${PIPESTATUS[0]}
           if [ "$patch_status" -eq 0 ]; then
             npm run ci:verify 2>&1 | tee -a scratch/wi7-validation.txt
@@ -48,7 +48,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           if ! git diff --cached --quiet; then
-            git commit -m "WI7: apply boundary type fixes"
+            git commit -m "WI7: apply final type conversions"
             git push origin HEAD:WI7-Communications-Hub
           fi
       - name: Report result
