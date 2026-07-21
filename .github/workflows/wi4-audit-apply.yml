@@ -1,5 +1,6 @@
 name: WI4 SOW audit apply
 
+# Trigger second-pass materialisation after payload upload.
 on:
   push:
     branches:
