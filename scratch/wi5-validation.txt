@@ -1,44 +1,15 @@
-Applied WI5 integration patches.
+file:///home/runner/work/whitelabel-crm/whitelabel-crm/scratch/wi5-patch.mjs:5
+function replace(path,search,replacement){const value=read(path);if(!value.includes(search))throw new Error(`Missing WI5 patch target in ${path}: ${search.slice(0,120)}`);write(path,value.replace(search,replacement));}
+                                                                                                  ^
 
-> whitelabel-crm-root@1.0.0 ci:verify
-> npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run desktop:preflight
+Error: Missing WI5 patch target in backend/src/config/runtimePaths.ts:   logDirectory: string;
+}
+    at replace (file:///home/runner/work/whitelabel-crm/whitelabel-crm/scratch/wi5-patch.mjs:5:99)
+    at file:///home/runner/work/whitelabel-crm/whitelabel-crm/scratch/wi5-patch.mjs:7:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
 
-
-> whitelabel-crm-root@1.0.0 build
-> npm run build -w shared && npm run build -w backend && npm run build -w frontend && npm run build -w desktop && node scratch/generate-licenses.js
-
-
-> shared@1.0.0 build
-> tsc && tsc -p tsconfig.cjs.json
-
-
-> backend@1.0.0 build
-> tsc
-
-src/presentation/routes/operational.ts(60,30): error TS2339: Property 'omit' does not exist on type 'ZodEffects<ZodObject<{ organisationId: ZodString; contactId: ZodOptional<ZodNullable<ZodString>>; engagementId: ZodOptional<ZodNullable<ZodString>>; ... 10 more ...; assignedTo: ZodOptional<...>; }, "strict", ZodTypeAny, { ...; }, { ...; }>, { ...; }, { ...; }>'.
-src/presentation/routes/operational.ts(60,163): error TS7006: Parameter 'value' implicitly has an 'any' type.
-src/presentation/routes/operational.ts(68,29): error TS2345: Argument of type '{ organisationId?: string | undefined; includeArchived?: unknown; }' is not assignable to parameter of type '{ organisationId?: string | undefined; includeArchived?: boolean | undefined; }'.
-  Types of property 'includeArchived' are incompatible.
-    Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(97,33): error TS2345: Argument of type '{ status?: "cancelled" | "pending" | "delivered" | "dismissed" | "failed" | undefined; dueOnly?: unknown; }' is not assignable to parameter of type '{ status?: string | undefined; dueOnly?: boolean | undefined; }'.
-  Types of property 'dueOnly' are incompatible.
-    Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(125,29): error TS2345: Argument of type '{ organisationId?: string | undefined; includeArchived?: unknown; }' is not assignable to parameter of type '{ organisationId?: string | undefined; includeArchived?: boolean | undefined; }'.
-  Types of property 'includeArchived' are incompatible.
-    Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(183,34): error TS2345: Argument of type '{ status?: "draft" | "failed" | "logged" | "matched" | "unmatched" | "ignored" | "sent" | undefined; organisationId?: string | undefined; limit?: number | undefined; includeArchived?: unknown; channel?: "email" | ... 8 more ... | undefined; }' is not assignable to parameter of type '{ organisationId?: string | undefined; channel?: string | undefined; status?: string | undefined; includeArchived?: boolean | undefined; limit?: number | undefined; }'.
-  Types of property 'includeArchived' are incompatible.
-    Type 'unknown' is not assignable to type 'boolean | undefined'.
-src/presentation/routes/operational.ts(208,28): error TS2345: Argument of type '{ sourceType: string; sourceId: string; triggerEvent: string; idempotencyKey: string; context?: Record<string, unknown> | undefined; workflowId: string; }' is not assignable to parameter of type '{ workflowId: string; sourceType: string; sourceId: string; triggerEvent: string; idempotencyKey: string; context: Record<string, unknown>; }'.
-  Types of property 'context' are incompatible.
-    Type 'Record<string, unknown> | undefined' is not assignable to type 'Record<string, unknown>'.
-      Type 'undefined' is not assignable to type 'Record<string, unknown>'.
-npm error Lifecycle script `build` failed with error:
-npm error code 2
-npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
-npm error workspace backend@1.0.0
-npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/backend
-npm error command failed
-npm error command sh -c tsc
-PATCH_STATUS=0
-VERIFY_STATUS=2
+Node.js v22.23.1
+PATCH_STATUS=1
+VERIFY_STATUS=1
