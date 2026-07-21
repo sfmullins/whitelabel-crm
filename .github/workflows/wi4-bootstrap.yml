@@ -43,6 +43,13 @@ jobs:
         run: |
           set +e
           {
+            python - <<'PY'
+            from pathlib import Path
+            path = Path('scratch/wi4-bootstrap-loader.mjs')
+            source = path.read_text()
+            source = source.replace("sql\\`${table.", "sql\\`\\${table.")
+            path.write_text(source)
+            PY
             node scratch/wi4-bootstrap-loader.mjs
             apply_status=$?
             if [ "$apply_status" -eq 0 ]; then
