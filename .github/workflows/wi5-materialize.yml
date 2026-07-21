@@ -41,27 +41,14 @@ jobs:
           {
             node scratch/wi5-idempotency.mjs
             prep_status=$?
-            if [ "$prep_status" -eq 0 ]; then
-              node scratch/wi5-patch.mjs
-              patch_status=$?
-            else
-              patch_status=1
-            fi
-            if [ "$patch_status" -eq 0 ]; then
-              node scratch/wi5-hotfix.mjs
-              hotfix_status=$?
-            else
-              hotfix_status=1
-            fi
-            if [ "$hotfix_status" -eq 0 ]; then
-              npm run ci:verify
-              verify_status=$?
-            else
-              verify_status=1
-            fi
+            if [ "$prep_status" -eq 0 ]; then node scratch/wi5-patch.mjs; patch_status=$?; else patch_status=1; fi
+            if [ "$patch_status" -eq 0 ]; then node scratch/wi5-hotfix.mjs; hotfix_status=$?; else hotfix_status=1; fi
+            if [ "$hotfix_status" -eq 0 ]; then node scratch/wi5-hotfix2.mjs; hotfix2_status=$?; else hotfix2_status=1; fi
+            if [ "$hotfix2_status" -eq 0 ]; then npm run ci:verify; verify_status=$?; else verify_status=1; fi
             echo "PREP_STATUS=$prep_status"
             echo "PATCH_STATUS=$patch_status"
             echo "HOTFIX_STATUS=$hotfix_status"
+            echo "HOTFIX2_STATUS=$hotfix2_status"
             echo "VERIFY_STATUS=$verify_status"
             exit "$verify_status"
           } 2>&1 | tee scratch/wi5-validation.txt
