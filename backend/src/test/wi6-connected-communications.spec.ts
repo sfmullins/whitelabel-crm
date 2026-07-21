@@ -50,7 +50,7 @@ describe('WI6 connected communications',()=>{
 
   it('discovers CalDAV calendars, matches events and processes due reminders once',async()=>{
     const repository=new ConnectedCommunicationsRepository();
-    const vault=new CredentialVault(path.join(path.dirname(getTempDatabasePath()),'vault-calendar'));
+    const vault=new CredentialVault(path.join(getRuntimePaths().dataDirectory,'vault-calendar'));
     const service=new ConnectedCommunicationsService(repository,vault,emailAdapter,calendarAdapter);
     const account=service.createAccount({kind:'calendar',name:'Good Order calendar',serverUrl:'https://dav.example/calendars/',username:'consultant@goodorder.example',password:'secret',settings:{}});
     const result=await service.syncAccount(String(account.id));
