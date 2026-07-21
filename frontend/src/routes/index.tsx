@@ -10,6 +10,10 @@ import Work from '../pages/Work';
 import Documents from '../pages/Documents';
 import Communications from '../pages/Communications';
 import Automation from '../pages/Automation';
+import Integrations from '../pages/Integrations';
+import EmailInbox from '../pages/EmailInbox';
+import CalendarWorkspace from '../pages/CalendarWorkspace';
+import OperationsHealth from '../pages/OperationsHealth';
 import Customers from '../pages/Customers';
 import CustomerWorkspace from '../pages/CustomerWorkspace';
 import Bookings from '../pages/Bookings';
@@ -31,6 +35,10 @@ export const router = createBrowserRouter([{
     { path: 'documents', element: <Documents /> },
     { path: 'communications', element: <Communications /> },
     { path: 'automation', element: <Automation /> },
+    { path: 'integrations', element: <Integrations /> },
+    { path: 'email', element: <EmailInbox /> },
+    { path: 'calendar-workspace', element: <CalendarWorkspace /> },
+    { path: 'operations-health', element: <OperationsHealth /> },
     { path: 'customers', element: <Customers /> },
     { path: 'customers/:id', element: <CustomerWorkspace /> },
     { path: 'bookings', element: <Bookings /> },

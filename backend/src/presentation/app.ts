@@ -16,24 +16,19 @@ import engagementsRouter from './routes/engagements';
 import activitiesRouter from './routes/activities';
 import workspaceRouter from './routes/workspace';
 import operationalRouter from './routes/operational';
+import connectedCommunicationsRouter from './routes/connectedCommunications';
+import communicationsHubRouter from './routes/communicationsHub';
 import { AppError } from '../application/errors';
 
 const app = express();
-
-// Enable CORS for frontend dev server
 app.use(cors());
-
-// Support base64 image data in logo uploads (up to 10MB)
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-
-// Log requests locally
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
 
-// API Routes
 app.use('/api/settings', settingsRouter);
 app.use('/api/customers', customersRouter);
 app.use('/api/services', servicesRouter);
@@ -50,6 +45,8 @@ app.use('/api', engagementsRouter);
 app.use('/api', activitiesRouter);
 app.use('/api', workspaceRouter);
 app.use('/api', operationalRouter);
+app.use('/api', connectedCommunicationsRouter);
+app.use('/api', communicationsHubRouter);
 
 if (process.env.NODE_ENV === 'test') {
   app.get('/api/__test/unknown-error', () => {
@@ -57,26 +54,16 @@ if (process.env.NODE_ENV === 'test') {
   });
 }
 
-// Root health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'OK', time: new Date().toISOString() });
 });
 
-// Global Error Handler
-app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
-      error: err.code,
-      message: err.message,
-      ...(err.details === undefined ? {} : { details: err.details }),
-    });
+    return res.status(err.statusCode).json({error: err.code,message: err.message,...(err.details === undefined ? {} : { details: err.details })});
   }
-
   console.error('Unhandled Server Error:', err);
-  return res.status(500).json({
-    error: 'INTERNAL_SERVER_ERROR',
-    message: 'An unexpected error occurred',
-  });
+  return res.status(500).json({error: 'INTERNAL_SERVER_ERROR',message: 'An unexpected error occurred'});
 });
 
 export default app;
