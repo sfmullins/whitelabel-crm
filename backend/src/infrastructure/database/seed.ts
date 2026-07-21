@@ -35,6 +35,14 @@ const IDS = {
   acmeWorkflow: '20000000-0000-4000-8000-000000000026',
   acmeWorkflowRun: '20000000-0000-4000-8000-000000000027',
   acmeWorkflowActionRun: '20000000-0000-4000-8000-000000000028',
+  fixtureEmailAccount: '20000000-0000-4000-8000-000000000029',
+  fixtureCalendarAccount: '20000000-0000-4000-8000-000000000030',
+  fixtureEmailThread: '20000000-0000-4000-8000-000000000031',
+  fixtureEmailMessage: '20000000-0000-4000-8000-000000000032',
+  fixtureCalendar: '20000000-0000-4000-8000-000000000033',
+  fixtureCalendarEvent: '20000000-0000-4000-8000-000000000034',
+  fixtureEmailSync: '20000000-0000-4000-8000-000000000035',
+  fixtureCalendarSync: '20000000-0000-4000-8000-000000000036',
   northstarOrganisation: '30000000-0000-4000-8000-000000000001',
 } as const;
 
@@ -59,6 +67,8 @@ export async function runSeed(): Promise<void> {
   const endingSoonDate = addDays(nowDate, 21);
 
   sqlite.exec(`
+    DELETE FROM match_suggestions; DELETE FROM email_attachments; DELETE FROM email_messages; DELETE FROM email_threads;
+    DELETE FROM calendar_events; DELETE FROM calendars; DELETE FROM synchronization_runs; DELETE FROM communication_accounts;
     DELETE FROM workflow_action_runs; DELETE FROM workflow_runs; DELETE FROM workflow_definitions;
     DELETE FROM document_links; DELETE FROM document_versions; DELETE FROM documents;
     DELETE FROM reminders; DELETE FROM tasks; DELETE FROM communications;
@@ -398,8 +408,19 @@ export async function runSeed(): Promise<void> {
     sqlite.prepare(`INSERT INTO workflow_action_runs(id,workflow_run_id,action_index,action_type,status,output_json,started_at,completed_at) VALUES(?,?,0,'create_task','succeeded','{}',?,?)`).run(IDS.acmeWorkflowActionRun,IDS.acmeWorkflowRun,now,now);
   })();
 
+  sqlite.transaction(() => {
+    sqlite.prepare(`INSERT INTO communication_accounts(id,kind,name,server_url,username,credential_key,settings_json,enabled,health_status,sync_cursor,last_sync_at,created_at,updated_at,archived_at) VALUES(?, 'email','Good Order fixture inbox','imaps://mail.example','consultant@goodorder.example','fixture-email-key','{"mailbox":"INBOX"}',0,'healthy','42',?,?,?,NULL)`).run(IDS.fixtureEmailAccount,now,now,now);
+    sqlite.prepare(`INSERT INTO communication_accounts(id,kind,name,server_url,username,credential_key,settings_json,enabled,health_status,sync_cursor,last_sync_at,created_at,updated_at,archived_at) VALUES(?, 'calendar','Good Order fixture calendar','https://dav.example/calendars/','consultant@goodorder.example','fixture-calendar-key','{}',0,'healthy',?, ?,?,?,NULL)`).run(IDS.fixtureCalendarAccount,upcomingDate+'T10:00:00.000Z',now,now,now);
+    sqlite.prepare(`INSERT INTO email_threads(id,account_id,provider_thread_key,subject,latest_message_at,organisation_id,contact_id,match_status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'matched',?,?)`).run(IDS.fixtureEmailThread,IDS.fixtureEmailAccount,'fixture-acme-thread','Evidence pack received',addDays(nowDate,-2)+'T11:00:00.000Z',IDS.acmeOrganisation,IDS.acmeAisling,now,now);
+    sqlite.prepare(`INSERT INTO email_messages(id,account_id,thread_id,provider_message_key,rfc_message_id,direction,sender_json,recipients_json,subject,body_text,sent_at,received_at,is_read,raw_headers_json,communication_id,created_at,updated_at) VALUES(?,?,?,?,?,'inbound',?,?,?,?,?,?,0,'{}',?,?,?)`).run(IDS.fixtureEmailMessage,IDS.fixtureEmailAccount,IDS.fixtureEmailThread,'INBOX:42','fixture-42@example',JSON.stringify({name:'Aisling Byrne',address:'aisling.byrne@acme.example'}),JSON.stringify({to:[{address:'consultant@goodorder.example'}],cc:[],bcc:[]}), 'Evidence pack received','The diagnostic evidence pack is ready.',addDays(nowDate,-2)+'T11:00:00.000Z',addDays(nowDate,-2)+'T11:00:01.000Z',IDS.acmeEmailCommunication,now,now);
+    sqlite.prepare(`INSERT INTO calendars(id,account_id,provider_calendar_key,display_name,selected,created_at,updated_at) VALUES(?,?,?,'Primary',1,?,?)`).run(IDS.fixtureCalendar,IDS.fixtureCalendarAccount,'https://dav.example/calendars/primary',now,now);
+    sqlite.prepare(`INSERT INTO calendar_events(id,calendar_id,provider_event_key,title,description,starts_at,ends_at,timezone,recurrence_json,attendees_json,cancelled,organisation_id,contact_id,engagement_id,match_status,communication_id,created_at,updated_at) VALUES(?,?,?,'Acme leadership review','Review diagnostic findings.',?,?, 'Europe/Dublin','{}',?,0,?,?,?,'matched',?,?,?)`).run(IDS.fixtureCalendarEvent,IDS.fixtureCalendar,'fixture-acme-meeting',upcomingDate+'T09:00:00.000Z',upcomingDate+'T10:00:00.000Z',JSON.stringify([{name:'Aisling Byrne',address:'aisling.byrne@acme.example'}]),IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,IDS.acmeMeetingCommunication,now,now);
+    sqlite.prepare(`INSERT INTO synchronization_runs(id,account_id,sync_type,status,cursor_before,cursor_after,fetched_count,created_count,updated_count,matched_count,failure_count,started_at,completed_at) VALUES(?,?,'email','succeeded','41','42',1,1,0,1,0,?,?)`).run(IDS.fixtureEmailSync,IDS.fixtureEmailAccount,now,now);
+    sqlite.prepare(`INSERT INTO synchronization_runs(id,account_id,sync_type,status,cursor_before,cursor_after,fetched_count,created_count,updated_count,matched_count,failure_count,started_at,completed_at) VALUES(?,?,'calendar','succeeded',NULL,?,1,1,0,1,0,?,?)`).run(IDS.fixtureCalendarSync,IDS.fixtureCalendarAccount,upcomingDate+'T10:00:00.000Z',now,now);
+  })();
+
   rebuildSearchIndex(sqlite);
-  console.log(`WI5 seed complete. Acme Ltd operational records are ready; today is ${today}.`);
+  console.log(`WI6 seed complete. Acme Ltd connected communications are ready; today is ${today}.`);
 }
 
 if (require.main === module) {

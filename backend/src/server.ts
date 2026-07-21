@@ -2,6 +2,7 @@ import http from 'http';
 import express from 'express';
 import path from 'path';
 import app from './presentation/app';
+import { ReminderScheduler } from './application/services/ReminderScheduler';
 
 export interface StartServerOptions {
   host?: string;
@@ -21,6 +22,8 @@ export async function startServer(
 ): Promise<RunningServer> {
   const host = options?.host ?? '127.0.0.1';
   const port = options?.port ?? 0; // Default to 0 for auto-allocation of available port
+  const reminderScheduler = new ReminderScheduler();
+  reminderScheduler.start();
 
   // If frontend directory is provided, serve static files and React Router fallback
   if (options?.frontendDirectory) {
@@ -41,6 +44,7 @@ export async function startServer(
     const server = http.createServer(app);
 
     server.on('error', (err) => {
+      reminderScheduler.stop();
       reject(err);
     });
 
@@ -59,6 +63,7 @@ export async function startServer(
         port: actualPort,
         url,
         close: () => {
+          reminderScheduler.stop();
           return new Promise<void>((resolveClose, rejectClose) => {
             server.close((err) => {
               if (err) {

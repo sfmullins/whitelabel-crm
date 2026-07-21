@@ -9,6 +9,7 @@ import {
 import { runWi3LegacyActivityBackfill } from './wi3LegacyActivityBackfill';
 import { rebuildSearchIndex } from './WorkspaceRepository';
 import { ensureOperationalSchema } from './operationalSchema';
+import { ensureConnectedCommunicationsSchema } from './connectedCommunicationsSchema';
 
 export function runMigrations(
   dbInstance: DatabaseInstance,
@@ -18,6 +19,7 @@ export function runMigrations(
   const folder = migrationsFolder || path.resolve(__dirname, '../../../drizzle');
   migrate(dbInstance, { migrationsFolder: folder });
   ensureOperationalSchema(sqliteConnection);
+  ensureConnectedCommunicationsSchema(sqliteConnection);
   runWi3LegacyActivityBackfill(sqliteConnection);
   rebuildSearchIndex(sqliteConnection);
 }
