@@ -1,6 +1,6 @@
 import { type ReactNode,useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Copy, FlaskConical, Play, Plus, Power, RotateCcw, Workflow } from 'lucide-react';
+import { Archive, Copy, FlaskConical, Plus, Power, RotateCcw, Workflow } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -9,7 +9,6 @@ interface Policy { maxRunsPerHour:number;timeoutMs:number;maxDepth:number;dryRun
 interface WorkflowDefinition { id:string;name:string;description:string|null;enabled:boolean;version:number;triggerType:string;conditions:Record<string,unknown>;actions:Array<{type:string;title?:string;subject?:string}>;policy:Policy; }
 interface WorkflowRun { id:string;workflowName:string;workflowDefinitionId:string;status:string;sourceType:string;sourceId:string;startedAt:string;completedAt:string|null;actions:Array<{actionType:string;status:string;failureDetails?:string|null}>; }
 interface WorkflowTemplate { key:string;name:string;description:string|null;triggerType:string;actions:Array<{type:string}>; }
-interface OrganisationDirectory { items:Array<{id:string;name:string}>; }
 
 export default function Automation(){
   const client=useQueryClient();const [showCreate,setShowCreate]=useState(false);const [error,setError]=useState('');
