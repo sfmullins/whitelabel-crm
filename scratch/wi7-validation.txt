@@ -1,4 +1,4 @@
-Applied WI7 repository-boundary type fixes.
+Applied WI7 final service type conversions.
 
 > whitelabel-crm-root@1.0.0 ci:verify
 > npm run build && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run wi6:smoke && npm run desktop:preflight
@@ -15,15 +15,16 @@ Applied WI7 repository-boundary type fixes.
 > backend@1.0.0 build
 > tsc
 
-src/application/services/CommunicationsHubService.ts(60,44): error TS7006: Parameter 'document' implicitly has an 'any' type.
-src/application/services/CommunicationsHubService.ts(63,242): error TS2322: Type '{} | null' is not assignable to type 'string | null | undefined'.
-  Type '{}' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(73,593): error TS2322: Type 'unknown' is not assignable to type 'string'.
-src/application/services/CommunicationsHubService.ts(73,612): error TS2322: Type 'unknown' is not assignable to type 'string'.
+
+> frontend@1.0.0 build
+> tsc && vite build
+
+src/pages/Automation.tsx(3,39): error TS6133: 'Play' is declared but its value is never read.
+src/pages/Automation.tsx(12,11): error TS6196: 'OrganisationDirectory' is declared but never used.
 npm error Lifecycle script `build` failed with error:
 npm error code 2
-npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
-npm error workspace backend@1.0.0
-npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/backend
+npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
+npm error workspace frontend@1.0.0
+npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
 npm error command failed
-npm error command sh -c tsc
+npm error command sh -c tsc && vite build
