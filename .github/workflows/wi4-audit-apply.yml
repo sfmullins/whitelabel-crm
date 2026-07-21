@@ -40,20 +40,27 @@ jobs:
         run: |
           set +e
           {
-            node scratch/wi4-audit-loader.mjs
-            loader_status=$?
+            node scratch/wi4-audit-idempotency.mjs
+            prep_status=$?
+            if [ "$prep_status" -eq 0 ]; then
+              node scratch/wi4-audit-loader.mjs
+              loader_status=$?
+            else
+              loader_status=1
+            fi
             if [ "$loader_status" -eq 0 ]; then
               node scratch/wi4-audit-hotfix.mjs
               hotfix_status=$?
             else
               hotfix_status=1
             fi
-            if [ "$loader_status" -eq 0 ] && [ "$hotfix_status" -eq 0 ]; then
+            if [ "$prep_status" -eq 0 ] && [ "$loader_status" -eq 0 ] && [ "$hotfix_status" -eq 0 ]; then
               npm run ci:verify
               verify_status=$?
             else
               verify_status=1
             fi
+            echo "PREP_STATUS=$prep_status"
             echo "LOADER_STATUS=$loader_status"
             echo "HOTFIX_STATUS=$hotfix_status"
             echo "VERIFY_STATUS=$verify_status"
