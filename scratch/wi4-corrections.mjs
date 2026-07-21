@@ -29,8 +29,18 @@ replaceIfPresent(
 
 replaceIfPresent(
   'frontend/src/lib/wi4.test.ts',
+  "import { buildQueryString, groupSearchResults } from './wi4';",
+  "import type { SearchResult } from 'shared';\nimport { buildQueryString, groupSearchResults } from './wi4';",
+);
+replaceIfPresent(
+  'frontend/src/lib/wi4.test.ts',
   "matchedFields: ['title'] as const",
-  "matchedFields: ['title']",
+  "matchedFields: ['title'] as SearchResult['matchedFields']",
+);
+replaceIfPresent(
+  'frontend/src/lib/wi4.test.ts',
+  "matchedFields: ['title'],",
+  "matchedFields: ['title'] as SearchResult['matchedFields'],",
 );
 replaceIfPresent(
   'frontend/src/pages/OrganisationWorkspace.tsx',
