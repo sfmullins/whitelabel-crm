@@ -17,7 +17,7 @@ async function main(){
   configureRuntimePaths({dataDirectory:temp,databasePath,internalBackupDirectory:path.join(temp,'backups'),temporaryDirectory:path.join(temp,'tmp'),logDirectory:path.join(temp,'logs'),documentDirectory:path.join(temp,'documents')});
   try{
     const database=openDatabase(databasePath);
-    runMigrations(database,path.resolve('backend/drizzle'),sqlite);
+    runMigrations(database,path.resolve('drizzle'),sqlite);
     await runSeed();
     const hub=new CommunicationsHubRepository(sqlite);
     if(hub.listTemplates().length<4)throw new Error('Missing WI7 workflow templates');
