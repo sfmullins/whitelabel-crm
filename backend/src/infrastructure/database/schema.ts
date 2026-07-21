@@ -327,3 +327,39 @@ export const legacyCustomerCrmMappings = sqliteTable('legacy_customer_crm_mappin
   organisationIdx: index('legacy_customer_mapping_organisation_idx').on(table.organisationId),
   contactIdx: uniqueIndex('legacy_customer_mapping_contact_idx').on(table.contactId),
 }));
+
+// ==========================================
+// WI4 search projection and saved views
+// ==========================================
+export const searchDocuments = sqliteTable('search_documents', {
+  id: text('id').primaryKey(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  organisationId: text('organisation_id'),
+  title: text('title').notNull(),
+  subtitle: text('subtitle').notNull().default(''),
+  body: text('body').notNull().default(''),
+  route: text('route').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  archivedAt: text('archived_at'),
+}, (table) => ({
+  entityIdx: uniqueIndex('search_document_entity_idx').on(table.entityType, table.entityId),
+  organisationIdx: index('search_document_organisation_idx').on(table.organisationId),
+  updatedIdx: index('search_document_updated_idx').on(table.updatedAt),
+  typeCheck: check('search_document_type_check', sql`${table.entityType} in ('organisation', 'contact', 'engagement', 'activity', 'customer', 'invoice')`),
+}));
+
+export const savedViews = sqliteTable('saved_views', {
+  id: text('id').primaryKey(),
+  context: text('context').notNull(),
+  name: text('name').notNull(),
+  normalizedName: text('normalized_name').notNull(),
+  definitionJson: text('definition_json').notNull(),
+  isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  contextNameIdx: uniqueIndex('saved_view_context_name_idx').on(table.context, table.normalizedName),
+  contextPinnedIdx: index('saved_view_context_pinned_idx').on(table.context, table.isPinned),
+  contextCheck: check('saved_view_context_check', sql`${table.context} in ('organisations', 'followups', 'search', 'timeline')`),
+}));

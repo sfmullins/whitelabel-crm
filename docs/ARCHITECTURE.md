@@ -94,3 +94,21 @@ parsed or appended by the production frontend.
 Author labels are not authenticated identities in WI3. Ordinary activity writes
 default to `Local user`. Authentication, tasks, reminders, documents, financial
 migration and a full organisation workspace remain deferred.
+
+## WI4 organisation-first workspace
+
+WI4 adds an organisation-first application layer above the WI2/WI3 CRM domain. Express workspace routes call `WorkspaceService`, which depends on `IWorkspaceRepository`; the SQLite implementation owns organisation directory projections, unified timeline queries, follow-up queues, saved views and operational dashboard calculations.
+
+`search_documents` is a normalized projection of organisations, contacts, engagements, activities, legacy customers and invoices. A content-linked SQLite FTS5 virtual table indexes title, subtitle and body. Domain-table triggers keep the projection synchronized, and migration startup performs a deterministic rebuild after the WI3 compatibility backfill. Search is local-only and no external search service is used.
+
+```mermaid
+flowchart LR
+  React[React CRM/search UI] --> Express[Express routes]
+  Express --> Services[Workspace/application services]
+  Services --> Interfaces[Repository interfaces]
+  Interfaces --> SQLite[(SQLite domain tables)]
+  SQLite --> Projection[search_documents]
+  Projection --> FTS[SQLite FTS5]
+```
+
+Saved views persist versioned, schema-validated filter definitions rather than executable SQL. Follow-up completion is stored on the source activity using `follow_up_completed_at`; completion never archives the activity. The organisation timeline unions activity, engagement, booking, invoice and payment events in a stable backend-defined order.

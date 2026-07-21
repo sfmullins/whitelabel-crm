@@ -83,3 +83,12 @@ creation is transactional and idempotent.
 The migration backfill parses recognised `[Note logged on ...]:` blocks into
 separate note activities and also imports unmatched or malformed text so no
 content is discarded. It never clears or rewrites `customers.notes`.
+
+## WI4 workspace concepts
+
+- **Search document:** a local derived projection used by SQLite FTS5. It is not a new source of truth.
+- **Saved view:** a local single-user, versioned and context-specific filter definition. Built-in views remain code-defined.
+- **Follow-up:** an activity with a due date. It is open while `follow_up_completed_at` is null, can be completed or reopened, and remains part of immutable interaction history.
+- **Unified timeline event:** a typed projection of activities, engagements and mapped legacy booking/financial records for one organisation. Legacy foreign keys are not rewritten.
+
+Development data is intentionally resettable before launch. The deterministic seed identifies Good Order Ltd and Stephen Mullins without invented personal contact data and uses Acme Ltd as the principal demonstration account.

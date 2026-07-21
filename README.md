@@ -137,3 +137,16 @@ Features transactional database rollbacks: if any customer row or dynamic custom
 
 ### 3. Compliance & Auditing
 Features a built-in third-party dependency scanner (`scratch/generate-licenses.js`) that enforces a strict permissive license check policy (MIT, Apache 2.0, BSD) on all project dependencies. Run the audit check via `npm run build`.
+
+## WI4 CRM workspace
+
+The development workspace is organisation-first. Global search uses the local SQLite FTS5 index, the organisation workspace consolidates contacts, engagements and a unified timeline, and activity follow-up dates drive the operational follow-up queue.
+
+Reset and seed the prelaunch development database with Good Order Ltd and Acme Ltd:
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+No external search or hosted workflow service is required. WI4 adds no runtime dependency and remains within the repository's FOSS licence gates.
