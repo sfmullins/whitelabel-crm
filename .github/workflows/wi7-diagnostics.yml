@@ -28,27 +28,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Remove unused declarations and capture verification
+      - name: Capture full verification output
         shell: bash
         run: |
           set +e
-          node scratch/wi7-typefix3.mjs 2>&1 | tee scratch/wi7-validation.txt
-          patch_status=${PIPESTATUS[0]}
-          if [ "$patch_status" -eq 0 ]; then
-            npm run ci:verify 2>&1 | tee -a scratch/wi7-validation.txt
-            verify_status=${PIPESTATUS[0]}
-          else
-            verify_status=1
-          fi
-          echo "WI7_STATUS=$verify_status" >> "$GITHUB_ENV"
+          npm run ci:verify 2>&1 | tee scratch/wi7-validation.txt
+          status=${PIPESTATUS[0]}
+          echo "WI7_STATUS=$status" >> "$GITHUB_ENV"
           exit 0
-      - name: Commit fixes and diagnostics
+      - name: Commit diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add scratch/wi7-validation.txt
           if ! git diff --cached --quiet; then
-            git commit -m "WI7: remove unused workflow studio declarations"
+            git commit -m "WI7: capture validation diagnostics"
             git push origin HEAD:WI7-Communications-Hub
           fi
       - name: Report result
