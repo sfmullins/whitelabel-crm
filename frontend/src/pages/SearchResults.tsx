@@ -1,14 +1,14 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Building2, FileText, MessageSquare, Search, UserRound, BriefcaseBusiness, Users } from 'lucide-react';
+import { Building2, CheckSquare, FileText, FolderOpen, MessageSquare, Radio, Search, UserRound, BriefcaseBusiness, Users } from 'lucide-react';
 import type { SearchEntityType, SearchResponse } from 'shared';
 import { api } from '../lib/api';
 import { buildQueryString, formatEntityLabel, groupSearchResults, rememberRecentRecord } from '../lib/wi4';
 import { Input } from '../components/ui/input';
 
-const types: SearchEntityType[] = ['organisation','contact','engagement','activity','customer','invoice'];
-const icons = { organisation: Building2, contact: UserRound, engagement: BriefcaseBusiness, activity: MessageSquare, customer: Users, invoice: FileText };
+const types: SearchEntityType[] = ['organisation','contact','engagement','activity','task','document','communication','customer','invoice'];
+const icons = { organisation: Building2, contact: UserRound, engagement: BriefcaseBusiness, activity: MessageSquare, task: CheckSquare, document: FolderOpen, communication: Radio, customer: Users, invoice: FileText };
 
 export default function SearchResults() {
   const [params, setParams] = useSearchParams();
