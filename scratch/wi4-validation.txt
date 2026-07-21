@@ -1,0 +1,24 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+Error: incorrect data check
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at Zlib.zlibOnError [as onerror] (node:zlib:191:17)
+    at processChunkSync (node:zlib:430:12)
+    at zlibBufferSync (node:zlib:180:12)
+    at Object.syncBufferWrapper [as gunzipSync] (node:zlib:790:14)
+    at file:///home/runner/work/whitelabel-crm/whitelabel-crm/scratch/wi4-bootstrap-loader.mjs:7:33
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5) {
+  errno: -3,
+  code: 'Z_DATA_ERROR'
+}
+
+Node.js v22.23.1
+APPLY_STATUS=1
+GENERATE_STATUS=1
+POSTGENERATE_STATUS=1
+VALIDATION_STATUS=1
