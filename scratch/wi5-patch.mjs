@@ -2,7 +2,7 @@ import fs from 'node:fs';
 
 function read(path){return fs.readFileSync(path,'utf8');}
 function write(path,value){fs.writeFileSync(path,value);}
-function replace(path,search,replacement){const value=read(path);if(!value.includes(search))throw new Error(`Missing WI5 patch target in ${path}: ${search.slice(0,120)}`);write(path,value.replace(search,replacement));}
+function replace(path,search,replacement){const value=read(path);if(value.includes(replacement))return;if(!value.includes(search))throw new Error(`Missing WI5 patch target in ${path}: ${search.slice(0,120)}`);write(path,value.replace(search,replacement));}
 
 replace('backend/src/config/runtimePaths.ts',`  logDirectory: string;\n}`,`  logDirectory: string;\n  documentDirectory: string;\n}`);
 replace('backend/src/config/runtimePaths.ts',`  logDirectory: path.join(defaultDataDir, 'logs')\n};`,`  logDirectory: path.join(defaultDataDir, 'logs'),\n  documentDirectory: path.join(defaultDataDir, 'documents')\n};`);
