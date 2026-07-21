@@ -16,7 +16,7 @@ async function main(){
   configureRuntimePaths({dataDirectory:temp,databasePath,internalBackupDirectory:path.join(temp,'backups'),temporaryDirectory:path.join(temp,'tmp'),logDirectory:path.join(temp,'logs'),documentDirectory:path.join(temp,'documents')});
   try{
     const database=openDatabase(databasePath);
-    runMigrations(database,path.resolve('backend/drizzle'),sqlite);
+    runMigrations(database,path.resolve('drizzle'),sqlite);
     await runSeed();
     const work=new WorkRepository(sqlite).listWork({bucket:'all',limit:200,offset:0});
     if(!work.items.some((item)=>item.workType==='task'))throw new Error('Missing task fixture');
