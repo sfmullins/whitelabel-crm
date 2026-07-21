@@ -7,6 +7,7 @@ import {
   type SqliteConnection,
 } from './connection';
 import { runWi3LegacyActivityBackfill } from './wi3LegacyActivityBackfill';
+import { rebuildSearchIndex } from './WorkspaceRepository';
 
 export function runMigrations(
   dbInstance: DatabaseInstance,
@@ -16,6 +17,7 @@ export function runMigrations(
   const folder = migrationsFolder || path.resolve(__dirname, '../../../drizzle');
   migrate(dbInstance, { migrationsFolder: folder });
   runWi3LegacyActivityBackfill(sqliteConnection);
+  rebuildSearchIndex(sqliteConnection);
 }
 
 // Execute migration automatically when run as a standalone CLI script

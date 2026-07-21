@@ -14,6 +14,7 @@ import organisationsRouter from './routes/organisations';
 import contactsRouter from './routes/contacts';
 import engagementsRouter from './routes/engagements';
 import activitiesRouter from './routes/activities';
+import workspaceRouter from './routes/workspace';
 import { AppError } from '../application/errors';
 
 const app = express();
@@ -46,6 +47,7 @@ app.use('/api/organisations', organisationsRouter);
 app.use('/api', contactsRouter);
 app.use('/api', engagementsRouter);
 app.use('/api', activitiesRouter);
+app.use('/api', workspaceRouter);
 
 if (process.env.NODE_ENV === 'test') {
   app.get('/api/__test/unknown-error', () => {

@@ -174,10 +174,47 @@ export interface IActivityRepository {
   getById(id: string, options?: { includeArchived?: boolean }): Promise<Activity | null>;
   list(options: ActivityListOptions): Promise<Activity[]>;
   update(id: string, patch: ActivityUpdate): Promise<Activity | null>;
+  completeFollowUp(id: string, completedAt: string): Promise<Activity | null>;
+  reopenFollowUp(id: string, updatedAt: string): Promise<Activity | null>;
   archive(id: string, archivedAt: string): Promise<Activity | null>;
 }
 
 export interface ILegacyCustomerMappingRepository {
   getCustomerMapping(customerId: string): LegacyCustomerCrmMapping | null;
   ensureCustomerMapping(customerId: string): LegacyCustomerCrmMapping | null;
+}
+
+import type {
+  ContactDirectoryQuery,
+  ContactDirectoryResponse,
+  DashboardOperationalSummary,
+  FollowUpQuery,
+  FollowUpResponse,
+  OrganisationDirectoryQuery,
+  OrganisationDirectoryResponse,
+  OrganisationWorkspace,
+  SavedView,
+  SavedViewCreate,
+  SavedViewUpdate,
+  SearchQuery,
+  SearchResponse,
+  TimelineQuery,
+  TimelineResponse,
+} from 'shared';
+
+export interface IWorkspaceRepository {
+  search(query: SearchQuery): Promise<SearchResponse>;
+  listOrganisations(query: OrganisationDirectoryQuery): Promise<OrganisationDirectoryResponse>;
+  listContacts(query: ContactDirectoryQuery): Promise<ContactDirectoryResponse>;
+  getOrganisationWorkspace(organisationId: string): Promise<OrganisationWorkspace | null>;
+  listTimeline(organisationId: string, query: TimelineQuery): Promise<TimelineResponse>;
+  listFollowUps(query: FollowUpQuery): Promise<FollowUpResponse>;
+  completeFollowUp(activityId: string, completedAt: string): Promise<boolean>;
+  reopenFollowUp(activityId: string, updatedAt: string): Promise<boolean>;
+  listSavedViews(context?: string, pinnedOnly?: boolean): Promise<SavedView[]>;
+  createSavedView(input: SavedViewCreate): Promise<SavedView>;
+  getSavedView(id: string): Promise<SavedView | null>;
+  updateSavedView(id: string, patch: SavedViewUpdate): Promise<SavedView | null>;
+  deleteSavedView(id: string): Promise<boolean>;
+  getDashboard(): Promise<DashboardOperationalSummary>;
 }

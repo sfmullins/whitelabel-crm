@@ -1,476 +1,375 @@
-import { db } from './connection';
+import crypto from 'node:crypto';
+import { db, getSqliteConnection } from './connection';
 import * as schema from './schema';
-import crypto from 'crypto';
+import { rebuildSearchIndex } from './WorkspaceRepository';
 
-console.log('Seeding SQLite database...');
+const IDS = {
+  goodOrderOrganisation: '10000000-0000-4000-8000-000000000001',
+  stephenContact: '10000000-0000-4000-8000-000000000002',
+  acmeOrganisation: '20000000-0000-4000-8000-000000000001',
+  acmeAisling: '20000000-0000-4000-8000-000000000002',
+  acmeMark: '20000000-0000-4000-8000-000000000003',
+  acmeDiagnostic: '20000000-0000-4000-8000-000000000004',
+  acmeRedesign: '20000000-0000-4000-8000-000000000005',
+  acmeCustomer: '20000000-0000-4000-8000-000000000006',
+  acmeBooking: '20000000-0000-4000-8000-000000000007',
+  acmeInvoice: '20000000-0000-4000-8000-000000000008',
+  acmePayment: '20000000-0000-4000-8000-000000000009',
+  acmeService: '20000000-0000-4000-8000-000000000010',
+  acmeMeetingActivity: '20000000-0000-4000-8000-000000000011',
+  acmeOverdueActivity: '20000000-0000-4000-8000-000000000012',
+  acmeTodayActivity: '20000000-0000-4000-8000-000000000013',
+  acmeUpcomingActivity: '20000000-0000-4000-8000-000000000014',
+  acmeCompletedActivity: '20000000-0000-4000-8000-000000000015',
+  acmeNoteActivity: '20000000-0000-4000-8000-000000000016',
+  acmeInvoiceItem: '20000000-0000-4000-8000-000000000017',
+  northstarOrganisation: '30000000-0000-4000-8000-000000000001',
+} as const;
 
-async function runSeed() {
-  try {
-    // 1. Clean existing data
-    console.log('Cleaning existing tables...');
+function dateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(base: Date, days: number): string {
+  const copy = new Date(base);
+  copy.setUTCDate(copy.getUTCDate() + days);
+  return dateOnly(copy);
+}
+
+export async function runSeed(): Promise<void> {
+  console.log('Resetting and seeding the WI4 development database...');
+  const sqlite = getSqliteConnection();
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
+  const today = dateOnly(nowDate);
+  const overdueDate = addDays(nowDate, -5);
+  const upcomingDate = addDays(nowDate, 7);
+  const endingSoonDate = addDays(nowDate, 21);
+
+  sqlite.transaction(() => {
+    db.delete(schema.savedViews).run();
+    db.delete(schema.searchDocuments).run();
+    db.delete(schema.activities).run();
+    db.delete(schema.legacyCustomerCrmMappings).run();
+    db.delete(schema.legacyOrganisationMappings).run();
+    db.delete(schema.engagements).run();
+    db.delete(schema.contacts).run();
+    db.delete(schema.organisations).run();
     db.delete(schema.payments).run();
     db.delete(schema.invoiceItems).run();
     db.delete(schema.invoices).run();
     db.delete(schema.bookings).run();
-    db.delete(schema.customFieldsValues).run();
     db.delete(schema.customObjectsValues).run();
     db.delete(schema.customObjectsRecords).run();
+    db.delete(schema.customFieldsValues).run();
     db.delete(schema.customFieldsDefinition).run();
     db.delete(schema.customObjectsDefinition).run();
     db.delete(schema.services).run();
     db.delete(schema.customers).run();
     db.delete(schema.settings).run();
 
-    const now = new Date().toISOString();
-
-    // 2. Seed Settings (Skip onboarding by default, using professional branding)
-    console.log('Seeding Settings...');
-    const settingsId = 'default';
     db.insert(schema.settings).values({
-      id: settingsId,
-      businessName: 'Apex Tech Solutions',
-      logoUrl: '', // Will be uploaded or fallback in UI
-      primaryColor: '#0f172a', // Slate 900
-      secondaryColor: '#3b82f6', // Blue 500
-      accentColor: '#10b981', // Emerald 500
-      address: '123 Enterprise Way, Suite 400, San Francisco, CA 94107',
-      phone: '+1 (555) 019-2834',
-      email: 'hello@apextech.com',
-      website: 'https://apextech.io',
-      invoiceFooter: 'Thank you for your business! Payment is due within 30 days.',
-      defaultTaxRate: 8.25,
-      currency: 'USD',
-      timezone: 'America/Los_Angeles',
-      dateFormat: 'YYYY-MM-DD',
+      id: 'default',
+      businessName: 'Good Order Ltd',
+      logoUrl: '',
+      primaryColor: '#111827',
+      secondaryColor: '#2563eb',
+      accentColor: '#0f766e',
+      address: 'Co. Kildare, Ireland',
+      phone: 'Not provided',
+      email: 'not-provided@goodorder.invalid',
+      website: '',
+      invoiceFooter: 'Good Order Ltd · Co. Kildare, Ireland',
+      defaultTaxRate: 23,
+      currency: 'EUR',
+      timezone: 'Europe/Dublin',
+      dateFormat: 'DD/MM/YYYY',
       createdAt: now,
       updatedAt: now,
     }).run();
 
-    // 3. Seed Services
-    console.log('Seeding Services...');
-    const servicesData = [
+    db.insert(schema.services).values({
+      id: IDS.acmeService,
+      name: 'Service Delivery Diagnostic',
+      description: 'Structured assessment of service delivery, customer experience and operating controls.',
+      duration: 90,
+      price: 500000,
+      taxRate: 23,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    db.insert(schema.organisations).values([
       {
-        id: crypto.randomUUID(),
-        name: 'Cloud Infrastructure Consultation',
-        description: 'Review of current AWS/Azure setups, cost optimization, and architecture roadmap.',
-        duration: 90, // minutes
-        price: 25000, // $250.00 (in cents)
-        taxRate: 8.25,
-        isActive: true,
+        id: IDS.goodOrderOrganisation,
+        name: 'Good Order Ltd',
+        legalName: 'Good Order Ltd',
+        website: null,
+        industry: 'Business consulting',
+        employeeBand: '1_9',
+        annualRevenueBand: null,
+        country: 'IE',
+        status: 'partner',
+        source: 'Internal',
         createdAt: now,
         updatedAt: now,
+        archivedAt: null,
       },
       {
-        id: crypto.randomUUID(),
-        name: 'Custom React Web Development',
-        description: 'Hourly rate for frontend design and implementation work.',
-        duration: 60,
-        price: 12500, // $125.00
-        taxRate: 8.25,
-        isActive: true,
+        id: IDS.acmeOrganisation,
+        name: 'Acme Ltd',
+        legalName: 'Acme Ltd',
+        website: null,
+        industry: 'Technology services',
+        employeeBand: '50_74',
+        annualRevenueBand: '5m_20m',
+        country: 'IE',
+        status: 'active_client',
+        source: 'Referral',
         createdAt: now,
         updatedAt: now,
+        archivedAt: null,
       },
       {
-        id: crypto.randomUUID(),
-        name: 'Database Performance Tuning',
-        description: 'Index optimization, query analysis, and schema refactoring for SQLite or Postgres databases.',
-        duration: 120,
-        price: 35000, // $350.00
-        taxRate: 8.25,
-        isActive: true,
+        id: IDS.northstarOrganisation,
+        name: 'Northstar Foods Ltd',
+        legalName: null,
+        website: null,
+        industry: 'Food production',
+        employeeBand: '25_49',
+        annualRevenueBand: '1m_5m',
+        country: 'IE',
+        status: 'prospect',
+        source: 'Website',
         createdAt: now,
         updatedAt: now,
+        archivedAt: null,
+      },
+    ]).run();
+
+    db.insert(schema.contacts).values([
+      {
+        id: IDS.stephenContact,
+        organisationId: IDS.goodOrderOrganisation,
+        firstName: 'Stephen',
+        lastName: 'Mullins',
+        jobTitle: 'Principal Consultant',
+        email: null,
+        phone: null,
+        isPrimary: true,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+        archivedAt: null,
       },
       {
-        id: crypto.randomUUID(),
-        name: 'Monthly Maintenance & Support',
-        description: 'Standard support agreement including security updates and bug fixes.',
-        duration: 480, // 8 hours
-        price: 80000, // $800.00
-        taxRate: 0.0, // Tax exempt service
-        isActive: true,
+        id: IDS.acmeAisling,
+        organisationId: IDS.acmeOrganisation,
+        firstName: 'Aisling',
+        lastName: 'Byrne',
+        jobTitle: 'Operations Director',
+        email: 'aisling.byrne@acme.example',
+        phone: null,
+        isPrimary: true,
+        status: 'active',
         createdAt: now,
         updatedAt: now,
+        archivedAt: null,
+      },
+      {
+        id: IDS.acmeMark,
+        organisationId: IDS.acmeOrganisation,
+        firstName: 'Mark',
+        lastName: "O'Connell",
+        jobTitle: 'Finance Manager',
+        email: 'mark.oconnell@acme.example',
+        phone: null,
+        isPrimary: false,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+        archivedAt: null,
+      },
+    ]).run();
+
+    db.insert(schema.engagements).values([
+      {
+        id: IDS.acmeDiagnostic,
+        organisationId: IDS.acmeOrganisation,
+        primaryContactId: IDS.acmeAisling,
+        name: 'Service Delivery Diagnostic',
+        type: 'diagnostic',
+        status: 'active',
+        summary: 'Assess service delivery performance, operating controls and customer-friction points.',
+        startDate: addDays(nowDate, -14),
+        endDate: endingSoonDate,
+        createdAt: now,
+        updatedAt: now,
+        archivedAt: null,
+      },
+      {
+        id: IDS.acmeRedesign,
+        organisationId: IDS.acmeOrganisation,
+        primaryContactId: IDS.acmeAisling,
+        name: 'Operating Model Redesign',
+        type: 'redesign',
+        status: 'proposed',
+        summary: 'Proposed redesign following diagnostic findings.',
+        startDate: addDays(nowDate, 30),
+        endDate: null,
+        createdAt: now,
+        updatedAt: now,
+        archivedAt: null,
+      },
+    ]).run();
+
+    db.insert(schema.customers).values({
+      id: IDS.acmeCustomer,
+      firstName: 'Aisling',
+      lastName: 'Byrne',
+      company: 'Acme Ltd',
+      email: 'aisling.byrne@acme.example',
+      phone: null,
+      mobile: null,
+      address: 'Ireland',
+      notes: null,
+      tags: JSON.stringify(['Active Client', 'Technology Services']),
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    db.insert(schema.legacyOrganisationMappings).values({
+      sourceKey: 'company:acme ltd',
+      sourceType: 'company',
+      organisationId: IDS.acmeOrganisation,
+      displayName: 'Acme Ltd',
+      createdAt: now,
+    }).run();
+    db.insert(schema.legacyCustomerCrmMappings).values({
+      customerId: IDS.acmeCustomer,
+      organisationId: IDS.acmeOrganisation,
+      contactId: IDS.acmeAisling,
+      createdAt: now,
+    }).run();
+
+    const activityRows = [
+      {
+        id: IDS.acmeMeetingActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
+        type: 'meeting', body: 'Diagnostic kickoff completed. Agreed scope, evidence request and leadership interviews.', author: 'Stephen Mullins',
+        occurredAt: addDays(nowDate, -12) + 'T10:00:00.000Z', followUpDate: null, followUpCompletedAt: null,
+      },
+      {
+        id: IDS.acmeOverdueActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
+        type: 'call', body: 'Review the outstanding service-data extract with Aisling.', author: 'Stephen Mullins',
+        occurredAt: addDays(nowDate, -7) + 'T14:00:00.000Z', followUpDate: overdueDate, followUpCompletedAt: null,
+      },
+      {
+        id: IDS.acmeTodayActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeMark, engagementId: IDS.acmeDiagnostic,
+        type: 'email', body: 'Confirm invoice coding and payment workflow with Finance.', author: 'Stephen Mullins',
+        occurredAt: addDays(nowDate, -2) + 'T09:30:00.000Z', followUpDate: today, followUpCompletedAt: null,
+      },
+      {
+        id: IDS.acmeUpcomingActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeRedesign,
+        type: 'note', body: 'Prepare redesign options for the leadership workshop.', author: 'Stephen Mullins',
+        occurredAt: now, followUpDate: upcomingDate, followUpCompletedAt: null,
+      },
+      {
+        id: IDS.acmeCompletedActivity, organisationId: IDS.acmeOrganisation, contactId: IDS.acmeAisling, engagementId: IDS.acmeDiagnostic,
+        type: 'message', body: 'Evidence request acknowledged and completed.', author: 'Stephen Mullins',
+        occurredAt: addDays(nowDate, -9) + 'T12:00:00.000Z', followUpDate: addDays(nowDate, -8), followUpCompletedAt: addDays(nowDate, -8) + 'T16:00:00.000Z',
+      },
+      {
+        id: IDS.acmeNoteActivity, organisationId: IDS.acmeOrganisation, contactId: null, engagementId: null,
+        type: 'note', body: 'Acme Ltd is the principal WI4 demonstration account.', author: 'Stephen Mullins',
+        occurredAt: now, followUpDate: null, followUpCompletedAt: null,
       },
     ];
-
-    for (const service of servicesData) {
-      db.insert(schema.services).values(service).run();
+    for (const activity of activityRows) {
+      db.insert(schema.activities).values({
+        ...activity,
+        source: 'user',
+        sourceReference: null,
+        createdAt: activity.occurredAt,
+        updatedAt: now,
+        archivedAt: null,
+      }).run();
     }
 
-    // 4. Seed Customers
-    console.log('Seeding Customers...');
-    const customersData = [
-      {
-        id: crypto.randomUUID(),
-        firstName: 'Sarah',
-        lastName: 'Connor',
-        company: 'Cyberdyne Systems',
-        email: 'sconnor@cyberdyne.co',
-        phone: '+1 (555) 987-6543',
-        mobile: '+1 (555) 123-4567',
-        address: '742 Evergreen Terrace, Los Angeles, CA 90001',
-        notes: 'Requires secure communication channels. Prefers on-site visits.',
-        tags: JSON.stringify(['VIP', 'Active Client', 'Technology']),
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: crypto.randomUUID(),
-        firstName: 'Bruce',
-        lastName: 'Wayne',
-        company: 'Wayne Enterprises',
-        email: 'bruce@waynecorp.com',
-        phone: '+1 (555) 888-0000',
-        mobile: '',
-        address: '1007 Mountain Drive, Gotham City, NJ 07001',
-        notes: 'High-value customer. Only schedule bookings in late afternoons or evenings.',
-        tags: JSON.stringify(['Enterprise', 'VIP']),
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: crypto.randomUUID(),
-        firstName: 'Tony',
-        lastName: 'Stark',
-        company: 'Stark Industries',
-        email: 'tony@stark.com',
-        phone: '+1 (555) 300-3000',
-        mobile: '+1 (555) 400-4000',
-        address: '10880 El Medio St, Malibu, CA 90265',
-        notes: 'Invoices should be routed to Pepper Potts. Fast turnaround required.',
-        tags: JSON.stringify(['Enterprise', 'Active Client']),
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: crypto.randomUUID(),
-        firstName: 'Peter',
-        lastName: 'Parker',
-        company: 'Daily Bugle',
-        email: 'peter.parker@bugle.com',
-        phone: '+1 (555) 456-7890',
-        mobile: '',
-        address: '20 Ingram Street, Forest Hills, NY 11375',
-        notes: 'Budget conscious. Always apply standard loyalty discounts.',
-        tags: JSON.stringify(['Retail', 'Discount Offered']),
-        createdAt: now,
-        updatedAt: now,
-      },
-      {
-        id: crypto.randomUUID(),
-        firstName: 'Diana',
-        lastName: 'Prince',
-        company: 'The Louvre Museum',
-        email: 'diana.prince@louvre.fr',
-        phone: '+33 1 40 20 50 50',
-        mobile: '',
-        address: 'Rue de Rivoli, 75001 Paris, France',
-        notes: 'Historical artifacts expert. Client works internationally.',
-        tags: JSON.stringify(['Government', 'International']),
-        createdAt: now,
-        updatedAt: now,
-      },
-    ];
-
-    for (const customer of customersData) {
-      db.insert(schema.customers).values(customer).run();
-    }
-
-    // 5. Seed Custom Fields Definitions
-    console.log('Seeding Custom Field Definitions...');
-    const referredById = crypto.randomUUID();
-    const satisfactionScoreId = crypto.randomUUID();
-
-    db.insert(schema.customFieldsDefinition).values({
-      id: referredById,
-      entityType: 'customer',
-      name: 'referred_by',
-      label: 'Referred By',
-      type: 'text',
-      options: '[]',
-      required: false,
-      createdAt: now,
-    }).run();
-
-    db.insert(schema.customFieldsDefinition).values({
-      id: satisfactionScoreId,
-      entityType: 'customer',
-      name: 'satisfaction_score',
-      label: 'Satisfaction Score (1-5)',
-      type: 'dropdown',
-      options: JSON.stringify(['1', '2', '3', '4', '5']),
-      required: false,
-      createdAt: now,
-    }).run();
-
-    // Seed Custom Fields Values for Sarah Connor
-    db.insert(schema.customFieldsValues).values({
-      id: crypto.randomUUID(),
-      entityId: customersData[0].id, // Sarah Connor
-      fieldId: referredById,
-      value: 'John Connor',
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    db.insert(schema.customFieldsValues).values({
-      id: crypto.randomUUID(),
-      entityId: customersData[0].id,
-      fieldId: satisfactionScoreId,
-      value: '5',
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    // Seed Custom Fields Values for Bruce Wayne
-    db.insert(schema.customFieldsValues).values({
-      id: crypto.randomUUID(),
-      entityId: customersData[1].id, // Bruce Wayne
-      fieldId: referredById,
-      value: 'Alfred Pennyworth',
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    // 6. Seed Custom Objects Definition (e.g. Vehicles owned by clients)
-    console.log('Seeding Custom Object Definitions...');
-    const vehicleObjDefId = crypto.randomUUID();
-    db.insert(schema.customObjectsDefinition).values({
-      id: vehicleObjDefId,
-      name: 'Vehicle',
-      apiName: 'vehicle',
-      pluralName: 'Vehicles',
-      description: 'Customer fleet or personal vehicles for consulting and support logistics.',
-      createdAt: now,
-    }).run();
-
-    // Add fields to Vehicle object: Make, Model, License Plate
-    const vehicleMakeFieldId = crypto.randomUUID();
-    const vehicleModelFieldId = crypto.randomUUID();
-    const vehiclePlateFieldId = crypto.randomUUID();
-
-    db.insert(schema.customFieldsDefinition).values({
-      id: vehicleMakeFieldId,
-      entityType: 'vehicle',
-      name: 'make',
-      label: 'Make',
-      type: 'text',
-      options: '[]',
-      required: true,
-      createdAt: now,
-    }).run();
-
-    db.insert(schema.customFieldsDefinition).values({
-      id: vehicleModelFieldId,
-      entityType: 'vehicle',
-      name: 'model',
-      label: 'Model',
-      type: 'text',
-      options: '[]',
-      required: true,
-      createdAt: now,
-    }).run();
-
-    db.insert(schema.customFieldsDefinition).values({
-      id: vehiclePlateFieldId,
-      entityType: 'vehicle',
-      name: 'license_plate',
-      label: 'License Plate',
-      type: 'text',
-      options: '[]',
-      required: false,
-      createdAt: now,
-    }).run();
-
-    // Seed Vehicle Record for Bruce Wayne (The Batmobile)
-    console.log('Seeding Custom Object Records (Vehicles)...');
-    const vehicleRecordId = crypto.randomUUID();
-    db.insert(schema.customObjectsRecords).values({
-      id: vehicleRecordId,
-      objectDefinitionId: vehicleObjDefId,
-      customerId: customersData[1].id, // Bruce Wayne
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    // Seed vehicle field values
-    db.insert(schema.customObjectsValues).values({
-      id: crypto.randomUUID(),
-      recordId: vehicleRecordId,
-      fieldId: vehicleMakeFieldId,
-      value: 'Wayne Tech',
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    db.insert(schema.customObjectsValues).values({
-      id: crypto.randomUUID(),
-      recordId: vehicleRecordId,
-      fieldId: vehicleModelFieldId,
-      value: 'Batmobile Tumbler',
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    db.insert(schema.customObjectsValues).values({
-      id: crypto.randomUUID(),
-      recordId: vehicleRecordId,
-      fieldId: vehiclePlateFieldId,
-      value: 'BAT-1',
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    // 7. Seed Bookings, Invoices, InvoiceItems, and Payments
-    console.log('Seeding Bookings, Invoices & Payments...');
-
-    // Booking 1: Sarah Connor (Completed, Paid)
-    const booking1Id = crypto.randomUUID();
     db.insert(schema.bookings).values({
-      id: booking1Id,
-      customerId: customersData[0].id,
-      serviceId: servicesData[0].id, // Cloud Consultation
-      date: '2026-06-10',
+      id: IDS.acmeBooking,
+      customerId: IDS.acmeCustomer,
+      serviceId: IDS.acmeService,
+      date: addDays(nowDate, -12),
       time: '10:00',
       status: 'completed',
-      notes: 'Initial evaluation complete. Provided security architecture blueprint.',
-      createdAt: now,
+      notes: 'Acme diagnostic kickoff.',
+      createdAt: addDays(nowDate, -13) + 'T12:00:00.000Z',
       updatedAt: now,
     }).run();
-
-    const invoice1Id = crypto.randomUUID();
     db.insert(schema.invoices).values({
-      id: invoice1Id,
-      invoiceNumber: 'INV-20260610-0001',
-      customerId: customersData[0].id,
-      bookingId: booking1Id,
-      status: 'paid',
-      notes: 'Standard 8.25% sales tax applied.',
-      taxRate: 8.25,
-      discount: 0,
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    db.insert(schema.invoiceItems).values({
-      id: crypto.randomUUID(),
-      invoiceId: invoice1Id,
-      serviceId: servicesData[0].id,
-      name: servicesData[0].name,
-      quantity: 1,
-      unitPrice: servicesData[0].price,
-      taxRate: servicesData[0].taxRate,
-      createdAt: now,
-    }).run();
-
-    // Paid in full
-    db.insert(schema.payments).values({
-      id: crypto.randomUUID(),
-      invoiceId: invoice1Id,
-      amount: Math.round(servicesData[0].price * 1.0825), // price + tax
-      paymentMethod: 'bank_transfer',
-      paymentDate: '2026-06-11T12:00:00Z',
-      notes: 'Wire transfer processed successfully.',
-      createdAt: now,
-    }).run();
-
-    // Booking 2: Bruce Wayne (Confirmed, Partial Payment)
-    const booking2Id = crypto.randomUUID();
-    db.insert(schema.bookings).values({
-      id: booking2Id,
-      customerId: customersData[1].id,
-      serviceId: servicesData[2].id, // Database Perf Tuning
-      date: '2026-07-02',
-      time: '16:00',
-      status: 'confirmed',
-      notes: 'Database tuning for Wayne Enterprises central mainframes.',
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    const invoice2Id = crypto.randomUUID();
-    db.insert(schema.invoices).values({
-      id: invoice2Id,
-      invoiceNumber: 'INV-20260626-0002',
-      customerId: customersData[1].id,
-      bookingId: booking2Id,
+      id: IDS.acmeInvoice,
+      invoiceNumber: 'GO-ACME-0001',
+      customerId: IDS.acmeCustomer,
+      bookingId: IDS.acmeBooking,
       status: 'unpaid',
-      notes: 'Retainer deposit required ahead of time.',
-      taxRate: 8.25,
-      discount: 5000, // $50.00 discount (in cents)
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    db.insert(schema.invoiceItems).values({
-      id: crypto.randomUUID(),
-      invoiceId: invoice2Id,
-      serviceId: servicesData[2].id,
-      name: servicesData[2].name,
-      quantity: 1,
-      unitPrice: servicesData[2].price,
-      taxRate: servicesData[2].taxRate,
-      createdAt: now,
-    }).run();
-
-    // Partial payment: $150.00 paid towards invoice total of ($350 - $50) * 1.0825 = $324.75
-    db.insert(schema.payments).values({
-      id: crypto.randomUUID(),
-      invoiceId: invoice2Id,
-      amount: 15000, // $150.00
-      paymentMethod: 'card',
-      paymentDate: '2026-06-26T14:30:00Z',
-      notes: 'Amex authorization card ending 1007.',
-      createdAt: now,
-    }).run();
-
-    // Booking 3: Tony Stark (Pending, Unpaid)
-    const booking3Id = crypto.randomUUID();
-    db.insert(schema.bookings).values({
-      id: booking3Id,
-      customerId: customersData[2].id,
-      serviceId: servicesData[1].id, // React Development
-      date: '2026-07-15',
-      time: '11:00',
-      status: 'pending',
-      notes: 'React web UI work for clean energy project tracking dashboards.',
-      createdAt: now,
-      updatedAt: now,
-    }).run();
-
-    const invoice3Id = crypto.randomUUID();
-    db.insert(schema.invoices).values({
-      id: invoice3Id,
-      invoiceNumber: 'INV-20260626-0003',
-      customerId: customersData[2].id,
-      bookingId: booking3Id,
-      status: 'draft',
-      notes: 'Initial estimate of 10 hours of design and frontend implementation.',
-      taxRate: 8.25,
+      notes: 'Acme Ltd diagnostic engagement.',
+      taxRate: 23,
       discount: 0,
-      createdAt: now,
+      createdAt: addDays(nowDate, -10) + 'T09:00:00.000Z',
       updatedAt: now,
     }).run();
-
     db.insert(schema.invoiceItems).values({
-      id: crypto.randomUUID(),
-      invoiceId: invoice3Id,
-      serviceId: servicesData[1].id,
-      name: servicesData[1].name,
-      quantity: 10, // 10 hours
-      unitPrice: servicesData[1].price,
-      taxRate: servicesData[1].taxRate,
-      createdAt: now,
+      id: IDS.acmeInvoiceItem,
+      invoiceId: IDS.acmeInvoice,
+      serviceId: IDS.acmeService,
+      name: 'Service Delivery Diagnostic',
+      quantity: 1,
+      unitPrice: 500000,
+      taxRate: 23,
+      createdAt: addDays(nowDate, -10) + 'T09:00:00.000Z',
+    }).run();
+    db.insert(schema.payments).values({
+      id: IDS.acmePayment,
+      invoiceId: IDS.acmeInvoice,
+      amount: 200000,
+      paymentMethod: 'bank_transfer',
+      paymentDate: addDays(nowDate, -3) + 'T11:00:00.000Z',
+      notes: 'Part payment received.',
+      createdAt: addDays(nowDate, -3) + 'T11:00:00.000Z',
     }).run();
 
-    console.log('SQLite database seeded successfully!');
-    process.exit(0);
-  } catch (error) {
-    console.error('Seeding database failed:', error);
-    process.exit(1);
-  }
+    db.insert(schema.savedViews).values([
+      {
+        id: crypto.randomUUID(),
+        context: 'organisations',
+        name: 'Active clients',
+        normalizedName: 'active clients',
+        definitionJson: JSON.stringify({ version: 1, context: 'organisations', filters: { status: 'active_client' }, sort: 'recent_activity' }),
+        isPinned: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: crypto.randomUUID(),
+        context: 'followups',
+        name: 'Overdue follow-ups',
+        normalizedName: 'overdue follow-ups',
+        definitionJson: JSON.stringify({ version: 1, context: 'followups', filters: { bucket: 'overdue' }, sort: 'due_asc' }),
+        isPinned: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]).run();
+  })();
+
+  rebuildSearchIndex(sqlite);
+  console.log(`WI4 seed complete. Acme Ltd is ready; today is ${today}.`);
 }
 
-runSeed();
+if (require.main === module) {
+  runSeed().then(() => process.exit(0)).catch((error) => {
+    console.error('Seed failed:', error);
+    process.exit(1);
+  });
+}

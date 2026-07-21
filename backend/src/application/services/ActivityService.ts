@@ -36,9 +36,7 @@ export class ActivityService {
       currentEngagementId?: string | null;
     },
   ): Promise<void> {
-    const organisation = await this.organisations.getById(input.organisationId, {
-      includeArchived: true,
-    });
+    const organisation = await this.organisations.getById(input.organisationId, { includeArchived: true });
     if (!organisation) throw new NotFoundError('Organisation not found');
     if (options.creating && organisation.archivedAt) {
       throw new ConflictError('Archived organisations cannot receive new activities');
@@ -57,15 +55,12 @@ export class ActivityService {
     }
 
     if (input.engagementId) {
-      const engagement = await this.engagements.getById(input.engagementId, {
-        includeArchived: true,
-      });
+      const engagement = await this.engagements.getById(input.engagementId, { includeArchived: true });
       if (!engagement) throw new NotFoundError('Engagement not found');
       if (engagement.organisationId !== input.organisationId) {
         throw new ConflictError('Engagement must belong to the activity organisation');
       }
-      const assignmentChanged =
-        options.creating || input.engagementId !== options.currentEngagementId;
+      const assignmentChanged = options.creating || input.engagementId !== options.currentEngagementId;
       if (assignmentChanged && engagement.archivedAt) {
         throw new ConflictError('Archived engagements cannot be assigned to activities');
       }
@@ -85,16 +80,9 @@ export class ActivityService {
     });
   }
 
-  async list(
-    organisationId: string,
-    query: ActivityListQuery,
-    forcedContactId?: string,
-  ): Promise<Activity[]> {
-    const organisation = await this.organisations.getById(organisationId, {
-      includeArchived: true,
-    });
+  async list(organisationId: string, query: ActivityListQuery, forcedContactId?: string): Promise<Activity[]> {
+    const organisation = await this.organisations.getById(organisationId, { includeArchived: true });
     if (!organisation) throw new NotFoundError('Organisation not found');
-
     return this.activities.list({
       organisationId,
       contactId: forcedContactId ?? query.contactId,
@@ -119,9 +107,7 @@ export class ActivityService {
   async update(id: string, patch: ActivityUpdate): Promise<Activity> {
     const current = await this.activities.getById(id, { includeArchived: true });
     if (!current) throw new NotFoundError('Activity not found');
-    if (current.archivedAt) {
-      throw new ConflictError('Archived activities cannot be edited');
-    }
+    if (current.archivedAt) throw new ConflictError('Archived activities cannot be edited');
 
     const merged = { ...current, ...patch };
     await this.validateParents({
@@ -148,6 +134,26 @@ export class ActivityService {
     if (!archived) throw new NotFoundError('Activity not found');
     return archived;
   }
+
+  async completeFollowUp(id: string): Promise<Activity> {
+    const activity = await this.activities.getById(id, { includeArchived: true });
+    if (!activity) throw new NotFoundError('Activity not found');
+    if (activity.archivedAt) throw new ConflictError('Archived activities cannot be updated');
+    if (!activity.followUpDate) throw new ConflictError('Activity does not have a follow-up date');
+    const updated = await this.activities.completeFollowUp(id, new Date().toISOString());
+    if (!updated) throw new NotFoundError('Activity not found');
+    return updated;
+  }
+
+  async reopenFollowUp(id: string): Promise<Activity> {
+    const activity = await this.activities.getById(id, { includeArchived: true });
+    if (!activity) throw new NotFoundError('Activity not found');
+    if (activity.archivedAt) throw new ConflictError('Archived activities cannot be updated');
+    if (!activity.followUpDate) throw new ConflictError('Activity does not have a follow-up date');
+    const updated = await this.activities.reopenFollowUp(id, new Date().toISOString());
+    if (!updated) throw new NotFoundError('Activity not found');
+    return updated;
+  }
 }
 
 export class LegacyCustomerActivityService {
@@ -162,10 +168,7 @@ export class LegacyCustomerActivityService {
     return this.activities.list(mapping.organisationId, query, mapping.contactId);
   }
 
-  async create(
-    customerId: string,
-    body: CustomerActivityCreateBody,
-  ): Promise<Activity> {
+  async create(customerId: string, body: CustomerActivityCreateBody): Promise<Activity> {
     const mapping = this.mappings.ensureCustomerMapping(customerId);
     if (!mapping) throw new NotFoundError('Customer not found');
     return this.activities.create({

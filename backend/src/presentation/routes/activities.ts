@@ -15,11 +15,7 @@ import { ContactRepository } from '../../infrastructure/database/repositories/Co
 import { EngagementRepository } from '../../infrastructure/database/repositories/EngagementRepository';
 import { OrganisationRepository } from '../../infrastructure/database/repositories/OrganisationRepository';
 import { LegacyCustomerMappingRepository } from '../../infrastructure/database/LegacyCustomerMappingRepository';
-import {
-  includeArchivedQueryField,
-  paginationQueryFields,
-  parseRequest,
-} from './crmValidation';
+import { includeArchivedQueryField, paginationQueryFields, parseRequest } from './crmValidation';
 
 const router = Router();
 const activityService = new ActivityService(
@@ -33,17 +29,9 @@ const customerActivityService = new LegacyCustomerActivityService(
   activityService,
 );
 
-const OrganisationActivityParamsSchema = z.object({
-  organisationId: z.string().uuid('Invalid organisation ID'),
-}).strict();
-
-const ActivityParamsSchema = z.object({
-  activityId: z.string().uuid('Invalid activity ID'),
-}).strict();
-
-const CustomerActivityParamsSchema = z.object({
-  customerId: z.string().uuid('Invalid customer ID'),
-}).strict();
+const OrganisationActivityParamsSchema = z.object({ organisationId: z.string().uuid('Invalid organisation ID') }).strict();
+const ActivityParamsSchema = z.object({ activityId: z.string().uuid('Invalid activity ID') }).strict();
+const CustomerActivityParamsSchema = z.object({ customerId: z.string().uuid('Invalid customer ID') }).strict();
 
 const ActivityListRequestFields = {
   contactId: z.string().uuid('Invalid contact ID').optional(),
@@ -58,10 +46,7 @@ const ActivityListRequestFields = {
   offset: paginationQueryFields.offset,
 };
 
-const ActivityListRequestQuerySchema = z.object(ActivityListRequestFields)
-  .strict()
-  .pipe(ActivityListQuerySchema);
-
+const ActivityListRequestQuerySchema = z.object(ActivityListRequestFields).strict().pipe(ActivityListQuerySchema);
 const CustomerActivityListRequestQuerySchema = z.object({
   engagementId: ActivityListRequestFields.engagementId,
   type: ActivityListRequestFields.type,
@@ -79,9 +64,7 @@ router.get('/organisations/:organisationId/activities', async (req, res, next) =
     const { organisationId } = parseRequest(OrganisationActivityParamsSchema, req.params);
     const query = parseRequest(ActivityListRequestQuerySchema, req.query);
     res.json(await activityService.list(organisationId, query));
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 router.post('/organisations/:organisationId/activities', async (req, res, next) => {
@@ -89,18 +72,14 @@ router.post('/organisations/:organisationId/activities', async (req, res, next) 
     const { organisationId } = parseRequest(OrganisationActivityParamsSchema, req.params);
     const body = parseRequest(ActivityCreateBodySchema, req.body);
     res.status(201).json(await activityService.create({ ...body, organisationId }));
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 router.get('/activities/:activityId', async (req, res, next) => {
   try {
     const { activityId } = parseRequest(ActivityParamsSchema, req.params);
     res.json(await activityService.get(activityId));
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 router.patch('/activities/:activityId', async (req, res, next) => {
@@ -108,18 +87,28 @@ router.patch('/activities/:activityId', async (req, res, next) => {
     const { activityId } = parseRequest(ActivityParamsSchema, req.params);
     const patch = parseRequest(ActivityUpdateSchema, req.body);
     res.json(await activityService.update(activityId, patch));
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 router.post('/activities/:activityId/archive', async (req, res, next) => {
   try {
     const { activityId } = parseRequest(ActivityParamsSchema, req.params);
     res.json(await activityService.archive(activityId));
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
+});
+
+router.post('/activities/:activityId/follow-up/complete', async (req, res, next) => {
+  try {
+    const { activityId } = parseRequest(ActivityParamsSchema, req.params);
+    res.json(await activityService.completeFollowUp(activityId));
+  } catch (error) { next(error); }
+});
+
+router.post('/activities/:activityId/follow-up/reopen', async (req, res, next) => {
+  try {
+    const { activityId } = parseRequest(ActivityParamsSchema, req.params);
+    res.json(await activityService.reopenFollowUp(activityId));
+  } catch (error) { next(error); }
 });
 
 router.get('/customers/:customerId/activities', async (req, res, next) => {
@@ -127,9 +116,7 @@ router.get('/customers/:customerId/activities', async (req, res, next) => {
     const { customerId } = parseRequest(CustomerActivityParamsSchema, req.params);
     const query = parseRequest(CustomerActivityListRequestQuerySchema, req.query);
     res.json(await customerActivityService.list(customerId, query));
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 router.post('/customers/:customerId/activities', async (req, res, next) => {
@@ -137,9 +124,7 @@ router.post('/customers/:customerId/activities', async (req, res, next) => {
     const { customerId } = parseRequest(CustomerActivityParamsSchema, req.params);
     const body = parseRequest(CustomerActivityCreateBodySchema, req.body);
     res.status(201).json(await customerActivityService.create(customerId, body));
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 export default router;

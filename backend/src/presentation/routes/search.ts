@@ -1,61 +1,30 @@
 import { Router } from 'express';
-import { CustomerRepository } from '../../infrastructure/database/repositories/CustomerRepository';
-import { InvoiceRepository } from '../../infrastructure/database/repositories/InvoiceRepository';
+import { z } from 'zod';
+import { SearchEntityTypeSchema, SearchQuerySchema } from 'shared';
+import { WorkspaceService } from '../../application/services/WorkspaceService';
+import { WorkspaceRepository } from '../../infrastructure/database/WorkspaceRepository';
+import { includeArchivedQueryField, paginationQueryFields, parseRequest } from './crmValidation';
 
 const router = Router();
-const customerRepo = new CustomerRepository();
-const invoiceRepo = new InvoiceRepository();
+const service = new WorkspaceService(new WorkspaceRepository());
+
+const SearchRequestSchema = z.object({
+  q: z.string().trim().min(2, 'Search requires at least two characters').max(120),
+  types: z.preprocess((value) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (Array.isArray(value)) return value;
+    return String(value).split(',').map((entry) => entry.trim()).filter(Boolean);
+  }, z.array(SearchEntityTypeSchema).max(6).optional()),
+  organisationId: z.string().uuid('Invalid organisation ID').optional(),
+  includeArchived: includeArchivedQueryField,
+  limit: paginationQueryFields.limit,
+  offset: paginationQueryFields.offset,
+}).strict().pipe(SearchQuerySchema);
 
 router.get('/', async (req, res, next) => {
   try {
-    const q = req.query.q as string;
-    if (!q || q.trim().length < 2) {
-      return res.json([]);
-    }
-
-    const queryPattern = q.trim();
-    const [customersList, invoicesList] = await Promise.all([
-      customerRepo.getAll(queryPattern),
-      invoiceRepo.getAll({ search: queryPattern })
-    ]);
-
-    const results = [];
-
-    if (customersList.length > 0) {
-      results.push({
-        category: 'Customers',
-        items: customersList.map(c => ({
-          id: c.id,
-          title: `${c.firstName} ${c.lastName}`,
-          subtitle: `${c.email} ${c.company ? `(${c.company})` : ''}`,
-          url: `/customers/${c.id}`
-        }))
-      });
-    }
-
-    if (invoicesList.length > 0) {
-      results.push({
-        category: 'Invoices',
-        items: invoicesList.map(inv => {
-          let totalCents = 0;
-          for (const item of inv.items) {
-            const sub = item.quantity * item.unitPrice;
-            const tax = Math.round(sub * (item.taxRate / 100));
-            totalCents += sub + tax;
-          }
-          totalCents -= inv.discount;
-          
-          return {
-            id: inv.id,
-            title: inv.invoiceNumber,
-            subtitle: `${inv.status.toUpperCase()} — $${(totalCents / 100).toFixed(2)}`,
-            url: '/invoices'
-          };
-        })
-      });
-    }
-
-    res.json(results);
+    const query = parseRequest(SearchRequestSchema, req.query);
+    res.json(await service.search(query));
   } catch (error) {
     next(error);
   }

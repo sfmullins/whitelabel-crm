@@ -1,311 +1,117 @@
-import { useState, useEffect, useRef } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useBranding } from '../../hooks/useBranding';
 import Onboarding from '../../pages/Onboarding';
-import { 
-  LayoutDashboard, Users, Layers, Calendar, FileText, 
-  Settings, Search, Plus 
+import {
+  BriefcaseBusiness, Building2, Calendar, CalendarClock, FileText, LayoutDashboard,
+  Layers, Plus, Search, Settings, UserRound, Users, X,
 } from 'lucide-react';
+import type { SavedView, SearchResponse, SearchResult } from 'shared';
 import { Button } from '../ui/button';
+import { api } from '../../lib/api';
+import { buildQueryString, formatEntityLabel, groupSearchResults, readRecentRecords, rememberRecentRecord, savedViewRoute } from '../../lib/wi4';
+
+const navGroups = [
+  { label: 'Workspace', items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }] },
+  { label: 'CRM', items: [
+    { to: '/organisations', label: 'Organisations', icon: Building2 },
+    { to: '/contacts', label: 'Contacts', icon: UserRound },
+    { to: '/follow-ups', label: 'Follow-ups', icon: CalendarClock },
+  ] },
+  { label: 'Operations', items: [
+    { to: '/customers', label: 'Customer records', icon: Users },
+    { to: '/bookings', label: 'Bookings', icon: Calendar },
+    { to: '/invoices', label: 'Invoices', icon: FileText },
+    { to: '/services', label: 'Services', icon: Layers },
+  ] },
+  { label: 'System', items: [{ to: '/settings', label: 'Settings', icon: Settings }] },
+];
 
 export default function MainLayout() {
   const { settings, isLoading, needsOnboarding, refetch } = useBranding();
   const navigate = useNavigate();
-  
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const recents = useMemo(() => readRecentRecords(), [isSearchOpen]);
+  const search = useQuery<SearchResponse>({
+    queryKey: ['command-search', query],
+    queryFn: ({ signal }) => api.get(`/api/search${buildQueryString({ q: query, limit: 12, offset: 0 })}`, { signal }),
+    enabled: isSearchOpen && query.trim().length >= 2,
+    staleTime: 10_000,
+  });
+  const pinnedViews = useQuery<SavedView[]>({
+    queryKey: ['saved-views', 'pinned'],
+    queryFn: () => api.get('/api/saved-views?pinnedOnly=true'),
+    enabled: isSearchOpen,
+  });
+  const flatResults = search.data?.items ?? [];
 
-  // Keyboard shortcut listener (CTRL+K or CMD+K)
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsSearchOpen(prev => !prev);
+    const keydown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault(); setIsSearchOpen((open) => !open);
       }
-      if (e.key === 'Escape') {
-        setIsSearchOpen(false);
-      }
+      if (!isSearchOpen) return;
+      if (event.key === 'Escape') { event.preventDefault(); closeSearch(); }
+      if (event.key === 'ArrowDown') { event.preventDefault(); setSelectedIndex((index) => Math.min(index + 1, Math.max(0, flatResults.length - 1))); }
+      if (event.key === 'ArrowUp') { event.preventDefault(); setSelectedIndex((index) => Math.max(0, index - 1)); }
+      if (event.key === 'Enter' && flatResults[selectedIndex]) { event.preventDefault(); openResult(flatResults[selectedIndex]); }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    window.addEventListener('keydown', keydown);
+    return () => window.removeEventListener('keydown', keydown);
+  }, [isSearchOpen, flatResults, selectedIndex]);
 
-  // Autofocus input when modal opens
   useEffect(() => {
-    if (isSearchOpen) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-      setSearchQuery('');
-      setSearchResults([]);
-    }
+    if (isSearchOpen) { setQuery(''); setSelectedIndex(0); requestAnimationFrame(() => inputRef.current?.focus()); }
   }, [isSearchOpen]);
+  useEffect(() => setSelectedIndex(0), [query]);
 
-  // Instant query search API trigger
-  useEffect(() => {
-    if (searchQuery.trim().length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    const delay = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
-        if (response.ok) {
-          const data = await response.json();
-          setSearchResults(data);
-        }
-      } catch (err) {
-        console.error('Failed to run search', err);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 150);
-    return () => clearTimeout(delay);
-  }, [searchQuery]);
+  const closeSearch = () => { setIsSearchOpen(false); requestAnimationFrame(() => triggerRef.current?.focus()); };
+  const openResult = (result: SearchResult) => { rememberRecentRecord(result); navigate(result.route); closeSearch(); };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-slate-900"></div>
-        <p className="text-slate-500 font-medium text-sm">Booting CRM Workspace...</p>
+  if (isLoading) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Opening local CRM workspace…</div>;
+  if (needsOnboarding) return <Onboarding onSuccess={refetch}/>;
+
+  return <div className="flex min-h-screen bg-slate-50">
+    <aside className="hidden w-64 shrink-0 flex-col justify-between border-r bg-white md:flex">
+      <div className="space-y-6 p-5">
+        <div className="flex items-center gap-3 px-2">{settings?.logoUrl ? <img src={settings.logoUrl} alt="" className="h-9 w-9 object-contain"/> : <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">{settings?.businessName?.[0]?.toUpperCase() || 'G'}</div>}<div className="min-w-0"><h2 className="truncate font-bold text-slate-800">{settings?.businessName}</h2><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Local CRM workspace</p></div></div>
+        <nav className="space-y-5">{navGroups.map((group) => <div key={group.label}><p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">{group.label}</p><div className="space-y-1">{group.items.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}><Icon className="h-4 w-4"/>{label}</NavLink>)}</div></div>)}</nav>
       </div>
-    );
-  }
+      <div className="border-t bg-slate-50/60 p-5 text-xs text-slate-500"><span className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500"/>Local database mode</span></div>
+    </aside>
 
-  // Intercept and force onboarding if settings do not exist
-  if (needsOnboarding) {
-    return <Onboarding onSuccess={refetch} />;
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex">
-      
-      {/* Sidebar Navigation */}
-      <aside className="w-64 border-r bg-white flex flex-col justify-between shrink-0 hidden md:flex">
-        <div className="flex flex-col gap-6 p-6">
-          
-          {/* Logo Branding */}
-          <div className="flex items-center gap-3">
-            {settings?.logoUrl ? (
-              <img src={settings.logoUrl} alt="Logo" className="w-9 h-9 object-contain" />
-            ) : (
-              <div className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg shadow-sm">
-                {settings?.businessName[0].toUpperCase()}
-              </div>
-            )}
-            <div className="truncate">
-              <h2 className="font-bold text-slate-800 leading-tight truncate">{settings?.businessName}</h2>
-              <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Workspace</span>
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="flex flex-col gap-1">
-            <NavLink
-              to="/"
-              className={({ isActive }) => 
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`
-              }
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              Dashboard
-            </NavLink>
-
-            <NavLink
-              to="/customers"
-              className={({ isActive }) => 
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`
-              }
-            >
-              <Users className="w-4 h-4" />
-              Customers
-            </NavLink>
-
-            <NavLink
-              to="/bookings"
-              className={({ isActive }) => 
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`
-              }
-            >
-              <Calendar className="w-4 h-4" />
-              Bookings
-            </NavLink>
-
-            <NavLink
-              to="/invoices"
-              className={({ isActive }) => 
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`
-              }
-            >
-              <FileText className="w-4 h-4" />
-              Invoices
-            </NavLink>
-
-            <NavLink
-              to="/services"
-              className={({ isActive }) => 
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`
-              }
-            >
-              <Layers className="w-4 h-4" />
-              Services
-            </NavLink>
-
-            <NavLink
-              to="/settings"
-              className={({ isActive }) => 
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground shadow-sm' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`
-              }
-            >
-              <Settings className="w-4 h-4" />
-              Settings
-            </NavLink>
-          </nav>
-        </div>
-
-        {/* Footer Info */}
-        <div className="p-6 border-t bg-slate-50/50">
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Local Database Mode
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        
-        {/* Header bar */}
-        <header className="h-16 border-b bg-white flex items-center justify-between px-8 shrink-0">
-          
-          {/* Left search bar trigger */}
-          <div 
-            onClick={() => setIsSearchOpen(true)}
-            className="flex items-center gap-3 max-w-md w-full bg-slate-50 border rounded-lg px-3 py-1.5 cursor-pointer hover:bg-slate-100/60 transition-all select-none"
-          >
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
-            <span className="text-sm text-slate-400 w-full text-left truncate">
-              Search customers, invoices...
-            </span>
-            <span className="text-[10px] text-slate-400 bg-white border rounded px-1.5 font-semibold shadow-sm shrink-0">CTRL+K</span>
-          </div>
-
-          {/* Right actions */}
-          <div className="flex items-center gap-4">
-            
-            {/* Quick Create Button */}
-            <div className="relative group">
-              <Button size="sm" className="flex items-center gap-1.5" onClick={() => navigate('/customers')}>
-                <Plus className="w-4 h-4" /> Create Profile
-              </Button>
-            </div>
-
-            {/* Profile indicator */}
-            <div className="w-8 h-8 rounded-full bg-slate-100 border flex items-center justify-center text-xs font-bold text-slate-700 select-none">
-              AD
-            </div>
-
-          </div>
-
-        </header>
-
-        {/* Dynamic page mount */}
-        <main className="flex-1 p-8 overflow-y-auto">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* Spotlight Overlay Modal */}
-      {isSearchOpen && (
-        <div 
-          className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-start justify-center pt-[15vh] p-4 animate-fade-in"
-          onClick={() => setIsSearchOpen(false)}
-        >
-          <div 
-            className="bg-card border border-border w-full max-w-lg rounded-xl shadow-2xl overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Search Input bar */}
-            <div className="flex items-center gap-3 p-4 border-b border-border">
-              <Search className="w-5 h-5 text-slate-400 shrink-0" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Type customer name, email, or invoice number..."
-                className="bg-transparent text-sm outline-none w-full placeholder:text-slate-400 text-foreground"
-              />
-              <span className="text-[10px] text-slate-400 bg-muted px-1.5 py-0.5 rounded font-semibold border border-border/10">ESC</span>
-            </div>
-
-            {/* Search results list */}
-            <div className="max-h-[300px] overflow-y-auto p-2 text-xs">
-              {isSearching ? (
-                <div className="p-6 text-center text-muted-foreground font-medium">Running local query search...</div>
-              ) : searchQuery.trim().length < 2 ? (
-                <div className="p-6 text-center text-muted-foreground font-medium">Type at least 2 characters to search.</div>
-              ) : searchResults.length === 0 ? (
-                <div className="p-6 text-center text-muted-foreground font-medium">No matches found in directory.</div>
-              ) : (
-                <div className="space-y-4 p-1">
-                  {searchResults.map(categoryGroup => (
-                    <div key={categoryGroup.category} className="space-y-1.5">
-                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider">
-                        {categoryGroup.category}
-                      </div>
-                      <div className="space-y-1">
-                        {categoryGroup.items.map((item: any) => (
-                          <div
-                            key={item.id}
-                            onClick={() => {
-                              navigate(item.url);
-                              setIsSearchOpen(false);
-                            }}
-                            className="px-3 py-2.5 rounded-lg hover:bg-muted/80 cursor-pointer flex flex-col gap-1 transition-colors border border-transparent hover:border-border/30"
-                          >
-                            <span className="font-bold text-foreground text-sm leading-none">{item.title}</span>
-                            <span className="text-muted-foreground text-[10px]">{item.subtitle}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
+    <div className="flex min-w-0 flex-1 flex-col">
+      <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b bg-white px-4 md:px-8">
+        <button ref={triggerRef} onClick={() => setIsSearchOpen(true)} className="flex w-full max-w-xl items-center gap-3 rounded-lg border bg-slate-50 px-3 py-2 text-left text-sm text-slate-400 hover:bg-slate-100" aria-haspopup="dialog"><Search className="h-4 w-4"/><span className="min-w-0 flex-1 truncate">Search organisations, contacts, activities and invoices…</span><kbd className="rounded border bg-white px-1.5 py-0.5 text-[10px] font-semibold">Ctrl K</kbd></button>
+        <Button size="sm" onClick={() => navigate('/organisations')}><Plus className="mr-1.5 h-4 w-4"/>Create</Button>
+      </header>
+      <main className="flex-1 overflow-y-auto p-4 md:p-8"><Outlet/></main>
     </div>
-  );
+
+    {isSearchOpen && <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/50 p-4 pt-[10vh]" role="dialog" aria-modal="true" aria-label="Global search" onMouseDown={(event) => event.target === event.currentTarget && closeSearch()}>
+      <div className="flex max-h-[75vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-card shadow-2xl">
+        <div className="flex items-center gap-3 border-b p-4"><Search className="h-5 w-5 text-muted-foreground"/><input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} className="w-full bg-transparent text-base outline-none" placeholder="Search the local CRM" aria-label="Search query"/><button onClick={closeSearch} aria-label="Close search"><X className="h-5 w-5 text-muted-foreground"/></button></div>
+        <div className="overflow-y-auto p-2">
+          {query.trim().length < 2 ? <BlankPalette recents={recents} views={pinnedViews.data ?? []} navigate={(route) => { navigate(route); closeSearch(); }}/> : search.isLoading ? <PaletteState text="Searching local records…"/> : search.isError ? <PaletteState danger text={(search.error as Error).message}/> : flatResults.length === 0 ? <PaletteState text="No matching records."/> : <div className="space-y-3">{groupSearchResults(flatResults).map((group) => <section key={group.type}><p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{formatEntityLabel(group.type)}</p>{group.items.map((item) => { const index = flatResults.indexOf(item); return <button key={item.id} onMouseEnter={() => setSelectedIndex(index)} onClick={() => openResult(item)} className={`flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left ${selectedIndex === index ? 'bg-primary/10 ring-1 ring-primary/20' : 'hover:bg-muted'}`}><div className="min-w-0"><p className="font-bold">{item.title}</p><p className="truncate text-xs text-muted-foreground">{item.subtitle}{item.context ? ` · ${item.context}` : ''}</p></div></button>; })}</section>)}</div>}
+        </div>
+        {query.trim().length >= 2 && <Link to={`/search${buildQueryString({ q: query })}`} onClick={closeSearch} className="border-t px-4 py-3 text-center text-xs font-bold text-primary hover:bg-muted">View all search results</Link>}
+      </div>
+    </div>}
+  </div>;
 }
+
+function BlankPalette({ recents, views, navigate }: { recents: ReturnType<typeof readRecentRecords>; views: SavedView[]; navigate: (route: string) => void }) {
+  const direct = [
+    { title: 'Create organisation', route: '/organisations?action=create' },
+    { title: 'Create contact', route: '/organisations?intent=create-contact' },
+    { title: 'Log activity', route: '/organisations?intent=log-activity' },
+    { title: 'Open follow-up queue', route: '/follow-ups' },
+  ];
+  return <div className="space-y-4 p-2"><section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Actions</p>{direct.map((item) => <button key={item.route} onClick={() => navigate(item.route)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted"><Plus className="h-4 w-4 text-primary"/>{item.title}</button>)}</section>{recents.length > 0 && <section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Recently viewed</p>{recents.map((item) => <button key={`${item.entityType}-${item.entityId}`} onClick={() => navigate(item.route)} className="w-full rounded-lg px-3 py-2.5 text-left hover:bg-muted"><p className="text-sm font-bold">{item.title}</p><p className="text-xs text-muted-foreground">{item.subtitle}</p></button>)}</section>}{views.length > 0 && <section><p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Pinned views</p>{views.map((view) => <button key={view.id} onClick={() => navigate(savedViewRoute(view))} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted"><BriefcaseBusiness className="h-4 w-4 text-primary"/>{view.name}</button>)}</section>}</div>;
+}
+function PaletteState({ text, danger = false }: { text: string; danger?: boolean }) { return <div className={`p-10 text-center text-sm ${danger ? 'text-destructive' : 'text-muted-foreground'}`}>{text}</div>; }

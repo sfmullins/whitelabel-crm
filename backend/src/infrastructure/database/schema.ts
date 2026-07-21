@@ -284,6 +284,7 @@ export const activities = sqliteTable('activities', {
   author: text('author').notNull(),
   occurredAt: text('occurred_at').notNull(),
   followUpDate: text('follow_up_date'),
+  followUpCompletedAt: text('follow_up_completed_at'),
   source: text('source').notNull(),
   sourceReference: text('source_reference'),
   createdAt: text('created_at').notNull(),
@@ -295,6 +296,7 @@ export const activities = sqliteTable('activities', {
   engagementIdx: index('activity_engagement_idx').on(table.engagementId),
   typeIdx: index('activity_type_idx').on(table.type),
   followUpIdx: index('activity_follow_up_idx').on(table.followUpDate),
+  followUpCompletedIdx: index('activity_follow_up_completed_idx').on(table.followUpCompletedAt),
   sourceReferenceIdx: uniqueIndex('activity_source_reference_idx').on(table.sourceReference).where(sql`${table.sourceReference} IS NOT NULL`),
   typeCheck: check('activity_type_check', sql`${table.type} in ('note', 'call', 'email', 'meeting', 'message', 'other')`),
   sourceCheck: check('activity_source_check', sql`${table.source} in ('user', 'legacy_import', 'system')`),
@@ -324,4 +326,40 @@ export const legacyCustomerCrmMappings = sqliteTable('legacy_customer_crm_mappin
 }, (table) => ({
   organisationIdx: index('legacy_customer_mapping_organisation_idx').on(table.organisationId),
   contactIdx: uniqueIndex('legacy_customer_mapping_contact_idx').on(table.contactId),
+}));
+
+// ==========================================
+// WI4 search projection and saved views
+// ==========================================
+export const searchDocuments = sqliteTable('search_documents', {
+  id: text('id').primaryKey(),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  organisationId: text('organisation_id'),
+  title: text('title').notNull(),
+  subtitle: text('subtitle').notNull().default(''),
+  body: text('body').notNull().default(''),
+  route: text('route').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  archivedAt: text('archived_at'),
+}, (table) => ({
+  entityIdx: uniqueIndex('search_document_entity_idx').on(table.entityType, table.entityId),
+  organisationIdx: index('search_document_organisation_idx').on(table.organisationId),
+  updatedIdx: index('search_document_updated_idx').on(table.updatedAt),
+  typeCheck: check('search_document_type_check', sql`${table.entityType} in ('organisation', 'contact', 'engagement', 'activity', 'customer', 'invoice')`),
+}));
+
+export const savedViews = sqliteTable('saved_views', {
+  id: text('id').primaryKey(),
+  context: text('context').notNull(),
+  name: text('name').notNull(),
+  normalizedName: text('normalized_name').notNull(),
+  definitionJson: text('definition_json').notNull(),
+  isPinned: integer('is_pinned', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => ({
+  contextNameIdx: uniqueIndex('saved_view_context_name_idx').on(table.context, table.normalizedName),
+  contextPinnedIdx: index('saved_view_context_pinned_idx').on(table.context, table.isPinned),
+  contextCheck: check('saved_view_context_check', sql`${table.context} in ('organisations', 'followups', 'search', 'timeline')`),
 }));
