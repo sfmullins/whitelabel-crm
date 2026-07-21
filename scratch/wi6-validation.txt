@@ -15,14 +15,17 @@ Applied WI6 integration patches.
 > backend@1.0.0 build
 > tsc
 
-src/infrastructure/integrations/ImapSyncAdapter.ts(22,13): error TS7022: 'socket' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
-src/test/wi6-connected-communications.spec.ts(53,60): error TS2304: Cannot find name 'getTempDatabasePath'.
+
+> frontend@1.0.0 build
+> tsc && vite build
+
+src/pages/Integrations.tsx(11,11): error TS6196: 'OrganisationDirectory' is declared but never used.
 npm error Lifecycle script `build` failed with error:
 npm error code 2
-npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
-npm error workspace backend@1.0.0
-npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/backend
+npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
+npm error workspace frontend@1.0.0
+npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
 npm error command failed
-npm error command sh -c tsc
+npm error command sh -c tsc && vite build
 PATCH_STATUS=0
 VERIFY_STATUS=2
