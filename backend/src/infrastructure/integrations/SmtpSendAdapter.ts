@@ -152,8 +152,11 @@ class SmtpSession {
 
 export class SmtpSendAdapter implements EmailSendAdapter {
   async send(config: ConnectedAccountConfig, secret: Record<string,string>, message: OutboundEmail): Promise<EmailSendResult> {
-    const smtpUrl = String(config.settings.smtpUrl ?? '');
-    if (!smtpUrl) throw new Error('SMTP endpoint is not configured for this email account');
+    const configuredSmtpUrl = String(config.settings.smtpUrl ?? '').trim();
+    const smtpUrl = configuredSmtpUrl || (() => {
+      const inbound = new URL(config.serverUrl);
+      return `smtps://${inbound.hostname}:465`;
+    })();
     const username = String(config.settings.smtpUsername ?? config.username);
     const password = String(secret.smtpPassword ?? secret.password ?? '');
     if (!password) throw new Error('SMTP credentials are unavailable');

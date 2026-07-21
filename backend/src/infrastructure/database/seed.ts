@@ -67,6 +67,8 @@ export async function runSeed(): Promise<void> {
   const endingSoonDate = addDays(nowDate, 21);
 
   sqlite.exec(`
+    DELETE FROM maintenance_runs; DELETE FROM calendar_write_operations;
+    DELETE FROM outbound_email_attempts; DELETE FROM email_draft_documents; DELETE FROM email_drafts;
     DELETE FROM match_suggestions; DELETE FROM email_attachments; DELETE FROM email_messages; DELETE FROM email_threads;
     DELETE FROM calendar_events; DELETE FROM calendars; DELETE FROM synchronization_runs; DELETE FROM communication_accounts;
     DELETE FROM workflow_action_runs; DELETE FROM workflow_runs; DELETE FROM workflow_definitions;
@@ -420,7 +422,7 @@ export async function runSeed(): Promise<void> {
   })();
 
   rebuildSearchIndex(sqlite);
-  console.log(`WI6 seed complete. Acme Ltd connected communications are ready; today is ${today}.`);
+  console.log(`WI7 seed complete. Acme Ltd communications hub is ready; today is ${today}.`);
 }
 
 if (require.main === module) {

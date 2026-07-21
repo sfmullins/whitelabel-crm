@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { CalendarDays, FileText, Mail, MessageSquare, Phone, Plus, Send, Users } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -16,10 +17,12 @@ type View='timeline'|'drafts'|'meetings';
 
 export default function Communications(){
   const client=useQueryClient();
-  const [organisationId,setOrganisationId]=useState('');
-  const [channel,setChannel]=useState('');
-  const [view,setView]=useState<View>('timeline');
-  const [showCreate,setShowCreate]=useState(false);
+  const [searchParams]=useSearchParams();
+  const [organisationId,setOrganisationId]=useState(searchParams.get('organisationId')??'');
+  const [channel,setChannel]=useState(searchParams.get('channel')??'');
+  const requestedView=searchParams.get('view');
+  const [view,setView]=useState<View>(requestedView==='drafts'||requestedView==='meetings'?requestedView:'timeline');
+  const [showCreate,setShowCreate]=useState(searchParams.get('action')==='compose');
   const organisations=useQuery<OrganisationDirectory>({queryKey:['workspace-organisations','communications'],queryFn:()=>api.get('/api/workspace/organisations?limit=200&offset=0')});
   const accounts=useQuery<Account[]>({queryKey:['communication-accounts'],queryFn:()=>api.get('/api/communication-accounts')});
   const documents=useQuery<DocumentItem[]>({queryKey:['documents','communications'],queryFn:()=>api.get('/api/documents?includeArchived=false')});
