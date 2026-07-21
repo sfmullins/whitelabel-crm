@@ -53,14 +53,29 @@ Applied WI4 compile corrections.
 > backend@1.0.0 build
 > tsc
 
-src/presentation/routes/workspace.ts(52,3): error TS2783: 'includeArchived' is specified more than once, so this usage will be overwritten.
+
+> frontend@1.0.0 build
+> tsc && vite build
+
+src/lib/wi4.test.ts(20,7): error TS2322: Type '{ id: string; entityId: string; entityType: "contact"; organisationId: string; title: string; subtitle: string; context: string; route: string; updatedAt: string; score: number; matchedFields: readonly ["title"]; }' is not assignable to type '{ id: string; updatedAt: string; entityType: "organisation" | "contact" | "engagement" | "activity" | "customer" | "invoice"; entityId: string; organisationId: string | null; title: string; ... 4 more ...; matchedFields: ("title" | ... 1 more ... | "subtitle")[]; }'.
+  Types of property 'matchedFields' are incompatible.
+    The type 'readonly ["title"]' is 'readonly' and cannot be assigned to the mutable type '("title" | "body" | "subtitle")[]'.
+src/lib/wi4.test.ts(21,7): error TS2322: Type '{ entityType: "organisation"; id: string; entityId: string; organisationId: string; title: string; subtitle: string; context: string; route: string; updatedAt: string; score: number; matchedFields: readonly [...]; }' is not assignable to type '{ id: string; updatedAt: string; entityType: "organisation" | "contact" | "engagement" | "activity" | "customer" | "invoice"; entityId: string; organisationId: string | null; title: string; ... 4 more ...; matchedFields: ("title" | ... 1 more ... | "subtitle")[]; }'.
+  Types of property 'matchedFields' are incompatible.
+    The type 'readonly ["title"]' is 'readonly' and cannot be assigned to the mutable type '("title" | "body" | "subtitle")[]'.
+src/pages/OrganisationWorkspace.tsx(1,10): error TS6133: 'FormEvent' is declared but its value is never read.
+src/pages/OrganisationWorkspace.tsx(4,49): error TS6133: 'CalendarClock' is declared but its value is never read.
+src/pages/OrganisationWorkspace.tsx(4,107): error TS6133: 'Plus' is declared but its value is never read.
+src/pages/OrganisationWorkspace.tsx(69,116): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+src/pages/Organisations.tsx(4,10): error TS6133: 'Archive' is declared but its value is never read.
 npm error Lifecycle script `build` failed with error:
 npm error code 2
-npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/backend
-npm error workspace backend@1.0.0
-npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/backend
+npm error path /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
+npm error workspace frontend@1.0.0
+npm error location /home/runner/work/whitelabel-crm/whitelabel-crm/frontend
 npm error command failed
-npm error command sh -c tsc
+npm error command sh -c tsc && vite build
 APPLY_STATUS=0
 GENERATE_STATUS=0
 POSTGENERATE_STATUS=0

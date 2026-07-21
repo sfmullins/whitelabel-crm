@@ -49,7 +49,6 @@ const OrganisationDirectoryRequestSchema = z.object({
   industry: optionalString,
   country: optionalString,
   search: optionalString,
-  includeArchived: includeArchivedQueryField,
   sort: z.enum(['name_asc', 'updated_desc', 'recent_activity', 'next_follow_up']).default('name_asc'),
   ...paginationQueryFields,
 }).strict().pipe(OrganisationDirectoryQuerySchema);
