@@ -28,7 +28,7 @@ const openApiDocument={
   components:{
     securitySchemes:{bearerAuth:{type:'http',scheme:'bearer',bearerFormat:'WI8 session or wlc_ API token'}},
     parameters:{
-      Limit:{name:'limit',in:'query',required:false,schema:{type:'integer',minimum:1,maximum:100}},
+      Limit:{name:'limit',in:'query',required:false,schema:{type:'integer',minimum:1,maximum:200}},
       Offset:{name:'offset',in:'query',required:false,schema:{type:'integer',minimum:0}},
       RequestId:{name:'x-request-id',in:'header',required:false,description:'Optional caller correlation ID. The server returns the effective ID in the response header.',schema:{type:'string',maxLength:120}},
     },
