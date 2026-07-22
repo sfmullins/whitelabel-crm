@@ -1,81 +1,36 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Clock3, Plus, RotateCcw } from 'lucide-react';
+import { Bell, CheckCircle2, Clock3, Plus, RotateCcw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { buildQueryString } from '../lib/wi4';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
-interface WorkItem {
-  workType: 'task' | 'follow_up';
-  sourceId: string;
-  organisationId: string;
-  organisationName: string;
-  title: string;
-  description: string;
-  priority: string;
-  status: string;
-  dueAt: string | null;
-  completedAt: string | null;
-  sourceRoute: string;
-}
-interface WorkResponse { items: WorkItem[]; total: number; today: string; }
-interface OrganisationDirectory { items: Array<{ id: string; name: string }>; }
-interface Reminder { id: string; sourceType: string; scheduledAt: string; status: string; }
+interface WorkItem {workType:'task'|'follow_up';sourceId:string;organisationId:string;organisationName:string;title:string;description:string;priority:string;status:string;dueAt:string|null;completedAt:string|null;sourceRoute:string;}
+interface WorkResponse {items:WorkItem[];total:number;today:string;}
+interface OrganisationDirectory {items:Array<{id:string;name:string}>;}
+interface Reminder {id:string;sourceType:string;scheduledAt:string;status:string;}
+interface Notification {id:string;title:string;body:string;route:string|null;createdAt:string;}
+const buckets=['open','overdue','today','upcoming','completed','all'] as const;
 
-const buckets = ['open','overdue','today','upcoming','completed','all'] as const;
-
-export default function Work() {
-  const client = useQueryClient();
-  const [bucket,setBucket] = useState<(typeof buckets)[number]>('open');
-  const [showCreate,setShowCreate] = useState(false);
-  const [error,setError] = useState('');
-  const work = useQuery<WorkResponse>({
-    queryKey: ['work',bucket],
-    queryFn: () => api.get(`/api/work${buildQueryString({ bucket,limit:200,offset:0 })}`),
-  });
-  const reminders = useQuery<Reminder[]>({ queryKey:['reminders','due'],queryFn:() => api.get('/api/reminders?dueOnly=true') });
-  const mutation = useMutation({
-    mutationFn: ({ path,body }: { path: string; body?: unknown }) => api.post(path,body ?? {}),
-    onSuccess: () => { setError(''); client.invalidateQueries({ queryKey:['work'] }); client.invalidateQueries({ queryKey:['reminders'] }); },
-    onError: (value: Error) => setError(value.message),
-  });
-
+export default function Work(){
+  const client=useQueryClient();const [bucket,setBucket]=useState<(typeof buckets)[number]>('open');const [showCreate,setShowCreate]=useState(false);const [error,setError]=useState('');
+  const work=useQuery<WorkResponse>({queryKey:['work',bucket],queryFn:()=>api.get(`/api/work${buildQueryString({bucket,limit:200,offset:0})}`)});
+  const reminders=useQuery<Reminder[]>({queryKey:['reminders','due'],queryFn:()=>api.get('/api/reminders?dueOnly=true')});
+  const notifications=useQuery<Notification[]>({queryKey:['notifications','unread'],queryFn:()=>api.get('/api/notifications?status=unread&limit=100'),refetchInterval:30_000});
+  const mutation=useMutation({mutationFn:({path,body}:{path:string;body?:unknown})=>api.post(path,body??{}),onSuccess:()=>{setError('');client.invalidateQueries({queryKey:['work']});client.invalidateQueries({queryKey:['reminders']});client.invalidateQueries({queryKey:['notifications']});},onError:(value:Error)=>setError(value.message)});
   return <div className="space-y-6">
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 className="text-3xl font-extrabold tracking-tight">Work</h1><p className="mt-1 text-sm text-muted-foreground">Tasks and activity follow-ups in one operational queue.</p></div>
-      <Button onClick={() => setShowCreate(true)}><Plus className="mr-2 h-4 w-4"/>Create task</Button>
-    </header>
-    {error && <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
-    <section className="grid gap-4 sm:grid-cols-3">
-      <Metric label="Queue" value={String(work.data?.total ?? 0)}/><Metric label="Due reminders" value={String(reminders.data?.length ?? 0)}/><Metric label="Today" value={work.data?.today ?? '—'}/>
-    </section>
-    <div className="flex gap-2 overflow-x-auto">{buckets.map((value) => <button key={value} onClick={() => setBucket(value)} className={`rounded-full border px-3 py-1.5 text-xs font-bold capitalize ${bucket===value ? 'bg-primary text-primary-foreground' : 'bg-card hover:bg-muted'}`}>{value}</button>)}</div>
-    {work.isLoading ? <State text="Loading work queue…"/> : work.isError ? <State danger text={(work.error as Error).message}/> : !work.data?.items.length ? <State text="No work matches this view."/> : <div className="space-y-3">{work.data.items.map((item) => <article key={`${item.workType}-${item.sourceId}`} className="rounded-xl border bg-card p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold uppercase">{item.workType.replace('_',' ')}</span><span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${item.priority==='urgent' ? 'bg-red-100 text-red-700' : item.priority==='high' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{item.priority}</span></div><h2 className="mt-2 font-bold">{item.title}</h2><p className="mt-1 text-sm text-muted-foreground">{item.description}</p><p className="mt-2 text-xs text-muted-foreground">{item.organisationName}{item.dueAt ? ` · Due ${new Date(item.dueAt).toLocaleString()}` : ' · No due date'}</p></div>
-      <div className="flex gap-2">{item.status==='completed' ? item.workType==='task' && <Button variant="outline" size="sm" onClick={() => mutation.mutate({ path:`/api/tasks/${item.sourceId}/reopen` })}><RotateCcw className="mr-1 h-4 w-4"/>Reopen</Button> : item.workType==='task' ? <Button size="sm" onClick={() => mutation.mutate({ path:`/api/tasks/${item.sourceId}/complete` })}><CheckCircle2 className="mr-1 h-4 w-4"/>Complete</Button> : <Link className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-semibold" to={item.sourceRoute}>Open follow-up</Link>}</div></div>
-    </article>)}</div>}
-    {showCreate && <TaskDialog onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); client.invalidateQueries({ queryKey:['work'] }); }}/>} 
+    <header className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-3xl font-extrabold tracking-tight">Work</h1><p className="mt-1 text-sm text-muted-foreground">Tasks, follow-ups and delivered reminders in one operational queue.</p></div><Button onClick={()=>setShowCreate(true)}><Plus className="mr-2 h-4 w-4"/>Create task</Button></header>
+    {error&&<div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
+    {Boolean(notifications.data?.length)&&<section className="space-y-3"><div className="flex items-center gap-2"><Bell className="h-5 w-5 text-primary"/><h2 className="font-bold">Notifications</h2><span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">{notifications.data?.length}</span></div>{notifications.data?.map((item)=><article key={item.id} className="flex items-start justify-between gap-4 rounded-xl border border-primary/20 bg-primary/5 p-4"><div><h3 className="font-bold">{item.title}</h3><p className="mt-1 text-sm text-muted-foreground">{item.body}</p><p className="mt-2 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</p>{item.route&&<Link className="mt-2 inline-block text-sm font-bold text-primary" to={item.route}>Open item</Link>}</div><Button size="sm" variant="ghost" aria-label="Dismiss notification" onClick={()=>mutation.mutate({path:`/api/notifications/${item.id}/dismiss`})}><X className="h-4 w-4"/></Button></article>)}</section>}
+    <section className="grid gap-4 sm:grid-cols-3"><Metric label="Queue" value={String(work.data?.total??0)}/><Metric label="Due reminders" value={String(reminders.data?.length??0)}/><Metric label="Today" value={work.data?.today??'—'}/></section>
+    <div className="flex gap-2 overflow-x-auto">{buckets.map((value)=><button key={value} onClick={()=>setBucket(value)} className={`rounded-full border px-3 py-1.5 text-xs font-bold capitalize ${bucket===value?'bg-primary text-primary-foreground':'bg-card hover:bg-muted'}`}>{value}</button>)}</div>
+    {work.isLoading?<State text="Loading work queue…"/>:work.isError?<State danger text={(work.error as Error).message}/>:!work.data?.items.length?<State text="No work matches this view."/>:<div className="space-y-3">{work.data.items.map((item)=><article key={`${item.workType}-${item.sourceId}`} className="rounded-xl border bg-card p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded bg-muted px-2 py-0.5 text-[10px] font-bold uppercase">{item.workType.replace('_',' ')}</span><span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${item.priority==='urgent'?'bg-red-100 text-red-700':item.priority==='high'?'bg-amber-100 text-amber-700':'bg-slate-100 text-slate-600'}`}>{item.priority}</span></div><h2 className="mt-2 font-bold">{item.title}</h2><p className="mt-1 text-sm text-muted-foreground">{item.description}</p><p className="mt-2 text-xs text-muted-foreground">{item.organisationName}{item.dueAt?` · Due ${new Date(item.dueAt).toLocaleString()}`:' · No due date'}</p></div><div className="flex gap-2">{item.status==='completed'?item.workType==='task'&&<Button variant="outline" size="sm" onClick={()=>mutation.mutate({path:`/api/tasks/${item.sourceId}/reopen`})}><RotateCcw className="mr-1 h-4 w-4"/>Reopen</Button>:item.workType==='task'?<Button size="sm" onClick={()=>mutation.mutate({path:`/api/tasks/${item.sourceId}/complete`})}><CheckCircle2 className="mr-1 h-4 w-4"/>Complete</Button>:<Link className="inline-flex h-9 items-center rounded-md border px-3 text-sm font-semibold" to={item.sourceRoute}>Open follow-up</Link>}</div></div></article>)}</div>}
+    {showCreate&&<TaskDialog onClose={()=>setShowCreate(false)} onCreated={()=>{setShowCreate(false);client.invalidateQueries({queryKey:['work']});}}/>}
   </div>;
 }
 
-function TaskDialog({ onClose,onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const organisations = useQuery<OrganisationDirectory>({ queryKey:['workspace-organisations','task-create'],queryFn:() => api.get('/api/workspace/organisations?limit=200&offset=0') });
-  const [organisationId,setOrganisationId] = useState('');
-  const [title,setTitle] = useState('');
-  const [description,setDescription] = useState('');
-  const [priority,setPriority] = useState('normal');
-  const [dueAt,setDueAt] = useState('');
-  const [reminderAt,setReminderAt] = useState('');
-  const [error,setError] = useState('');
-  const create = useMutation({
-    mutationFn: () => api.post('/api/tasks',{ organisationId,title,description:description || null,priority,dueAt:dueAt ? new Date(dueAt).toISOString() : null,reminderAt:reminderAt ? new Date(reminderAt).toISOString() : null }),
-    onSuccess: onCreated,
-    onError: (value: Error) => setError(value.message),
-  });
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-xl border bg-card p-6 shadow-2xl"><div className="flex justify-between"><div><h2 className="text-xl font-bold">Create task</h2><p className="text-xs text-muted-foreground">Standalone work linked to an organisation.</p></div><button onClick={onClose} aria-label="Close">×</button></div><form className="mt-5 space-y-3" onSubmit={(event) => { event.preventDefault();create.mutate(); }}><select required value={organisationId} onChange={(event) => setOrganisationId(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select organisation</option>{organisations.data?.items.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select><Input required placeholder="Task title" value={title} onChange={(event) => setTitle(event.target.value)}/><textarea className="min-h-24 w-full rounded-md border bg-background p-3 text-sm" placeholder="Description" value={description} onChange={(event) => setDescription(event.target.value)}/><div className="grid gap-3 sm:grid-cols-2"><select value={priority} onChange={(event) => setPriority(event.target.value)} className="h-10 rounded-md border bg-background px-3 text-sm"><option>low</option><option>normal</option><option>high</option><option>urgent</option></select><Input type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)}/></div><label className="block text-xs font-semibold text-muted-foreground">Reminder<Input className="mt-1" type="datetime-local" value={reminderAt} onChange={(event) => setReminderAt(event.target.value)}/></label>{error && <p className="text-sm text-destructive">{error}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button disabled={create.isPending || !organisationId || !title.trim()} type="submit"><Clock3 className="mr-2 h-4 w-4"/>Create</Button></div></form></div></div>;
-}
-
-function Metric({ label,value }: { label:string;value:string }) { return <div className="rounded-xl border bg-card p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-extrabold">{value}</p></div>; }
-function State({ text,danger=false }: { text:string;danger?:boolean }) { return <div className={`rounded-xl border bg-card p-10 text-center text-sm ${danger ? 'text-destructive' : 'text-muted-foreground'}`}>{text}</div>; }
+function TaskDialog({onClose,onCreated}:{onClose:()=>void;onCreated:()=>void}){const organisations=useQuery<OrganisationDirectory>({queryKey:['workspace-organisations','task-create'],queryFn:()=>api.get('/api/workspace/organisations?limit=200&offset=0')});const [organisationId,setOrganisationId]=useState('');const [title,setTitle]=useState('');const [description,setDescription]=useState('');const [priority,setPriority]=useState('normal');const [dueAt,setDueAt]=useState('');const [reminderAt,setReminderAt]=useState('');const [error,setError]=useState('');const create=useMutation({mutationFn:()=>api.post('/api/tasks',{organisationId,title,description:description||null,priority,dueAt:dueAt?new Date(dueAt).toISOString():null,reminderAt:reminderAt?new Date(reminderAt).toISOString():null}),onSuccess:onCreated,onError:(value:Error)=>setError(value.message)});return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true"><div className="w-full max-w-lg rounded-xl border bg-card p-6 shadow-2xl"><div className="flex justify-between"><div><h2 className="text-xl font-bold">Create task</h2><p className="text-xs text-muted-foreground">Standalone work linked to an organisation.</p></div><button onClick={onClose} aria-label="Close">×</button></div><form className="mt-5 space-y-3" onSubmit={(event)=>{event.preventDefault();create.mutate();}}><select required value={organisationId} onChange={(event)=>setOrganisationId(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select organisation</option>{organisations.data?.items.map((org)=><option key={org.id} value={org.id}>{org.name}</option>)}</select><Input required placeholder="Task title" value={title} onChange={(event)=>setTitle(event.target.value)}/><textarea className="min-h-24 w-full rounded-md border bg-background p-3 text-sm" placeholder="Description" value={description} onChange={(event)=>setDescription(event.target.value)}/><div className="grid gap-3 sm:grid-cols-2"><select value={priority} onChange={(event)=>setPriority(event.target.value)} className="h-10 rounded-md border bg-background px-3 text-sm"><option>low</option><option>normal</option><option>high</option><option>urgent</option></select><Input type="datetime-local" value={dueAt} onChange={(event)=>setDueAt(event.target.value)}/></div><label className="block text-xs font-semibold text-muted-foreground">Reminder<Input className="mt-1" type="datetime-local" value={reminderAt} onChange={(event)=>setReminderAt(event.target.value)}/></label>{error&&<p className="text-sm text-destructive">{error}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button disabled={create.isPending||!organisationId||!title.trim()} type="submit"><Clock3 className="mr-2 h-4 w-4"/>Create</Button></div></form></div></div>;}
+function Metric({label,value}:{label:string;value:string}){return <div className="rounded-xl border bg-card p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-extrabold">{value}</p></div>;}
+function State({text,danger=false}:{text:string;danger?:boolean}){return <div className={`rounded-xl border bg-card p-10 text-center text-sm ${danger?'text-destructive':'text-muted-foreground'}`}>{text}</div>;}
