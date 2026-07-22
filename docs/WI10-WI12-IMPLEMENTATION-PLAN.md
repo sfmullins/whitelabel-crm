@@ -2,11 +2,13 @@
 
 ## 1. Current baseline
 
-This programme now has two completed implementation branches:
+The sequential platform programme has completed WI10 and WI11:
 
-- WI10 was merged through PR #13 at `e10171356f582c8fc3c62771f804424adad7f028`;
-- WI11 is completed on `WI11-Extension-Platform` and is presented for final review through PR #14;
-- WI12 must start only after WI11 is reviewed and merged.
+- WI10 — Platform API was merged through PR #13 at `e10171356f582c8fc3c62771f804424adad7f028`;
+- WI11 — Extension Platform was merged through PR #14 at `b9c579298a5ea168a2947c820613676ef08fe6e8`;
+- post-WI11 npm/package-boundary and Electron staging hardening was merged through PR #15 at `e3175e8f8dd56372bc8af4eb4b2ed5e89620d28b`.
+
+PR #15 is a baseline correction, not an additional work item. It retained and reran the WI11 tests while making package exports, staging and source-hygiene controls deterministic.
 
 The repository now has:
 
@@ -22,33 +24,38 @@ The repository now has:
 - immutable platform events and signed retryable webhooks;
 - a declarative extension registry, lifecycle and runtime;
 - verified Linux Debian and portable ZIP packaging;
-- existing transactional customer CSV import, encrypted backup portability and standards-based email/calendar synchronisation.
+- transactional customer CSV import, encrypted backup portability and standards-based email/calendar synchronisation;
+- permanent parser, package-boundary, production-dependency and work-item regression gates.
 
 WIs 10–12 extend one coherent security, permission, audit, reporting, export, readiness, credential, backup and packaging architecture. Parallel systems are prohibited.
 
-## 2. Programme corrections
+## 2. Programme corrections and standing constraints
 
-1. **Sequential delivery remains mandatory.** WI12 starts only after WI11 is reviewed and merged.
-2. **OAuth authorization-server scope remains deferred.** WhiteLabelCRM uses scoped API tokens and is not a general OAuth/OIDC provider.
-3. **The public API never trusts loopback identity selection.** `/api/v1` requires a bearer session or scoped API token.
-4. **The stable API surface is allow-listed.** Internal route reuse does not create accidental public contracts.
-5. **Permission policy is explicit for platform and extension administration.**
-6. **Existing report CSV export and `ReportingRepository` remain canonical.** Extensions may reference supported reports but cannot create another reporting engine.
-7. **Generic bulk table mutation remains rejected.** Existing transactional import, backup and resource-specific operations remain authoritative.
-8. **Existing communication synchronisation remains the connector baseline.**
-9. **Linux packaging is an existing baseline.** WI12 certifies and releases it while adding Windows, container and remaining release-engineering work.
-10. **Extensions are declarative.** No JavaScript, SQL, shell, renderer bundles or direct database access run from packages.
-11. **SQLite deployment claims remain truthful.** WI12 may provide a single-replica reference but not horizontal multi-writer or active-active claims.
+1. **Sequential delivery remains mandatory.** WI12 starts from the fully audited post-WI11 `main` baseline.
+2. **PR #15 is baseline hardening.** It does not alter the WI10–WI12 work-item numbering.
+3. **OAuth authorization-server scope remains deferred.** WhiteLabelCRM uses scoped API tokens and is not a general OAuth/OIDC provider.
+4. **The public API never trusts loopback identity selection.** `/api/v1` requires a bearer session or scoped API token.
+5. **The stable API surface is allow-listed.** Internal route reuse does not create accidental public contracts.
+6. **Permission policy is explicit for platform and extension administration.**
+7. **Existing report CSV export and `ReportingRepository` remain canonical.** Extensions may reference supported reports but cannot create another reporting engine.
+8. **Generic bulk table mutation remains rejected.** Existing transactional import, backup and resource-specific operations remain authoritative.
+9. **Existing communication synchronisation remains the connector baseline.**
+10. **Linux packaging is an existing baseline.** WI12 certifies and releases it while adding Windows, container and remaining release-engineering work.
+11. **Extensions are declarative.** No JavaScript, SQL, shell, renderer bundles or direct database access run from packages.
+12. **SQLite deployment claims remain truthful.** WI12 may provide a single-replica reference but not horizontal multi-writer or active-active claims.
+13. **Production dependency risk is a merge gate.** High or critical production advisories fail CI; build-only advisories require documented review and isolation.
+14. **Supported runtime lines are explicit.** The repository declares supported Node/npm ranges and the Electron major must remain on a supported release line.
 
-## 3. Delivery policy
+## 3. Delivery record and next work
 
 | Work item | Branch | Base | Status / merge gate |
 |---|---|---|---|
 | WI10 — Platform API | `WI10-Platform-API` | merged WI8–WI9 `main` | merged via PR #13 |
-| WI11 — Extension Platform | `WI11-Extension-Platform` | merged WI10 `main` | implementation complete; full WI4–WI11 and Linux package verification green; PR #14 final review required |
-| WI12 — Enterprise Release | `WI12-Enterprise-Release` | merged WI11 `main` | not started; release certification required |
+| WI11 — Extension Platform | `WI11-Extension-Platform` | merged WI10 `main` | merged via PR #14; revalidated after PR #15 |
+| Post-WI11 audit/hardening | audit branch | merged WI11 + PR #15 `main` | dependency, documentation, test and packaging reconciliation |
+| WI12 — Enterprise Release | `WI12-Enterprise-Release` | audited post-WI11 `main` | not started; release certification required |
 
-Each pull request targets `main` directly. Stacked feature-branch PRs are prohibited.
+Feature work targets `main` directly through reviewable pull requests. WI12 must not be based on a stale pre-audit branch.
 
 ---
 
@@ -104,12 +111,15 @@ The existing custom-field and custom-object data model is bridged into the exten
 
 Detailed delivered scope and exclusions are documented in `docs/work-items/WI11.md`.
 
-## WI11 final merge gate
+## Permanent post-WI11 gate
 
-PR #14 is ready for review only when its final head has passed:
+The post-WI11 baseline is accepted only when the current head passes:
 
 ```text
+npm ci
 npm run build
+npm run check:npm-hygiene
+npm run audit:production
 npm test
 npm run db:smoke
 npm run wi4:smoke
@@ -122,7 +132,7 @@ npm run wi11:smoke
 npm run desktop:preflight
 ```
 
-The separate Linux workflow must also build, verify and upload the Debian package. The branch must remain directly based on merged WI10 `main`, with no unresolved review threads or known release-blocking defects.
+The separate Linux workflow must build, verify and upload the Debian package. The repository must remain clean after verification, and there must be no unresolved review thread or known release-blocking defect.
 
 ---
 
@@ -132,29 +142,66 @@ The separate Linux workflow must also build, verify and upload the Debian packag
 
 Turn the completed product into a reproducible, installable and supportable release. WI12 is a certification and release-engineering work item, not another major domain expansion.
 
-## 5. Required workstreams
+## 5. Entry conditions
 
-- browser and packaged-desktop critical-path end-to-end tests;
+WI12 may begin only when:
+
+- WI10 and WI11 remain represented by permanent regression suites;
+- the post-WI11 repository audit is merged;
+- production dependency audit reports zero high or critical advisories;
+- Node, npm, Electron, Vite, Vitest and database-tooling versions are explicitly supported and reproducible from the lockfile;
+- Linux packaging succeeds from a clean checkout;
+- current architecture, README, roadmap and work-item status documentation agree;
+- all temporary audit workflows and artifacts have been removed from source control.
+
+## 6. Required workstreams
+
+### A. Critical-path certification
+
+- browser and packaged-desktop end-to-end tests;
+- first-run setup, login/profile selection, CRUD, search, task/reminder, report, extension and backup/restore journeys;
 - upgrade, backup, restore and failed-migration rehearsal;
+- explicit data-preservation and recovery acceptance evidence.
+
+### B. Accessibility and performance
+
 - WCAG 2.2 AA target for supported workflows;
-- measured performance baselines and regression budgets;
-- UX consistency, first-run setup and error recovery;
-- Windows installer and portable artifacts;
+- keyboard, focus, label, contrast and screen-reader verification;
+- measured backend, frontend and packaged-desktop baselines;
+- regression budgets for startup, key API operations, large lists and reports.
+
+### C. Packaging and deployment
+
 - certification of existing Linux Debian/ZIP artifacts;
+- Windows installer and portable artifacts;
 - optional macOS packaging only where suitable runners and signing exist;
 - OCI container and Docker Compose reference deployment;
 - truthful single-replica Kubernetes reference with persistent-storage limitations;
-- versioned user, administrator, API, extension, deployment and support documentation;
-- semantic versioning, changelog, SBOM, checksums and provenance;
+- platform-specific smoke tests against produced artifacts rather than source-only builds.
+
+### D. Release integrity and operations
+
+- semantic versioning and changelog policy;
+- SBOM, third-party notices, checksums and provenance;
 - release-candidate and stable release workflows;
-- support, backport and vulnerability-reporting policy.
+- signed artifacts where practical;
+- versioned user, administrator, API, extension, deployment and support documentation;
+- support, backport, dependency-refresh and vulnerability-reporting policy;
+- Dependabot triage and supported-runtime maintenance cadence.
 
-SQLite limitations must remain explicit. WI12 does not claim horizontal multi-writer scaling, active-active operation or distributed high availability.
+### E. Product completion review
 
-## 6. Required gates
+- UX consistency and error recovery;
+- financial lifecycle review, including credit notes and legacy customer/organisation boundaries;
+- public API compatibility review;
+- extension install/upgrade/purge/recovery operator guidance;
+- final scope exclusions and SQLite limitations stated in every deployment surface.
+
+## 7. Required gates
 
 ```text
 npm run ci:verify
+npm run audit:production
 npm run e2e
 npm run accessibility:verify
 npm run performance:verify
@@ -162,13 +209,16 @@ npm run release:verify
 npm run container:verify
 ```
 
-Add `npm run wi12:smoke` only for deterministic repository-level certification checks; platform-specific installer tests remain separate release jobs.
+Add `npm run wi12:smoke` only for deterministic repository-level certification checks; platform-specific installer and packaged-application tests remain separate release jobs.
 
-## 7. Programme completion
+Coverage reporting may be added as an engineering signal, but arbitrary percentage thresholds must not replace critical-path and risk-based tests.
+
+## 8. Programme completion
 
 The programme is complete when:
 
 1. supported external clients use a stable permission-aware API without database access;
 2. extensions are declarative, capability-controlled and upgrade-safe;
 3. the application can be installed, upgraded, backed up, restored and supported from reproducible release artifacts;
-4. every claim about security, packaging, accessibility, performance and deployment is backed by an executable gate or explicit documented limitation.
+4. every claim about security, packaging, accessibility, performance and deployment is backed by an executable gate or explicit documented limitation;
+5. supported dependency and runtime lines have a documented maintenance owner and update process.
