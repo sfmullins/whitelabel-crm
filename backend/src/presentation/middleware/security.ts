@@ -36,9 +36,9 @@ function eventFor(method:string,route:string,statusCode:number):{eventType:typeo
   const path=route.replace(/^\/api\/v1/,'').replace(/^\/api/,'');
   let aggregateType:string|null=null;
   if(/^\/organisations(?:\/|$)/.test(path))aggregateType='organisation';
-  if(/^\/organisations\/[^/]+\/contacts(?:\/|$)/.test(path))aggregateType='contact';
-  if(/^\/organisations\/[^/]+\/engagements(?:\/|$)/.test(path))aggregateType='engagement';
-  if(/^\/organisations\/[^/]+\/activities(?:\/|$)/.test(path)||/^\/activities(?:\/|$)/.test(path))aggregateType='activity';
+  if(/^\/contacts(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/contacts(?:\/|$)/.test(path))aggregateType='contact';
+  if(/^\/engagements(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/engagements(?:\/|$)/.test(path))aggregateType='engagement';
+  if(/^\/activities(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/activities(?:\/|$)/.test(path))aggregateType='activity';
   if(!aggregateType)return null;
   let action:string|null=null;
   if(method==='POST'&&/\/archive$/.test(path))action='archived';
