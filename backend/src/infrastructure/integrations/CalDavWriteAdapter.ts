@@ -41,7 +41,8 @@ async function write(
   event:CalendarWriteInput,
   mode:'create'|'update'|'cancel',
 ):Promise<CalendarWriteResult>{
-  const href=new URL(`${encodeURIComponent(event.providerEventKey)}.ics`,calendarUrl.endsWith('/')?calendarUrl:`${calendarUrl}/`).toString();
+  const generated=new URL(`${encodeURIComponent(event.providerEventKey)}.ics`,calendarUrl.endsWith('/')?calendarUrl:`${calendarUrl}/`).toString();
+  const href=mode==='create'?generated:(event.resourceHref??generated);
   const headers:Record<string,string>={
     authorization:authorization(config.username,secret.password??''),
     'content-type':'text/calendar; charset=utf-8',
@@ -52,7 +53,7 @@ async function write(
   const response=await fetch(href,{method:'PUT',headers,body:buildCalendarData({...event,cancelled:mode==='cancel'||event.cancelled})});
   if(response.status===409||response.status===412)throw new Error('CALDAV_CONFLICT');
   if(!response.ok)throw new Error(`CalDAV PUT failed (${response.status} ${response.statusText})`);
-  return {providerEventKey:event.providerEventKey,etag:response.headers.get('etag')};
+  return {providerEventKey:event.providerEventKey,resourceHref:href,etag:response.headers.get('etag')};
 }
 
 export class CalDavWriteAdapter implements CalendarWriteAdapter {
