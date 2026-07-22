@@ -18,7 +18,7 @@ jobs:
   quality-gates:
     name: Governance quality gates
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
@@ -35,17 +35,8 @@ jobs:
       - name: Dependency installation
         run: npm ci
 
-      - name: Build all workspaces and generate licence notices
-        run: npm run build
-
-      - name: Run backend and frontend tests
-        run: npm test
-
-      - name: Isolated migration smoke test
-        run: npm run db:smoke
-
-      - name: Desktop packaging preflight
-        run: npm run desktop:preflight
+      - name: Complete build, test, migration and WI4-WI9 verification
+        run: npm run ci:verify
 
       - name: Clean repository verification
         run: |
