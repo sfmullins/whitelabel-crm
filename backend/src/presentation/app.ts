@@ -27,7 +27,7 @@ import ownershipRouter from './routes/ownership';
 import { AppError } from '../application/errors';
 import { getSqliteConnection } from '../infrastructure/database/connection';
 import { getRuntimePaths } from '../config/runtimePaths';
-import { apiRateLimit,auditSuccessfulRequests,authenticateRequest,enforcePermissions,requestHardening,type CrmRequest } from './middleware/security';
+import { apiRateLimit,auditSuccessfulRequests,authenticateRequest,enforcePermissions,requestHardening } from './middleware/security';
 import { assignCreatedOwnership } from './middleware/ownership';
 
 const app=express();
@@ -78,9 +78,9 @@ app.get('/ready',(_req,res)=>{
   }catch(error){res.status(503).json({status:'NOT_READY',message:error instanceof Error?error.message:'Readiness check failed',time:new Date().toISOString()});}
 });
 
-app.use((err:unknown,req:CrmRequest,res:express.Response,_next:express.NextFunction)=>{
-  if(err instanceof AppError)return res.status(err.statusCode).json({error:err.code,message:err.message,...(err.details===undefined?{}:{details:err.details}),requestId:req.crm?.requestId});
-  console.error('Unhandled Server Error:',err);return res.status(500).json({error:'INTERNAL_SERVER_ERROR',message:'An unexpected error occurred',requestId:req.crm?.requestId});
+app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
+  if(err instanceof AppError)return res.status(err.statusCode).json({error:err.code,message:err.message,...(err.details===undefined?{}:{details:err.details})});
+  console.error('Unhandled Server Error:',err);return res.status(500).json({error:'INTERNAL_SERVER_ERROR',message:'An unexpected error occurred'});
 });
 
 export default app;
