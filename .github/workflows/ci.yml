@@ -54,6 +54,25 @@ jobs:
           tail -n 120 "$RUNNER_TEMP/workspace-build.log"
           exit 1
 
+      - name: NPM and syntax hygiene
+        id: npm_hygiene
+        continue-on-error: true
+        run: npm run check:npm-hygiene > "$RUNNER_TEMP/npm-hygiene.log" 2>&1
+
+      - name: Upload npm hygiene diagnostics
+        if: steps.npm_hygiene.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-hygiene-failure
+          path: ${{ runner.temp }}/npm-hygiene.log
+          retention-days: 3
+
+      - name: Enforce npm and syntax hygiene
+        if: steps.npm_hygiene.outcome == 'failure'
+        run: |
+          tail -n 240 "$RUNNER_TEMP/npm-hygiene.log"
+          exit 1
+
       - name: Backend and frontend tests
         id: workspace_tests
         continue-on-error: true
