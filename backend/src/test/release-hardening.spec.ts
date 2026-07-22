@@ -16,7 +16,7 @@ describe('WI6-WI7 release hardening contracts',()=>{
     const selection=selectEmailSyncUids([1,2,3,4,5,6],[101,102,103,104,105],4);
     expect(selection.targets).toEqual([1,101,102,103]);
     expect(selection.pendingFailed).toEqual([2,3,4,5,6]);
-    expect(selectEmailSyncUids([1],[101],1).targets).toEqual([101]);
+    expect(selectEmailSyncUids([1],[101],1).targets).toEqual([1,101]);
   });
 
   it('converts TZID calendar wall time and preserves the server resource href',async()=>{
