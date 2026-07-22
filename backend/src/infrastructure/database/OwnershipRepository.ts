@@ -9,7 +9,7 @@ export class OwnershipRepository {
 
   assignIfMissing(entityType:OwnedEntity,id:string,userId:string,teamId:string|null):void{
     const table=TABLES[entityType];
-    this.connection.prepare(`UPDATE ${table} SET owner_user_id=coalesce(owner_user_id,?),owner_team_id=coalesce(owner_team_id,?) WHERE id=?`).run(userId,teamId,id);
+    this.connection.prepare(`UPDATE ${table} SET owner_user_id=?,owner_team_id=? WHERE id=?`).run(userId,teamId,id);
   }
 
   update(entityType:OwnedEntity,id:string,input:{ownerUserId:string;ownerTeamId:string|null}){
