@@ -11,6 +11,16 @@ function parse<T>(schema:z.ZodType<T>,value:unknown):T{const result=schema.safeP
 function fail(res:any,error:unknown):void{const message=error instanceof Error?error.message:String(error);const status=/not found/i.test(message)?404:/cannot|exceeds|permission|authenticated/i.test(message)?403:/unique|already/i.test(message)?409:400;res.status(status).json({error:'PLATFORM_ERROR',message});}
 function identity(req:CrmRequest):PlatformRequestIdentity {if(!req.crm?.identity)throw new Error('Authenticated identity is required');return req.crm.identity as PlatformRequestIdentity;}
 
+const uuidPath=(name:string)=>({name,in:'path',required:true,schema:{type:'string',format:'uuid'}} as const);
+const reportKeyPath={name:'key',in:'path',required:true,schema:{type:'string',enum:['executive','revenue','pipeline','activity','workload','concentration','operations']}} as const;
+const commonErrors={'400':{description:'Invalid request'},'401':{description:'Unauthenticated'},'403':{description:'Missing permission or token scope'},'404':{description:'Resource not found'}} as const;
+const readOne=(summary:string,parameterName='id')=>({get:{summary,parameters:[uuidPath(parameterName)],responses:{'200':{description:'Resource'},...commonErrors}}});
+const mutableOne=(summary:string,parameterName='id')=>({
+  get:{summary:`Read ${summary}`,parameters:[uuidPath(parameterName)],responses:{'200':{description:'Resource'},...commonErrors}},
+  patch:{summary:`Update ${summary}`,parameters:[uuidPath(parameterName)],responses:{'200':{description:'Updated resource'},...commonErrors}},
+});
+const archiveOne=(summary:string,parameterName='id')=>({post:{summary:`Archive ${summary}`,parameters:[uuidPath(parameterName)],responses:{'200':{description:'Archived resource'},...commonErrors}}});
+
 const openApiDocument={
   openapi:'3.1.0',
   info:{title:'WhiteLabelCRM Public API',version:'1.0.0',description:'Versioned local-first CRM integration API. Internal unversioned /api routes are not part of this compatibility contract.'},
@@ -26,12 +36,21 @@ const openApiDocument={
   paths:{
     '/openapi.json':{get:{summary:'Read the OpenAPI contract',responses:{'200':{description:'OpenAPI 3.1 document'},'401':{description:'Unauthenticated'}}}},
     '/me':{get:{summary:'Read the authenticated principal',responses:{'200':{description:'Authenticated principal',content:{'application/json':{schema:{$ref:'#/components/schemas/Principal'}}}},'401':{description:'Unauthenticated'}}}},
-    '/organisations':{get:{summary:'List organisations',responses:{'200':{description:'Organisation list'}}},post:{summary:'Create an organisation',responses:{'201':{description:'Created'},'403':{description:'Missing crm.write scope'}}}},
-    '/organisations/{id}':{get:{summary:'Read an organisation',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Organisation'}}},patch:{summary:'Update an organisation',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Updated'}}}},
-    '/organisations/{id}/archive':{post:{summary:'Archive an organisation',parameters:[{name:'id',in:'path',required:true,schema:{type:'string',format:'uuid'}}],responses:{'200':{description:'Archived'}}}},
-    '/organisations/{organisationId}/contacts':{get:{summary:'List contacts',responses:{'200':{description:'Contact list'}}},post:{summary:'Create a contact',responses:{'201':{description:'Created'}}}},
-    '/organisations/{organisationId}/engagements':{get:{summary:'List engagements',responses:{'200':{description:'Engagement list'}}},post:{summary:'Create an engagement',responses:{'201':{description:'Created'}}}},
-    '/organisations/{organisationId}/activities':{get:{summary:'List activities',responses:{'200':{description:'Activity list'}}},post:{summary:'Create an activity',responses:{'201':{description:'Created'}}}},
+    '/organisations':{get:{summary:'List organisations',responses:{'200':{description:'Organisation list'},...commonErrors}},post:{summary:'Create an organisation',responses:{'201':{description:'Created organisation'},...commonErrors}}},
+    '/organisations/{id}':mutableOne('organisation'),
+    '/organisations/{id}/archive':archiveOne('organisation'),
+    '/organisations/{organisationId}/contacts':{get:{summary:'List organisation contacts',parameters:[uuidPath('organisationId')],responses:{'200':{description:'Contact list'},...commonErrors}},post:{summary:'Create an organisation contact',parameters:[uuidPath('organisationId')],responses:{'201':{description:'Created contact'},...commonErrors}}},
+    '/contacts/{id}':mutableOne('contact'),
+    '/contacts/{id}/archive':archiveOne('contact'),
+    '/organisations/{organisationId}/engagements':{get:{summary:'List organisation engagements',parameters:[uuidPath('organisationId')],responses:{'200':{description:'Engagement list'},...commonErrors}},post:{summary:'Create an organisation engagement',parameters:[uuidPath('organisationId')],responses:{'201':{description:'Created engagement'},...commonErrors}}},
+    '/engagements/{id}':mutableOne('engagement'),
+    '/engagements/{id}/archive':archiveOne('engagement'),
+    '/organisations/{organisationId}/activities':{get:{summary:'List organisation activities',parameters:[uuidPath('organisationId')],responses:{'200':{description:'Activity list'},...commonErrors}},post:{summary:'Create an organisation activity',parameters:[uuidPath('organisationId')],responses:{'201':{description:'Created activity'},...commonErrors}}},
+    '/activities/{activityId}':mutableOne('activity','activityId'),
+    '/activities/{activityId}/archive':archiveOne('activity','activityId'),
+    '/reporting/catalog':{get:{summary:'List public report types',responses:{'200':{description:'Report catalogue'},...commonErrors}}},
+    '/reporting/{key}':{get:{summary:'Run a report',parameters:[reportKeyPath],responses:{'200':{description:'Persisted report data'},...commonErrors}}},
+    '/reporting/{key}/export.csv':{get:{summary:'Export a report as CSV',parameters:[reportKeyPath],responses:{'200':{description:'CSV report export',content:{'text/csv':{schema:{type:'string'}}}},...commonErrors}}},
   },
   'x-wlc-versioning':{policy:'Additive changes remain within v1. Breaking request or response changes require a new major namespace.',tokenScopes:WI10_TOKEN_SCOPES},
 } as const;
