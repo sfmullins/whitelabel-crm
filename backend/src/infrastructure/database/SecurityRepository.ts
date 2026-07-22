@@ -1,0 +1,139 @@
+import crypto from 'node:crypto';
+import type Database from 'better-sqlite3';
+import { sqlite } from './connection';
+import { LOCAL_OWNER_USER_ID } from './wi8Wi9Schema';
+
+export interface SecurityUser {
+  id:string;
+  email:string;
+  displayName:string;
+  status:'active'|'invited'|'disabled';
+  roles:Array<{id:string;key:string;name:string}>;
+  permissions:string[];
+  hasPassword:boolean;
+  lastLoginAt:string|null;
+  createdAt:string;
+  updatedAt:string;
+}
+export interface RequestIdentity extends SecurityUser { sessionId:string|null; localTrusted:boolean; }
+export interface AuditInput {
+  actorUserId:string|null;
+  action:string;
+  entityType?:string|null;
+  entityId?:string|null;
+  organisationId?:string|null;
+  requestId:string;
+  route:string;
+  method:string;
+  before?:unknown;
+  after?:unknown;
+  metadata?:unknown;
+}
+
+const now=()=>new Date().toISOString();
+const safeJson=(value:unknown)=>value===undefined?null:JSON.stringify(value);
+function hashToken(token:string):string{return crypto.createHash('sha256').update(token).digest('hex');}
+function passwordHash(password:string,salt:string):string{return crypto.scryptSync(password,salt,64).toString('hex');}
+function parse<T>(value:unknown,fallback:T):T{if(typeof value!=='string')return fallback;try{return JSON.parse(value) as T;}catch{return fallback;}}
+
+export class SecurityRepository {
+  constructor(private readonly connection:Database.Database=sqlite as Database.Database){}
+
+  getOwnerUserId():string{return LOCAL_OWNER_USER_ID;}
+
+  getUser(id:string):SecurityUser|null{
+    const row=this.connection.prepare(`SELECT id,email,display_name,status,password_hash,last_login_at,created_at,updated_at FROM users WHERE id=? AND archived_at IS NULL`).get(id) as Record<string,unknown>|undefined;
+    if(!row)return null;
+    const roles=this.connection.prepare(`SELECT r.id,r.key,r.name FROM roles r JOIN user_roles ur ON ur.role_id=r.id WHERE ur.user_id=? ORDER BY r.name`).all(id) as Array<{id:string;key:string;name:string}>;
+    const permissions=(this.connection.prepare(`SELECT DISTINCT rp.permission_key FROM role_permissions rp JOIN user_roles ur ON ur.role_id=rp.role_id WHERE ur.user_id=? ORDER BY rp.permission_key`).all(id) as Array<{permission_key:string}>).map((item)=>item.permission_key);
+    return {id:String(row.id),email:String(row.email),displayName:String(row.display_name),status:String(row.status) as SecurityUser['status'],roles,permissions,hasPassword:Boolean(row.password_hash),lastLoginAt:row.last_login_at?String(row.last_login_at):null,createdAt:String(row.created_at),updatedAt:String(row.updated_at)};
+  }
+
+  listUsers():SecurityUser[]{return (this.connection.prepare(`SELECT id FROM users WHERE archived_at IS NULL ORDER BY display_name COLLATE NOCASE,email COLLATE NOCASE`).all() as Array<{id:string}>).map((row)=>this.getUser(row.id)!).filter(Boolean);}
+
+  listRoles(){
+    const roles=this.connection.prepare(`SELECT id,key,name,description,system_role,created_at,updated_at FROM roles ORDER BY CASE key WHEN 'owner' THEN 0 WHEN 'administrator' THEN 1 WHEN 'manager' THEN 2 WHEN 'member' THEN 3 ELSE 4 END,name`).all() as Array<Record<string,unknown>>;
+    return roles.map((row)=>({id:String(row.id),key:String(row.key),name:String(row.name),description:row.description?String(row.description):null,systemRole:Boolean(row.system_role),permissions:(this.connection.prepare(`SELECT permission_key FROM role_permissions WHERE role_id=? ORDER BY permission_key`).all(row.id) as Array<{permission_key:string}>).map((item)=>item.permission_key),createdAt:String(row.created_at),updatedAt:String(row.updated_at)}));
+  }
+
+  listPermissions(){return this.connection.prepare(`SELECT key,category,description FROM permissions ORDER BY category,key`).all();}
+
+  createUser(input:{email:string;displayName:string;roleKeys:string[];password?:string|null}):SecurityUser{
+    const id=crypto.randomUUID();const timestamp=now();
+    this.connection.transaction(()=>{
+      this.connection.prepare(`INSERT INTO users(id,email,display_name,status,created_at,updated_at) VALUES(?,?,?,'active',?,?)`).run(id,input.email.trim().toLowerCase(),input.displayName.trim(),timestamp,timestamp);
+      this.assignRolesInternal(id,input.roleKeys.length?input.roleKeys:['member'],timestamp);
+      if(input.password)this.setPasswordInternal(id,input.password,timestamp);
+    })();
+    return this.getUser(id)!;
+  }
+
+  updateUser(id:string,input:{displayName?:string;email?:string;status?:SecurityUser['status'];roleKeys?:string[]}):SecurityUser{
+    const current=this.getUser(id);if(!current)throw new Error('User not found');
+    if(id===LOCAL_OWNER_USER_ID&&input.status&&input.status!=='active')throw new Error('The local owner cannot be disabled');
+    const timestamp=now();
+    this.connection.transaction(()=>{
+      this.connection.prepare(`UPDATE users SET display_name=?,email=?,status=?,updated_at=? WHERE id=? AND archived_at IS NULL`).run(input.displayName?.trim()||current.displayName,input.email?.trim().toLowerCase()||current.email,input.status??current.status,timestamp,id);
+      if(input.roleKeys)this.assignRolesInternal(id,input.roleKeys,timestamp);
+      if(input.status==='disabled')this.connection.prepare(`UPDATE auth_sessions SET revoked_at=coalesce(revoked_at,?) WHERE user_id=?`).run(timestamp,id);
+    })();
+    return this.getUser(id)!;
+  }
+
+  setPassword(id:string,password:string):void{if(password.length<12)throw new Error('Password must contain at least 12 characters');if(!this.getUser(id))throw new Error('User not found');this.setPasswordInternal(id,password,now());}
+
+  createSessionForPassword(email:string,password:string,meta:{ipAddress?:string|null;userAgent?:string|null;ttlHours?:number}={}):{token:string;expiresAt:string;user:SecurityUser}{
+    const row=this.connection.prepare(`SELECT id,password_hash,password_salt,status FROM users WHERE email=? COLLATE NOCASE AND archived_at IS NULL`).get(email.trim().toLowerCase()) as {id:string;password_hash:string|null;password_salt:string|null;status:string}|undefined;
+    if(!row||row.status!=='active'||!row.password_hash||!row.password_salt)throw new Error('Invalid email or password');
+    const calculated=Buffer.from(passwordHash(password,row.password_salt),'hex');const expected=Buffer.from(row.password_hash,'hex');
+    if(calculated.length!==expected.length||!crypto.timingSafeEqual(calculated,expected))throw new Error('Invalid email or password');
+    const session=this.createSession(row.id,meta);this.connection.prepare(`UPDATE users SET last_login_at=?,updated_at=? WHERE id=?`).run(now(),now(),row.id);return {...session,user:this.getUser(row.id)!};
+  }
+
+  createSession(userId:string,meta:{ipAddress?:string|null;userAgent?:string|null;ttlHours?:number}={}):{token:string;expiresAt:string}{
+    const user=this.getUser(userId);if(!user||user.status!=='active')throw new Error('User is not active');
+    const token=crypto.randomBytes(32).toString('base64url');const id=crypto.randomUUID();const createdAt=now();const expiresAt=new Date(Date.now()+Math.max(1,Math.min(24*30,meta.ttlHours??12))*3600000).toISOString();
+    this.connection.prepare(`INSERT INTO auth_sessions(id,user_id,token_hash,created_at,expires_at,last_seen_at,ip_address,user_agent) VALUES(?,?,?,?,?,?,?,?)`).run(id,userId,hashToken(token),createdAt,expiresAt,createdAt,meta.ipAddress??null,meta.userAgent?.slice(0,500)??null);
+    return {token,expiresAt};
+  }
+
+  resolveSession(token:string):RequestIdentity|null{
+    const row=this.connection.prepare(`SELECT id,user_id,expires_at,revoked_at FROM auth_sessions WHERE token_hash=?`).get(hashToken(token)) as {id:string;user_id:string;expires_at:string;revoked_at:string|null}|undefined;
+    if(!row||row.revoked_at||row.expires_at<=now())return null;
+    const user=this.getUser(row.user_id);if(!user||user.status!=='active')return null;
+    this.connection.prepare(`UPDATE auth_sessions SET last_seen_at=? WHERE id=?`).run(now(),row.id);
+    return {...user,sessionId:row.id,localTrusted:false};
+  }
+
+  resolveLocalUser(userId?:string|null):RequestIdentity|null{
+    const user=this.getUser(userId||LOCAL_OWNER_USER_ID);return user&&user.status==='active'?{...user,sessionId:null,localTrusted:true}:null;
+  }
+
+  revokeSession(sessionId:string):void{this.connection.prepare(`UPDATE auth_sessions SET revoked_at=coalesce(revoked_at,?) WHERE id=?`).run(now(),sessionId);}
+  revokeUserSessions(userId:string):void{this.connection.prepare(`UPDATE auth_sessions SET revoked_at=coalesce(revoked_at,?) WHERE user_id=?`).run(now(),userId);}
+  hasPermission(identity:RequestIdentity|undefined|null,permission:string):boolean{return Boolean(identity?.permissions.includes(permission));}
+
+  recordAudit(input:AuditInput):string{
+    const id=crypto.randomUUID();
+    this.connection.prepare(`INSERT INTO audit_events(id,actor_user_id,action,entity_type,entity_id,organisation_id,request_id,route,method,before_json,after_json,metadata_json,occurred_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id,input.actorUserId,input.action,input.entityType??null,input.entityId??null,input.organisationId??null,input.requestId,input.route,input.method,safeJson(input.before),safeJson(input.after),JSON.stringify(input.metadata??{}),now());
+    return id;
+  }
+
+  listAudit(input:{actorUserId?:string;action?:string;entityType?:string;organisationId?:string;from?:string;to?:string;limit?:number;offset?:number}={}){
+    const where:string[]=['1=1'];const params:Record<string,unknown>={limit:Math.max(1,Math.min(500,input.limit??100)),offset:Math.max(0,input.offset??0)};
+    for(const [key,column] of [['actorUserId','actor_user_id'],['action','action'],['entityType','entity_type'],['organisationId','organisation_id']] as const)if(input[key]){where.push(`${column}=@${key}`);params[key]=input[key];}
+    if(input.from){where.push('occurred_at>=@from');params.from=input.from;}if(input.to){where.push('occurred_at<=@to');params.to=input.to;}
+    const total=(this.connection.prepare(`SELECT count(*) AS count FROM audit_events WHERE ${where.join(' AND ')}`).get(params) as {count:number}).count;
+    const rows=this.connection.prepare(`SELECT a.*,u.display_name AS actor_name,u.email AS actor_email FROM audit_events a LEFT JOIN users u ON u.id=a.actor_user_id WHERE ${where.join(' AND ')} ORDER BY occurred_at DESC,id DESC LIMIT @limit OFFSET @offset`).all(params) as Array<Record<string,unknown>>;
+    return {total,limit:params.limit,offset:params.offset,items:rows.map((row)=>({id:row.id,actorUserId:row.actor_user_id,actorName:row.actor_name,actorEmail:row.actor_email,action:row.action,entityType:row.entity_type,entityId:row.entity_id,organisationId:row.organisation_id,requestId:row.request_id,route:row.route,method:row.method,before:parse(row.before_json,null),after:parse(row.after_json,null),metadata:parse(row.metadata_json,{}),occurredAt:row.occurred_at}))};
+  }
+
+  private setPasswordInternal(id:string,password:string,timestamp:string):void{if(password.length<12)throw new Error('Password must contain at least 12 characters');const salt=crypto.randomBytes(16).toString('hex');this.connection.prepare(`UPDATE users SET password_hash=?,password_salt=?,status='active',updated_at=? WHERE id=?`).run(passwordHash(password,salt),salt,timestamp,id);this.revokeUserSessions(id);}
+  private assignRolesInternal(userId:string,roleKeys:string[],timestamp:string):void{
+    const unique=[...new Set(roleKeys)];if(!unique.length)throw new Error('At least one role is required');
+    const rows=this.connection.prepare(`SELECT id,key FROM roles WHERE key IN (${unique.map(()=>'?').join(',')})`).all(...unique) as Array<{id:string;key:string}>;
+    if(rows.length!==unique.length)throw new Error('One or more roles are invalid');
+    if(userId===LOCAL_OWNER_USER_ID&&!rows.some((row)=>row.key==='owner'))throw new Error('The local owner must retain the Owner role');
+    this.connection.prepare(`DELETE FROM user_roles WHERE user_id=?`).run(userId);const statement=this.connection.prepare(`INSERT INTO user_roles(user_id,role_id,created_at) VALUES(?,?,?)`);for(const role of rows)statement.run(userId,role.id,timestamp);
+  }
+}
