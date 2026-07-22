@@ -12,6 +12,15 @@ import { ensureOperationalSchema } from './operationalSchema';
 import { ensureConnectedCommunicationsSchema } from './connectedCommunicationsSchema';
 import { ensureCommunicationsHubSchema } from './communicationsHubSchema';
 import { ensureReleaseHardeningSchema } from './releaseHardeningSchema';
+import { ensureWi8Wi9Schema } from './wi8Wi9Schema';
+import { ensureOwnershipBootstrapSchema } from './ownershipBootstrapSchema';
+import { ensureAuditHardeningSchema } from './auditHardeningSchema';
+import { ensureScheduledReportingSchema } from './scheduledReportingSchema';
+
+function hasCoreCrmTables(connection:SqliteConnection):boolean{
+  const count=(connection.prepare(`SELECT count(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('organisations','engagements','tasks','settings')`).get() as {count:number}).count;
+  return count===4;
+}
 
 export function runMigrations(
   dbInstance: DatabaseInstance,
@@ -24,6 +33,12 @@ export function runMigrations(
   ensureConnectedCommunicationsSchema(sqliteConnection);
   ensureCommunicationsHubSchema(sqliteConnection);
   ensureReleaseHardeningSchema(sqliteConnection);
+  if(hasCoreCrmTables(sqliteConnection)){
+    ensureWi8Wi9Schema(sqliteConnection);
+    ensureAuditHardeningSchema(sqliteConnection);
+    ensureScheduledReportingSchema(sqliteConnection);
+    ensureOwnershipBootstrapSchema(sqliteConnection);
+  }
   runWi3LegacyActivityBackfill(sqliteConnection);
   rebuildSearchIndex(sqliteConnection);
 }

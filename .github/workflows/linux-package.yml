@@ -1,0 +1,58 @@
+name: Linux desktop package
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-package-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Debian packaging tools
+        run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Linux packages
+        run: npm run desktop:make
+
+      - name: Verify Debian package exists
+        shell: bash
+        run: |
+          shopt -s nullglob
+          packages=(desktop/out/make/deb/*/*.deb)
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "No .deb package was produced."
+            find desktop/out -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+          dpkg-deb --info "${packages[0]}"
+
+      - name: Upload Linux package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: whitelabel-crm-linux-packages
+          path: |
+            desktop/out/make/deb/**/*.deb
+            desktop/out/make/zip/**/*.zip
+          if-no-files-found: error
+          retention-days: 30

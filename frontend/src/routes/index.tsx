@@ -1,6 +1,8 @@
 import { createBrowserRouter } from 'react-router-dom';
 import MainLayout from '../components/layouts/MainLayout';
 import Dashboard from '../pages/Dashboard';
+import Reporting from '../pages/Reporting';
+import Administration from '../pages/Administration';
 import Organisations from '../pages/Organisations';
 import OrganisationWorkspace from '../pages/OrganisationWorkspace';
 import Contacts from '../pages/Contacts';
@@ -21,29 +23,29 @@ import Invoices from '../pages/Invoices';
 import Services from '../pages/Services';
 import SettingsPage from '../pages/Settings';
 
-export const router = createBrowserRouter([{
-  path: '/',
-  element: <MainLayout />,
-  children: [
-    { index: true, element: <Dashboard /> },
-    { path: 'organisations', element: <Organisations /> },
-    { path: 'organisations/:organisationId', element: <OrganisationWorkspace /> },
-    { path: 'contacts', element: <Contacts /> },
-    { path: 'follow-ups', element: <FollowUps /> },
-    { path: 'search', element: <SearchResults /> },
-    { path: 'work', element: <Work /> },
-    { path: 'documents', element: <Documents /> },
-    { path: 'communications', element: <Communications /> },
-    { path: 'automation', element: <Automation /> },
-    { path: 'integrations', element: <Integrations /> },
-    { path: 'email', element: <EmailInbox /> },
-    { path: 'calendar-workspace', element: <CalendarWorkspace /> },
-    { path: 'operations-health', element: <OperationsHealth /> },
-    { path: 'customers', element: <Customers /> },
-    { path: 'customers/:id', element: <CustomerWorkspace /> },
-    { path: 'bookings', element: <Bookings /> },
-    { path: 'invoices', element: <Invoices /> },
-    { path: 'services', element: <Services /> },
-    { path: 'settings', element: <SettingsPage /> },
+export const router=createBrowserRouter([{
+  path:'/',element:<MainLayout/>,children:[
+    {index:true,element:<Dashboard/>},
+    {path:'reporting',element:<Reporting/>},
+    {path:'administration',element:<Administration/>},
+    {path:'organisations',element:<Organisations/>},
+    {path:'organisations/:organisationId',element:<OrganisationWorkspace/>},
+    {path:'contacts',element:<Contacts/>},
+    {path:'follow-ups',element:<FollowUps/>},
+    {path:'search',element:<SearchResults/>},
+    {path:'work',element:<Work/>},
+    {path:'documents',element:<Documents/>},
+    {path:'communications',element:<Communications/>},
+    {path:'automation',element:<Automation/>},
+    {path:'integrations',element:<Integrations/>},
+    {path:'email',element:<EmailInbox/>},
+    {path:'calendar-workspace',element:<CalendarWorkspace/>},
+    {path:'operations-health',element:<OperationsHealth/>},
+    {path:'customers',element:<Customers/>},
+    {path:'customers/:id',element:<CustomerWorkspace/>},
+    {path:'bookings',element:<Bookings/>},
+    {path:'invoices',element:<Invoices/>},
+    {path:'services',element:<Services/>},
+    {path:'settings',element:<SettingsPage/>},
   ],
 }]);
