@@ -4,8 +4,8 @@ function registryAvailable(connection:Database.Database):boolean{return Boolean(
 
 export function isExtensionResourceEnabled(connection:Database.Database,resourceType:string,resourceId:string):boolean {
   if(!registryAvailable(connection))return true;
-  const row=connection.prepare(`SELECT e.status,b.disabled_at FROM extension_bindings b JOIN extensions e ON e.id=b.extension_id WHERE b.resource_type=? AND b.resource_id=?`).get(resourceType,resourceId) as {status:string;disabled_at:string|null}|undefined;
-  return !row||(row.status==='enabled'&&!row.disabled_at);
+  const row=connection.prepare(`SELECT e.status,b.disabled_at,b.retired_at FROM extension_bindings b JOIN extensions e ON e.id=b.extension_id WHERE b.resource_type=? AND b.resource_id=?`).get(resourceType,resourceId) as {status:string;disabled_at:string|null;retired_at:string|null}|undefined;
+  return !row||(row.status==='enabled'&&!row.disabled_at&&!row.retired_at);
 }
 
 export function assertResourceNotExtensionOwned(connection:Database.Database,resourceType:string,resourceId:string):void {
