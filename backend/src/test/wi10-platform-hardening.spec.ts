@@ -22,6 +22,13 @@ describe('WI10 platform hardening',()=>{
     expect(platform.resolveApiToken(disabled.token)).toBeNull();
   });
 
+  it('rotates tokens atomically and normalizes offset expiry timestamps',()=>{
+    const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;
+    const original=platform.createApiToken(owner,{name:'Rotating token',scopes:['crm.read'],expiresAt:'2099-01-01T01:00:00+01:00'});expect((original.record as any).expiresAt).toBe('2099-01-01T00:00:00.000Z');
+    const replacement=platform.rotateApiToken(owner,(original.record as any).id,{expiresAt:'2099-02-01T01:00:00+01:00'});
+    expect(platform.resolveApiToken(original.token)).toBeNull();expect(platform.resolveApiToken(replacement.token)?.permissions).toEqual(['crm.read']);expect((replacement.record as any).expiresAt).toBe('2099-02-01T00:00:00.000Z');
+  });
+
   it('moves repeated webhook failures to dead letter and permits explicit retry',()=>{
     const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;
     platform.createWebhook(owner,{name:'Failure lifecycle',endpointUrl:'http://127.0.0.1:45680/hook',eventTypes:['organisation.created.v1']});
