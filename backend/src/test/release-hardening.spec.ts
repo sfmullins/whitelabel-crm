@@ -1,6 +1,7 @@
 import { afterEach,describe,expect,it,vi } from 'vitest';
 import { CalDavSyncAdapter } from '../infrastructure/integrations/CalDavSyncAdapter';
 import { parseEmailSyncCursor,serializeEmailSyncCursor } from '../infrastructure/integrations/ConnectedAdapters';
+import { selectEmailSyncUids } from '../infrastructure/integrations/ImapSyncAdapter';
 
 describe('WI6-WI7 release hardening contracts',()=>{
   afterEach(()=>{vi.restoreAllMocks();});
@@ -9,6 +10,13 @@ describe('WI6-WI7 release hardening contracts',()=>{
     const encoded=serializeEmailSyncCursor({mailbox:'INBOX',uidValidity:'9981',lastUid:55,failedUids:[42,42,51]});
     expect(parseEmailSyncCursor(encoded,'INBOX')).toEqual({mailbox:'INBOX',uidValidity:'9981',lastUid:55,failedUids:[42,51]});
     expect(parseEmailSyncCursor('42','INBOX')).toEqual({mailbox:'INBOX',uidValidity:null,lastUid:42,failedUids:[]});
+  });
+
+  it('reserves IMAP batch capacity for new mail while retaining failed retries',()=>{
+    const selection=selectEmailSyncUids([1,2,3,4,5,6],[101,102,103,104,105],4);
+    expect(selection.targets).toEqual([1,101,102,103]);
+    expect(selection.pendingFailed).toEqual([2,3,4,5,6]);
+    expect(selectEmailSyncUids([1],[101],1).targets).toEqual([101]);
   });
 
   it('converts TZID calendar wall time and preserves the server resource href',async()=>{
