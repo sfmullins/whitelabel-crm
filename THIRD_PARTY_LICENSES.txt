@@ -589,7 +589,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ------------------------------------------------------------------------
-Package: better-sqlite3 (v11.10.0)
+Package: better-sqlite3 (v12.11.1)
 License: MIT
 Author: Joshua Wise <joshuathomaswise@gmail.com>
 ------------------------------------------------------------------------
@@ -700,7 +700,7 @@ Author: Drizzle Team
 Refer to package documentation or public registry for license text.
 
 ------------------------------------------------------------------------
-Package: electron (v43.2.0)
+Package: electron (v42.7.1)
 License: MIT
 Author: Electron Community
 ------------------------------------------------------------------------
