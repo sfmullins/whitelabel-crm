@@ -55,7 +55,23 @@ jobs:
           exit 1
 
       - name: Backend and frontend tests
-        run: npm test
+        id: workspace_tests
+        continue-on-error: true
+        run: npm test > "$RUNNER_TEMP/workspace-tests.log" 2>&1
+
+      - name: Upload test diagnostics
+        if: steps.workspace_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-test-failure
+          path: ${{ runner.temp }}/workspace-tests.log
+          retention-days: 3
+
+      - name: Enforce backend and frontend tests
+        if: steps.workspace_tests.outcome == 'failure'
+        run: |
+          tail -n 180 "$RUNNER_TEMP/workspace-tests.log"
+          exit 1
 
       - name: Database migration smoke
         run: npm run db:smoke
