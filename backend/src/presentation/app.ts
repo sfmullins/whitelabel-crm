@@ -23,10 +23,12 @@ import releaseHardeningRouter from './routes/releaseHardening';
 import authRouter from './routes/auth';
 import administrationRouter from './routes/administration';
 import reportingRouter from './routes/reporting';
+import ownershipRouter from './routes/ownership';
 import { AppError } from '../application/errors';
 import { getSqliteConnection } from '../infrastructure/database/connection';
 import { getRuntimePaths } from '../config/runtimePaths';
 import { apiRateLimit,auditSuccessfulRequests,authenticateRequest,enforcePermissions,requestHardening,type CrmRequest } from './middleware/security';
+import { assignCreatedOwnership } from './middleware/ownership';
 
 const app=express();
 const allowedOrigins=new Set((process.env.CRM_ALLOWED_ORIGINS||'').split(',').map((value)=>value.trim()).filter(Boolean));
@@ -38,11 +40,13 @@ app.use(express.urlencoded({limit:'12mb',extended:true}));
 app.use((req,res,next)=>{console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} requestId=${res.getHeader('x-request-id')}`);next();});
 app.use(authenticateRequest());
 app.use(enforcePermissions());
+app.use(assignCreatedOwnership());
 app.use(auditSuccessfulRequests());
 
 app.use('/api',authRouter);
 app.use('/api',administrationRouter);
 app.use('/api',reportingRouter);
+app.use('/api',ownershipRouter);
 app.use('/api/settings',settingsRouter);
 app.use('/api/customers',customersRouter);
 app.use('/api/services',servicesRouter);
@@ -68,8 +72,8 @@ app.get('/health',(_req,res)=>res.json({status:'OK',time:new Date().toISOString(
 app.get('/ready',(_req,res)=>{
   try{
     const connection=getSqliteConnection();const integrity=(connection.pragma('integrity_check',{simple:true}) as string)==='ok';
-    const required=['users','roles','audit_events','saved_reports','report_dashboards'];const existing=new Set((connection.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{name:string}>).map((row)=>row.name));const missing=required.filter((table)=>!existing.has(table));
-    const paths=getRuntimePaths();for(const directory of [paths.dataDirectory,paths.temporaryDirectory,paths.logDirectory,paths.documentDirectory])fs.accessSync(directory,fs.constants.W_OK);
+    const required=['users','teams','roles','audit_events','saved_reports','report_dashboards'];const existing=new Set((connection.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{name:string}>).map((row)=>row.name));const missing=required.filter((table)=>!existing.has(table));
+    const paths=getRuntimePaths();for(const directory of [paths.dataDirectory,paths.temporaryDirectory,paths.logDirectory,paths.documentDirectory]){fs.mkdirSync(directory,{recursive:true});fs.accessSync(directory,fs.constants.W_OK);}
     const ready=integrity&&missing.length===0;res.status(ready?200:503).json({status:ready?'READY':'NOT_READY',integrity,missingTables:missing,time:new Date().toISOString()});
   }catch(error){res.status(503).json({status:'NOT_READY',message:error instanceof Error?error.message:'Readiness check failed',time:new Date().toISOString()});}
 });
