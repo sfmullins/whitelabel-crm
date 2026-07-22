@@ -1,152 +1,169 @@
-# White-Label Local-First CRM
+# WhiteLabelCRM
 
-A production-quality, local-first, privacy-first Customer Relationship Management (CRM) platform built with React, Node.js, and SQLite.
+WhiteLabelCRM is a local-first, privacy-oriented CRM and operations platform built with TypeScript, React, Express, SQLite and Electron. It is designed for white-label deployment without requiring a hosted database or a third-party workflow service.
 
----
+## Current product baseline
 
-## Architecture Overview
+The merged application includes:
 
-The system is structured as an NPM monorepo containing three core packages:
+- organisation, contact and engagement workspaces;
+- unified activities, notes, follow-ups and timeline history;
+- documents, tasks, reminders and operational queues;
+- connected email and calendar accounts with explicit outbound actions;
+- allow-listed workflow automation;
+- invoicing, payments, services and bookings retained from the original CRM model;
+- users, teams, roles, permissions, ownership and immutable audit records;
+- deterministic reports, dashboards, exports and scheduled report artifacts;
+- a scoped, versioned `/api/v1` platform API with API tokens and OpenAPI metadata;
+- signed, durable webhook delivery;
+- a capability-controlled declarative extension platform;
+- Linux Debian and portable ZIP desktop packaging.
 
-1.  **`shared/`**: Common TypeScript models, DTO interfaces, and shared validation schemas (powered by Zod).
-2.  **`backend/`**: An Express server interface interacting with a local SQLite database (`better-sqlite3`) managed through Drizzle ORM.
-3.  **`frontend/`**: A React single-page application built on Vite and styled with a customizable Tailwind branding system.
-4.  **`desktop/`**: An Electron-shell container that embeds the Express server and React client, isolating system operations behind an IPC security bridge.
+The application remains a single-instance, local-first SQLite system. It does not claim horizontal multi-writer or active-active operation.
 
+## Repository structure
+
+This is an npm workspace monorepo with four runtime packages and a deterministic verification layer:
+
+| Path | Responsibility |
+|---|---|
+| `shared/` | Runtime contracts, DTOs and Zod validation shared across packages. |
+| `backend/` | Express APIs, application services, repositories, SQLite persistence, migrations, integrations, schedulers, backups, reports and extension lifecycle. |
+| `frontend/` | React/Vite single-page application and generic extension runtime UI. |
+| `desktop/` | Electron main/preload boundary and Electron Forge packaging. |
+| `scratch/` | Migration, packaging, work-item smoke and repository-governance checks. |
+| `docs/` | Architecture, domain, work-item and release-planning documentation. |
+
+The principal dependency direction is:
+
+```text
+React or external client
+  -> Express route and security boundary
+  -> application service / bounded runtime service
+  -> repository
+  -> SQLite, verified filesystem storage or standards-based adapter
 ```
-┌─────────────────────────────────────────────────────────┐
-│               Electron Container (Shell)                │
-│  Window lifecycle, native path selectors, secure preload│
-└────────────────────────────┬────────────────────────────┘
-                             │ IPC Preload Bridge
-┌────────────────────────────▼────────────────────────────┐
-│                    UI (React Frontend)                  │
-│  Pages, components, routes, styles, and local state    │
-└────────────────────────────┬────────────────────────────┘
-                             │ Local HTTP Requests
-┌────────────────────────────▼────────────────────────────┐
-│                    Presentation API                     │
-│  Express controllers, middleware, and request validation│
-└────────────────────────────┬────────────────────────────┘
-                             │ Calls
-┌────────────────────────────▼────────────────────────────┐
-│                  Application Services / Repo            │
-│  Use Cases (e.g. CreateBooking, ProcessPayment)        │
-└────────────────────────────┬────────────────────────────┘
-                             │
-┌────────────────────────────▼────────────────────────────┐
-│                Infrastructure (Database)                │
-│  Drizzle ORM, SQLite DB, backups, and CSV imports      │
-└─────────────────────────────────────────────────────────┘
-```
 
----
+The Electron renderer does not receive direct database, filesystem or credential access.
 
-## Database Relational Model (ER)
+## Supported toolchain
 
-The SQLite database comprises 12 relational tables:
-*   **Settings**: Stores business name, custom logo data URLs, dynamic color palettes, currency formats, and tax defaults.
-*   **Customers**: Profiles with fuzzy search index optimizations and tag support.
-*   **Services**: Catalog items with custom pricing in cents and tax rate configurations.
-*   **Bookings**: Customer appointments schedule linked directly to auto-billing triggers.
-*   **Invoices & Invoice Items**: Itemized billing states with status audits (`unpaid`, `paid`, `cancelled`).
-*   **Payments**: Ledger entries recording partial or full payment collections against outstanding balances.
-*   **Custom Fields**: Dynamic schema definitions and values linking custom attributes to core CRM entities.
-*   **Custom Objects**: Relational Salesforce-style objects (e.g., Vehicles) linked to customer profiles.
+- Node.js 22–24
+- npm 10–11
 
----
+Use the repository lockfile for reproducible installation:
 
-## Setup & Execution
-
-### 1. Installation
-Install all workspaces dependencies:
 ```bash
-npm install
+npm ci
 ```
 
-### 2. Database Migrations & Seeding
-Initialize the SQLite schema structure and populate it with realistic mock data:
-```bash
-# Generate schemas
-npm run db:generate
+## Local development
 
-# Run Drizzle migrations
+Run database migrations and seed the development database:
+
+```bash
 npm run db:migrate
-
-# Seed mock directory data
 npm run db:seed
 ```
 
-### 3. Local Development Start (Web Mode)
-Start both backend and frontend development servers concurrently:
+Start the backend and frontend development servers:
+
 ```bash
 npm run dev
 ```
-*   **Backend Server**: http://localhost:5000
-*   **Frontend Dashboard**: http://localhost:3001 (auto-proxies `/api/*` requests to port 5000)
 
-### 4. Build Production Web Bundle
-Build and split optimized bundles for deployment:
-```bash
-npm run build
-```
+Default development endpoints:
 
-### 5. Local Development Start (Desktop Mode)
-Launch the application locally in the Electron desktop container:
+- Backend: `http://localhost:5000`
+- Frontend: `http://localhost:3000`
+- Frontend requests under `/api` are proxied to the backend.
+
+Start the built Electron application:
+
 ```bash
 npm run desktop:start
 ```
 
-### 6. Package Desktop Application
-Bundle the application into a standalone binary inside `desktop/out/`:
+## Build and verification
+
+Build every workspace and regenerate the third-party licence inventory:
+
+```bash
+npm run build
+```
+
+Run the complete deterministic repository gate:
+
+```bash
+npm run ci:verify
+```
+
+That gate covers:
+
+- TypeScript and production frontend builds;
+- package declarations, workspace links, parser diagnostics and duplicate JSON keys;
+- negative regression fixtures for the npm/source hygiene scanner;
+- backend and frontend tests;
+- isolated database migration smoke;
+- permanent WI4–WI11 regression smoke suites;
+- desktop packaging preflight.
+
+Check production dependencies for high or critical advisories:
+
+```bash
+npm run audit:production
+```
+
+GitHub Actions also verifies that the repository remains clean after the build and produces a Linux Debian package through a separate packaging workflow.
+
+## Desktop packaging
+
+Create an unpacked desktop package:
+
 ```bash
 npm run desktop:package
 ```
 
-### 7. Create Installers (Debian .deb & .zip)
-Build production installers and distributables for Linux:
+Create Linux installers and portable artifacts:
+
 ```bash
 npm run desktop:make
 ```
-*   **ZIP Archive Target**: `desktop/out/make/zip/`
-*   **Debian installer Target**: `desktop/out/make/deb/`
 
----
+Generated staging files and workspace tarballs are temporary and are not committed. Package outputs are written under `desktop/out/`.
 
-## Verification & Testing
+## API, security and extension boundaries
 
-Verify that all unit and functional specifications are met:
-```bash
-npm run test
-```
-The test suite validates financial calculations, tax rate snaps, CSV parse behaviors, AES-256-GCM encryption, integrity validation, and GFS backup retention schedules.
+Internal UI routes remain under `/api`. External integrations use the explicitly allow-listed `/api/v1` surface and authenticated scoped API tokens.
 
----
+The request boundary provides identity resolution, permissions, ownership enforcement, rate limiting, origin controls, request IDs and immutable redacted audit events. Credentials and webhook secrets are encrypted outside SQLite; SQLite retains operational metadata and non-secret keys.
 
-## Core Enterprise Workflows
+Extensions are declarative. Packages may contribute custom fields and entities, forms, views, navigation, bounded themes, supported reports, workflow templates, event subscriptions, localisation and verified static assets. Packages cannot execute JavaScript, SQL, shell commands or renderer bundles and do not receive database or credential access.
 
-### 1. Multi-tier Backup & Portability Engine
-*   **Atomic Snapshots**: Uses the SQLite Online Backup API natively inside `better-sqlite3` to perform atomic, non-blocking snapshots.
-*   **Encryption**: Generates cryptographically secure binary archives encrypted with AES-256-GCM using client-derived SHA-256 keys.
-*   **S3 Cloud Sync**: Synchronizes backups directly to S3-compatible remote buckets using a custom, dependency-free AWS Signature V4 client.
-*   **GFS Retention**: Rotates and cleans older backup files automatically based on Grandfather-Father-Son schedule counts (Daily, Weekly, Monthly limits).
-*   **Integrity Assurance**: Runs `PRAGMA integrity_check` and tables schema scans on isolated database handles before finalizing any backup or restore operation.
+See:
 
-### 2. CSV Customer Import
-Features transactional database rollbacks: if any customer row or dynamic custom field value fails validation, the database rolls back completely to prevent data corruption.
+- `docs/ARCHITECTURE.md`
+- `docs/DOMAIN.md`
+- `docs/work-items/WI10.md`
+- `docs/work-items/WI11.md`
 
-### 3. Compliance & Auditing
-Features a built-in third-party dependency scanner (`scratch/generate-licenses.js`) that enforces a strict permissive license check policy (MIT, Apache 2.0, BSD) on all project dependencies. Run the audit check via `npm run build`.
+## Delivery status and roadmap
 
-## WI4 CRM workspace
+Completed and merged:
 
-The development workspace is organisation-first. Global search uses the local SQLite FTS5 index, the organisation workspace consolidates contacts, engagements and a unified timeline, and activity follow-up dates drive the operational follow-up queue.
+- WI10 — Platform API, PR #13;
+- WI11 — Extension Platform, PR #14;
+- post-WI11 npm, package-boundary and staging hardening, PR #15.
 
-Reset and seed the prelaunch development database with Good Order Ltd and Acme Ltd:
+The remaining programme is WI12 — Enterprise Release. Its scope is release certification rather than another broad domain expansion: end-to-end testing, accessibility, performance budgets, upgrade/restore rehearsal, Windows and container artifacts, release provenance, versioned operational documentation and support/security policy.
 
-```bash
-npm run db:migrate
-npm run db:seed
-```
+The authoritative plan and current entry gates are maintained in `docs/WI10-WI12-IMPLEMENTATION-PLAN.md`.
 
-No external search or hosted workflow service is required. WI4 adds no runtime dependency and remains within the repository's FOSS licence gates.
+## Current limitations
+
+- SQLite remains a local-first, single-instance datastore.
+- Some legacy booking, invoice and payment relationships still use the original customer model rather than the newer organisation model.
+- Credit notes and some financial-lifecycle consolidation remain incomplete.
+- The public API is intentionally narrower than the internal application API.
+- Extension recovery is a full database restore, not an isolated reverse migration.
+- Full browser/packaged-desktop end-to-end, WCAG, performance, Windows, container and release certification remain WI12 work.
