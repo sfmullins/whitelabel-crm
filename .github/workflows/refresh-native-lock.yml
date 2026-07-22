@@ -1,8 +1,9 @@
 name: Refresh native dependency lock
 
 on:
-  push:
-    branches: [docs/record-wi11-completion]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -36,14 +37,14 @@ jobs:
         run: |
           if git diff --quiet -- package-lock.json; then
             echo "Dependency lock is current."
-            exit 0
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "Refresh native dependency lock"
+            git pull --rebase origin docs/record-wi11-completion
+            git push origin HEAD:docs/record-wi11-completion
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "Refresh native dependency lock"
-          git pull --rebase origin docs/record-wi11-completion
-          git push origin HEAD:docs/record-wi11-completion
 
       - name: Install audited graph
         run: npm ci
