@@ -17,7 +17,7 @@ function normalizeApiPath(path:string):string{return path.startsWith('/v1/')?pat
 function entityFromPath(path:string):string|null{const normalized=path.replace(/^\/api\/v1/,'/api').split('?')[0];const parts=normalized.split('/').filter(Boolean);const value=parts[0]==='api'?parts[1]:parts[0];return value&&value!=='auth'?value.replace(/-/g,'_'):null;}
 function permissionFor(method:string,path:string):string|null{
   const policyPath=normalizeApiPath(path);
-  if(policyPath.startsWith('/auth/'))return null;
+  if(policyPath.startsWith('/auth/')||policyPath==='/me')return null;
   if(policyPath.startsWith('/platform/api-tokens'))return 'api.manage';
   if(policyPath.startsWith('/platform/webhooks')||policyPath.startsWith('/platform/webhook-deliveries'))return 'webhooks.manage';
   if(policyPath.startsWith('/platform/events'))return 'platform.read';
@@ -75,7 +75,15 @@ export function authenticateRequest(repository=new SecurityRepository(),platform
 }
 
 export function enforcePermissions(repository=new SecurityRepository()){
-  return (req:CrmRequest,res:Response,next:NextFunction):void=>{if(!req.path.startsWith('/api'))return next();const permission=permissionFor(req.method.toUpperCase(),req.path.slice(4)||'/');if(!permission)return next();if(!repository.hasPermission(req.crm?.identity,permission)){res.status(403).json({error:'FORBIDDEN',message:`Permission required: ${permission}`});return;}next();};
+  return (req:CrmRequest,res:Response,next:NextFunction):void=>{
+    if(!req.path.startsWith('/api'))return next();
+    const apiPath=req.path.slice(4)||'/';
+    if(apiPath==='/v1/openapi.json'){
+      if(repository.hasPermission(req.crm?.identity,'crm.read')||repository.hasPermission(req.crm?.identity,'platform.read'))return next();
+      res.status(403).json({error:'FORBIDDEN',message:'Permission required: crm.read or platform.read'});return;
+    }
+    const permission=permissionFor(req.method.toUpperCase(),apiPath);if(!permission)return next();if(!repository.hasPermission(req.crm?.identity,permission)){res.status(403).json({error:'FORBIDDEN',message:`Permission required: ${permission}`});return;}next();
+  };
 }
 
 export function auditSuccessfulRequests(repository=new SecurityRepository(),platform=new PlatformRepository()){
