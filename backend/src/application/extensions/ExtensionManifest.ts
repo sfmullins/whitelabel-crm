@@ -109,9 +109,18 @@ const CAPABILITY_CONTRIBUTIONS:Record<ExtensionCapability,keyof ExtensionManifes
   custom_fields:'customFields',custom_entities:'customEntities',forms:'forms',views:'views',navigation:'navigation',themes:'themes',reports:'reports',workflow_templates:'workflowTemplates',event_subscriptions:'eventSubscriptions',localisation:'localisations',static_assets:'assets',
 };
 
+function assertUnique<T>(items:T[],key:(item:T)=>string,label:string):void {const seen=new Set<string>();for(const item of items){const value=key(item);if(seen.has(value))throw new Error(`Duplicate ${label} key: ${value}`);seen.add(value);}}
+function validateContributionKeys(manifest:ExtensionManifest):void {
+  assertUnique(manifest.contributions.customFields,(item)=>`${item.entityType}:${item.key}`,'custom field');
+  assertUnique(manifest.contributions.customEntities,(item)=>item.key,'custom entity');
+  for(const entity of manifest.contributions.customEntities)assertUnique(entity.fields,(item)=>item.key,`field in custom entity ${entity.key}`);
+  assertUnique(manifest.contributions.forms,(item)=>item.key,'form');assertUnique(manifest.contributions.views,(item)=>item.key,'view');assertUnique(manifest.contributions.navigation,(item)=>item.key,'navigation');assertUnique(manifest.contributions.themes,(item)=>item.key,'theme');assertUnique(manifest.contributions.reports,(item)=>item.key,'report');assertUnique(manifest.contributions.workflowTemplates,(item)=>item.key,'workflow template');assertUnique(manifest.contributions.eventSubscriptions,(item)=>item.key,'event subscription');assertUnique(manifest.contributions.localisations,(item)=>item.locale,'localisation');assertUnique(manifest.contributions.assets,(item)=>item.key,'asset');
+}
+
 export function validateExtensionPackage(input:unknown,approvedCapabilities:string[],applicationVersion=process.env.CRM_APP_VERSION||'1.0.0'):{package:ExtensionPackage;canonicalManifest:string;checksum:string;signatureStatus:'unsigned'|'verified'} {
-  const parsed=ExtensionPackageSchema.parse(input);const canonicalManifest=canonicalJson(parsed.manifest);
+  const parsed=ExtensionPackageSchema.parse(input);validateContributionKeys(parsed.manifest);const canonicalManifest=canonicalJson(parsed.manifest);
   if(Buffer.byteLength(canonicalManifest,'utf8')>1_000_000)throw new Error('Extension manifest exceeds the 1 MB limit');
+  if(parsed.manifest.application.maxVersion&&compareSemver(parsed.manifest.application.maxVersion,parsed.manifest.application.minVersion)<0)throw new Error('Extension maximum application version cannot precede its minimum version');
   if(compareSemver(applicationVersion,parsed.manifest.application.minVersion)<0)throw new Error(`Extension requires application version ${parsed.manifest.application.minVersion} or newer`);
   if(parsed.manifest.application.maxVersion&&compareSemver(applicationVersion,parsed.manifest.application.maxVersion)>0)throw new Error(`Extension supports application versions up to ${parsed.manifest.application.maxVersion}`);
   const requested=new Set<ExtensionCapability>(parsed.manifest.capabilities);const approved=new Set(approvedCapabilities);
