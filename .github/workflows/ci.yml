@@ -133,12 +133,40 @@ jobs:
         run: npm run desktop:preflight
 
       - name: Clean repository verification
+        id: clean_repository
+        continue-on-error: true
         run: |
           status="$(git status --porcelain --untracked-files=all)"
-          if [ -n "$status" ]; then
+          if [ -z "$status" ]; then
+            echo "Repository remained clean."
+            exit 0
+          fi
+          {
             echo "Repository changed during CI:"
             printf '%s\n' "$status"
             git diff --stat
             git diff
-            exit 1
-          fi
+          } > "$RUNNER_TEMP/repository-clean.log"
+          mkdir -p "$RUNNER_TEMP/repository-clean-files"
+          while IFS= read -r file; do
+            [ -f "$file" ] || continue
+            mkdir -p "$RUNNER_TEMP/repository-clean-files/$(dirname "$file")"
+            cp "$file" "$RUNNER_TEMP/repository-clean-files/$file"
+          done < <(git diff --name-only)
+          exit 1
+
+      - name: Upload clean repository diagnostics
+        if: steps.clean_repository.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-clean-failure
+          path: |
+            ${{ runner.temp }}/repository-clean.log
+            ${{ runner.temp }}/repository-clean-files
+          retention-days: 3
+
+      - name: Enforce clean repository verification
+        if: steps.clean_repository.outcome == 'failure'
+        run: |
+          cat "$RUNNER_TEMP/repository-clean.log"
+          exit 1
