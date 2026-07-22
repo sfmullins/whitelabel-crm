@@ -2,6 +2,10 @@
   "name": "whitelabel-crm-root",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22 <25",
+    "npm": ">=10 <12"
+  },
   "workspaces": [
     "shared",
     "backend",
@@ -9,10 +13,11 @@
     "desktop"
   ],
   "scripts": {
-    "install:all": "npm install",
+    "install:all": "npm ci",
     "dev": "concurrently --kill-others \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build -w shared && npm run build -w backend && npm run build -w frontend && npm run build -w desktop && node scratch/generate-licenses.js",
-    "check:npm-hygiene": "node scratch/npm-hygiene.js && npm ls --all",
+    "check:npm-hygiene": "node scratch/npm-hygiene.js && node scratch/npm-hygiene-self-test.js && npm ls --all",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
     "test": "npm run test -w backend && npm run test -w frontend",
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend",
