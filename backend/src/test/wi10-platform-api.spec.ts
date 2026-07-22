@@ -31,8 +31,8 @@ describe('WI10 platform API',()=>{
     expect(()=>platform.createApiToken(identity,{name:'Unsupported token',scopes:['users.manage']})).toThrow('Unsupported API token scope');
   });
 
-  it('requires bearer authentication, applies token scopes and rejects internal routes on v1',async()=>{
-    const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const session=security.createSession(owner.id);const read=platform.createApiToken(owner,{name:'Read only',scopes:['crm.read','reports.read']});const write=platform.createApiToken(owner,{name:'Writer',scopes:['crm.read','crm.write']});let server:RunningServer|null=null;
+  it('requires bearer authentication, applies scopes, assigns ownership and emits events',async()=>{
+    const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const session=security.createSession(owner.id);const read=platform.createApiToken(owner,{name:'Read only',scopes:['crm.read','reports.read']});const write=platform.createApiToken(owner,{name:'Writer',scopes:['crm.read','crm.write']});platform.createWebhook(owner,{name:'v1 event receiver',endpointUrl:'http://127.0.0.1:45681/hook',eventTypes:['organisation.created.v1']});let server:RunningServer|null=null;
     try{
       server=await startServer({host:'127.0.0.1',port:0});
       const anonymous=await fetch(`${server.url}/api/v1/me`);expect(anonymous.status).toBe(401);
@@ -41,6 +41,9 @@ describe('WI10 platform API',()=>{
       const report=await fetch(`${server.url}/api/v1/reporting/executive`,{headers:bearer(read.token)});expect(report.status).toBe(200);
       const denied=await fetch(`${server.url}/api/v1/organisations`,{method:'POST',headers:bearer(read.token),body:JSON.stringify({name:'Denied v1 organisation',status:'prospect'})});expect(denied.status).toBe(403);
       const created=await fetch(`${server.url}/api/v1/organisations`,{method:'POST',headers:bearer(write.token),body:JSON.stringify({name:'Created through v1',status:'prospect'})});expect(created.status).toBe(201);const body=await created.json() as {id:string};expect(body.id).toBeTruthy();
+      const stored=getSqliteConnection().prepare(`SELECT owner_user_id FROM organisations WHERE id=?`).get(body.id) as {owner_user_id:string};expect(stored.owner_user_id).toBe(owner.id);
+      const event=platform.listEvents().find((item:any)=>item.eventType==='organisation.created.v1'&&item.aggregateId===body.id) as any;expect(event.apiTokenId).toBe((write.record as any).id);expect(event.requestId).toBeTruthy();
+      const delivery=platform.listDeliveries({status:'pending'}).find((item:any)=>item.eventId===event.id) as any;expect(delivery.subscriptionName).toBe('v1 event receiver');
       const savedReports=await fetch(`${server.url}/api/v1/reporting/saved`,{headers:bearer(session.token)});expect(savedReports.status).toBe(404);
       const legacyActivities=await fetch(`${server.url}/api/v1/customers/00000000-0000-4000-8000-000000000001/activities`,{headers:bearer(read.token)});expect(legacyActivities.status).toBe(404);
     }finally{await server?.close();}
@@ -48,7 +51,7 @@ describe('WI10 platform API',()=>{
 
   it('publishes an authenticated OpenAPI contract matching the allowlist',async()=>{
     const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const token=platform.createApiToken(owner,{name:'Documentation reader',scopes:['crm.read']});let server:RunningServer|null=null;
-    try{server=await startServer({host:'127.0.0.1',port:0});const response=await fetch(`${server.url}/api/v1/openapi.json`,{headers:bearer(token.token)});expect(response.status).toBe(200);const document=await response.json() as any;expect(document.openapi).toBe('3.1.0');expect(document.paths['/organisations']).toBeTruthy();expect(document.paths['/contacts/{id}']).toBeTruthy();expect(document.paths['/reporting/{key}']).toBeTruthy();expect(document.paths['/reporting/saved']).toBeUndefined();expect(document.components.securitySchemes.bearerAuth).toBeTruthy();}finally{await server?.close();}
+    try{server=await startServer({host:'127.0.0.1',port:0});const response=await fetch(`${server.url}/api/v1/openapi.json`,{headers:{...bearer(token.token),'x-request-id':'wi10-openapi-test'}});expect(response.status).toBe(200);expect(response.headers.get('x-request-id')).toBe('wi10-openapi-test');const document=await response.json() as any;expect(document.openapi).toBe('3.1.0');expect(document.paths['/organisations']).toBeTruthy();expect(document.paths['/contacts/{id}']).toBeTruthy();expect(document.paths['/reporting/{key}']).toBeTruthy();expect(document.paths['/reporting/saved']).toBeUndefined();expect(document.components.parameters.Limit).toBeTruthy();expect(document.components.securitySchemes.bearerAuth).toBeTruthy();}finally{await server?.close();}
   });
 
   it('blocks private webhook targets unless explicit loopback testing is enabled',()=>{
