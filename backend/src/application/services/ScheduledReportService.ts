@@ -11,6 +11,7 @@ interface DueSchedule {
   id:string;
   saved_report_id:string;
   cadence:'daily'|'weekly'|'monthly';
+  next_run_at:string;
   report_key:ReportKey;
   filters_json:string;
   owner_user_id:string;
@@ -46,7 +47,7 @@ export class ScheduledReportService {
     if(this.running)return {succeeded:0,failed:0};this.running=true;let succeeded=0;let failed=0;
     try{
       const outputDirectory=this.outputDirectory();this.recoverStaleRuns();fs.mkdirSync(outputDirectory,{recursive:true});
-      const schedules=this.connection.prepare(`SELECT s.id,s.saved_report_id,s.cadence,r.report_key,r.filters_json,r.owner_user_id,r.name AS report_name FROM report_schedules s JOIN saved_reports r ON r.id=s.saved_report_id WHERE s.enabled=1 AND s.next_run_at<=? AND r.archived_at IS NULL AND NOT EXISTS(SELECT 1 FROM report_schedule_runs rr WHERE rr.schedule_id=s.id AND rr.status='running') ORDER BY s.next_run_at LIMIT ?`).all(new Date().toISOString(),Math.max(1,Math.min(100,limit))) as DueSchedule[];
+      const schedules=this.connection.prepare(`SELECT s.id,s.saved_report_id,s.cadence,s.next_run_at,r.report_key,r.filters_json,r.owner_user_id,r.name AS report_name FROM report_schedules s JOIN saved_reports r ON r.id=s.saved_report_id WHERE s.enabled=1 AND s.next_run_at<=? AND r.archived_at IS NULL AND NOT EXISTS(SELECT 1 FROM report_schedule_runs rr WHERE rr.schedule_id=s.id AND rr.status='running') ORDER BY s.next_run_at LIMIT ?`).all(new Date().toISOString(),Math.max(1,Math.min(100,limit))) as DueSchedule[];
       for(const schedule of schedules){
         const runId=crypto.randomUUID();const startedAt=new Date().toISOString();
         this.connection.prepare(`INSERT INTO report_schedule_runs(id,schedule_id,saved_report_id,report_key,status,started_at) VALUES(?,?,?,?, 'running',?)`).run(runId,schedule.id,schedule.saved_report_id,schedule.report_key,startedAt);
@@ -55,10 +56,11 @@ export class ScheduledReportService {
           fs.writeFileSync(temporaryPath,exported.content,{encoding:'utf8',mode:0o600});fs.renameSync(temporaryPath,finalPath);const completedAt=new Date().toISOString();const expiresAt=new Date(Date.now()+90*24*60*60*1000).toISOString();
           this.connection.transaction(()=>{
             this.connection.prepare(`UPDATE report_schedule_runs SET status='succeeded',filename=?,storage_path=?,byte_size=?,completed_at=?,expires_at=? WHERE id=?`).run(exported.filename,finalPath,Buffer.byteLength(exported.content),completedAt,expiresAt,runId);
-            this.connection.prepare(`UPDATE report_schedules SET last_run_at=?,next_run_at=?,updated_at=? WHERE id=?`).run(completedAt,nextOccurrence(startedAt,schedule.cadence),completedAt,schedule.id);
+            this.connection.prepare(`UPDATE report_schedules SET last_run_at=?,next_run_at=?,updated_at=? WHERE id=?`).run(completedAt,nextOccurrence(schedule.next_run_at,schedule.cadence),completedAt,schedule.id);
           })();
-          this.security.recordAudit({actorUserId:schedule.owner_user_id,action:'report.schedule.generated',entityType:'saved_report',entityId:schedule.saved_report_id,requestId:`schedule:${runId}`,route:'/scheduled-report-runner',method:'SYSTEM',metadata:{scheduleId:schedule.id,runId,reportKey:schedule.report_key,filename:exported.filename}});succeeded+=1;
-        }catch(error){const completedAt=new Date().toISOString();const message=error instanceof Error?error.message:String(error);this.connection.transaction(()=>{this.connection.prepare(`UPDATE report_schedule_runs SET status='failed',error_summary=?,completed_at=? WHERE id=?`).run(message.slice(0,2000),completedAt,runId);this.connection.prepare(`UPDATE report_schedules SET last_run_at=?,next_run_at=?,updated_at=? WHERE id=?`).run(completedAt,nextOccurrence(startedAt,schedule.cadence),completedAt,schedule.id);})();failed+=1;}
+          try{this.security.recordAudit({actorUserId:schedule.owner_user_id,action:'report.schedule.generated',entityType:'saved_report',entityId:schedule.saved_report_id,requestId:`schedule:${runId}`,route:'/scheduled-report-runner',method:'SYSTEM',metadata:{scheduleId:schedule.id,runId,reportKey:schedule.report_key,filename:exported.filename}});}catch(error){console.error('Scheduled report audit write failed:',error);}
+          succeeded+=1;
+        }catch(error){const completedAt=new Date().toISOString();const message=error instanceof Error?error.message:String(error);this.connection.transaction(()=>{this.connection.prepare(`UPDATE report_schedule_runs SET status='failed',error_summary=?,completed_at=? WHERE id=?`).run(message.slice(0,2000),completedAt,runId);this.connection.prepare(`UPDATE report_schedules SET last_run_at=?,next_run_at=?,updated_at=? WHERE id=?`).run(completedAt,nextOccurrence(schedule.next_run_at,schedule.cadence),completedAt,schedule.id);})();failed+=1;}
       }
       this.removeExpiredArtifacts();return {succeeded,failed};
     }finally{this.running=false;}
