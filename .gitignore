@@ -57,4 +57,9 @@ temp/
 
 # Electron staging/package output
 desktop/out/
+desktop/stage/
 desktop/.webpack/
+
+# Workspace tarballs created by npm pack
+shared/*.tgz
+backend/*.tgz
