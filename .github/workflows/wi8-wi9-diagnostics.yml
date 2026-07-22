@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -27,21 +27,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Capture build output
-        id: build
+      - name: Capture test output
+        id: test
         shell: bash
         run: |
           set +e
-          npm run build 2>&1 | tee wi8-wi9-build.log
+          npm test 2>&1 | tee wi8-wi9-test.log
           status=${PIPESTATUS[0]}
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Upload build diagnostics
+      - name: Upload test diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wi8-wi9-build-log
-          path: wi8-wi9-build.log
+          name: wi8-wi9-test-log
+          path: wi8-wi9-test.log
           if-no-files-found: error
-      - name: Report build result
-        run: exit "${{ steps.build.outputs.status }}"
+      - name: Report test result
+        run: exit "${{ steps.test.outputs.status }}"
