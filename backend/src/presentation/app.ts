@@ -24,6 +24,7 @@ import authRouter from './routes/auth';
 import administrationRouter from './routes/administration';
 import reportingRouter from './routes/reporting';
 import ownershipRouter from './routes/ownership';
+import platformRouter from './routes/platform';
 import { AppError } from '../application/errors';
 import { getSqliteConnection } from '../infrastructure/database/connection';
 import { getRuntimePaths } from '../config/runtimePaths';
@@ -47,6 +48,7 @@ app.use('/api',authRouter);
 app.use('/api',administrationRouter);
 app.use('/api',reportingRouter);
 app.use('/api',ownershipRouter);
+app.use('/api',platformRouter);
 app.use('/api/settings',settingsRouter);
 app.use('/api/customers',customersRouter);
 app.use('/api/services',servicesRouter);
@@ -67,12 +69,19 @@ app.use('/api',connectedCommunicationsRouter);
 app.use('/api',communicationsHubRouter);
 app.use('/api',releaseHardeningRouter);
 
+// Stable public aliases. Internal unversioned routes remain for frontend compatibility.
+app.use('/api/v1/organisations',organisationsRouter);
+app.use('/api/v1',contactsRouter);
+app.use('/api/v1',engagementsRouter);
+app.use('/api/v1',activitiesRouter);
+app.use('/api/v1',reportingRouter);
+
 if(process.env.NODE_ENV==='test')app.get('/api/__test/unknown-error',()=>{throw new Error('internal test database path /tmp/secret.sqlite constraint stack sqlite');});
 app.get('/health',(_req,res)=>res.json({status:'OK',time:new Date().toISOString()}));
 app.get('/ready',(_req,res)=>{
   try{
     const connection=getSqliteConnection();const integrity=(connection.pragma('integrity_check',{simple:true}) as string)==='ok';
-    const required=['users','teams','roles','audit_events','saved_reports','report_dashboards'];const existing=new Set((connection.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{name:string}>).map((row)=>row.name));const missing=required.filter((table)=>!existing.has(table));
+    const required=['users','teams','roles','audit_events','saved_reports','report_dashboards','api_tokens','webhook_subscriptions','platform_events','webhook_deliveries'];const existing=new Set((connection.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as Array<{name:string}>).map((row)=>row.name));const missing=required.filter((table)=>!existing.has(table));
     const paths=getRuntimePaths();for(const directory of [paths.dataDirectory,paths.temporaryDirectory,paths.logDirectory,paths.documentDirectory]){fs.mkdirSync(directory,{recursive:true});fs.accessSync(directory,fs.constants.W_OK);}
     const ready=integrity&&missing.length===0;res.status(ready?200:503).json({status:ready?'READY':'NOT_READY',integrity,missingTables:missing,time:new Date().toISOString()});
   }catch(error){res.status(503).json({status:'NOT_READY',message:error instanceof Error?error.message:'Readiness check failed',time:new Date().toISOString()});}
