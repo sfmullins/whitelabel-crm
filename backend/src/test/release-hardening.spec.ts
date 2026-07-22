@@ -3,7 +3,7 @@ import { CalDavSyncAdapter } from '../infrastructure/integrations/CalDavSyncAdap
 import { parseEmailSyncCursor,serializeEmailSyncCursor } from '../infrastructure/integrations/ConnectedAdapters';
 
 describe('WI6-WI7 release hardening contracts',()=>{
-  afterEach(()=>vi.restoreAllMocks());
+  afterEach(()=>{vi.restoreAllMocks();});
 
   it('preserves UIDVALIDITY and failed UID retry state',()=>{
     const encoded=serializeEmailSyncCursor({mailbox:'INBOX',uidValidity:'9981',lastUid:55,failedUids:[42,42,51]});
