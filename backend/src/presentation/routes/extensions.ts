@@ -13,10 +13,10 @@ function fail(res:any,error:unknown):void{const message=error instanceof Error?e
 router.get('/extensions',(_req,res)=>res.json({items:extensions.listExtensions(),supportedCapabilities:EXTENSION_CAPABILITIES}));
 router.get('/extensions/:id/export',(req,res)=>{try{const {id}=parse(z.object({id:uuid}).strict(),req.params);res.json(extensions.exportExtension(id));}catch(error){fail(res,error);}});
 router.get('/extensions/:id',(req,res)=>{try{const {id}=parse(z.object({id:uuid}).strict(),req.params);const extension=extensions.getExtension(id);if(!extension)return res.status(404).json({error:'EXTENSION_NOT_FOUND',message:'Extension not found'});res.json(extension);}catch(error){fail(res,error);}});
-router.post('/extensions/validate',(req,res)=>{try{const body=parse(z.object({package:z.unknown(),approvedCapabilities:capabilities.default([])}).strict(),req.body);res.json(extensions.validate(body.package,body.approvedCapabilities));}catch(error){fail(res,error);}});
+router.post('/extensions/validate',(req,res)=>{try{const body=parse(z.object({package:z.unknown(),approvedCapabilities:capabilities.optional()}).strict(),req.body);res.json(extensions.validate(body.package,body.approvedCapabilities??[]));}catch(error){fail(res,error);}});
 router.post('/extensions/install',async(req:CrmRequest,res)=>{
   try{
-    const body=parse(z.object({package:z.unknown(),approvedCapabilities:capabilities.default([])}).strict(),req.body);const actor=identity(req);const result=await extensions.install(body.package,{actorUserId:actor.id,approvedCapabilities:body.approvedCapabilities}) as any;
+    const body=parse(z.object({package:z.unknown(),approvedCapabilities:capabilities.optional()}).strict(),req.body);const actor=identity(req);const result=await extensions.install(body.package,{actorUserId:actor.id,approvedCapabilities:body.approvedCapabilities??[]}) as any;
     if(!result.reused){const eventType=result.releases?.length>1?'extension.upgraded.v1':'extension.installed.v1';platform.recordEvent({eventType,aggregateType:'extension',aggregateId:String(result.id),actorUserId:actor.id,apiTokenId:actor.apiTokenId??null,requestId:req.crm?.requestId||'unknown',payload:{packageKey:result.packageKey,version:result.currentVersion,status:result.status}});}
     res.status(result.reused?200:201).json(result);
   }catch(error){fail(res,error);}
