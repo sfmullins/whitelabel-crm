@@ -19,7 +19,7 @@ export function useIdentity(){
   const client=useQueryClient();
   const identity=useQuery<{user:CrmIdentity|null}>({queryKey:['crm-identity'],queryFn:()=>api.get('/api/auth/me'),retry:false,staleTime:30_000});
   useEffect(()=>{
-    const unauthenticated=()=>{window.localStorage.removeItem('crm.session.token');client.setQueryData(['crm-identity'],{user:null});client.invalidateQueries({queryKey:['crm-identity']});};
+    const unauthenticated=()=>{window.localStorage.removeItem('crm.session.token');client.setQueryData(['crm-identity'],{user:null});};
     window.addEventListener('crm:unauthenticated',unauthenticated);
     return()=>window.removeEventListener('crm:unauthenticated',unauthenticated);
   },[client]);
@@ -32,4 +32,4 @@ export async function login(email:string,password:string){
   window.localStorage.setItem('crm.session.token',result.token);window.localStorage.removeItem('crm.localUserId');return result;
 }
 export async function selectLocalUser(userId:string){window.localStorage.removeItem('crm.session.token');window.localStorage.setItem('crm.localUserId',userId);return api.post('/api/auth/local-session',{userId});}
-export async function logout(){try{await api.post('/api/auth/logout',{});}finally{window.localStorage.removeItem('crm.session.token');}}
+export async function logout(){try{await api.post('/api/auth/logout',{});}finally{window.localStorage.removeItem('crm.session.token');window.localStorage.removeItem('crm.localUserId');}}
