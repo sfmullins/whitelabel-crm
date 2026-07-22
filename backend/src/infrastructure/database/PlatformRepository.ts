@@ -26,6 +26,9 @@ const now=()=>new Date().toISOString();
 const hash=(value:string)=>crypto.createHash('sha256').update(value).digest('hex');
 function parseArray(value:unknown):string[]{try{const parsed=JSON.parse(String(value));return Array.isArray(parsed)?parsed.filter((item):item is string=>typeof item==='string'):[];}catch{return [];}}
 function boundedLimit(value:number|undefined,maximum=500):number{return Math.max(1,Math.min(maximum,value??100));}
+function validFutureExpiry(value:string|null|undefined):string|null {
+  if(value===undefined||value===null)return null;const timestamp=Date.parse(value);if(!Number.isFinite(timestamp)||timestamp<=Date.now())throw new Error('Token expiry must be a future ISO timestamp');return new Date(timestamp).toISOString();
+}
 
 export class PlatformRepository {
   private readonly security:SecurityRepository;
@@ -40,22 +43,25 @@ export class PlatformRepository {
 
   private vault():CredentialVault{return this.suppliedVault??new CredentialVault();}
 
+  private issueApiToken(ownerUserId:string,name:string,scopes:string[],expiresAt:string|null):{token:string;record:unknown}{
+    const id=crypto.randomUUID();const prefix=crypto.randomBytes(6).toString('base64url');const secret=crypto.randomBytes(32).toString('base64url');const token=`wlc_${prefix}_${secret}`;const createdAt=now();
+    this.connection.prepare(`INSERT INTO api_tokens(id,owner_user_id,name,token_prefix,token_hash,scopes_json,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)`).run(id,ownerUserId,name,`wlc_${prefix}`,hash(token),JSON.stringify(scopes),createdAt,expiresAt);
+    return {token,record:this.getApiToken(id)};
+  }
+
   createApiToken(identity:PlatformRequestIdentity,input:{name:string;scopes:string[];expiresAt?:string|null}):{token:string;record:unknown}{
     if(identity.apiTokenId)throw new Error('API tokens cannot create other API tokens');
     const name=input.name.trim();if(!name)throw new Error('Token name is required');
     const requested=[...new Set(input.scopes)];if(!requested.length)throw new Error('At least one token scope is required');
     const allowed=new Set<string>(WI10_TOKEN_SCOPES);
     for(const scope of requested){if(!allowed.has(scope))throw new Error(`Unsupported API token scope: ${scope}`);if(!identity.permissions.includes(scope))throw new Error(`Token scope exceeds issuer permission: ${scope}`);}
-    const expiresAt=input.expiresAt??null;if(expiresAt&&(!Number.isFinite(Date.parse(expiresAt))||expiresAt<=now()))throw new Error('Token expiry must be a future ISO timestamp');
-    const id=crypto.randomUUID();const prefix=crypto.randomBytes(6).toString('base64url');const secret=crypto.randomBytes(32).toString('base64url');const token=`wlc_${prefix}_${secret}`;const createdAt=now();
-    this.connection.prepare(`INSERT INTO api_tokens(id,owner_user_id,name,token_prefix,token_hash,scopes_json,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)`).run(id,identity.id,name,`wlc_${prefix}`,hash(token),JSON.stringify(requested),createdAt,expiresAt);
-    return {token,record:this.getApiToken(id)};
+    return this.issueApiToken(identity.id,name,requested,validFutureExpiry(input.expiresAt));
   }
 
   resolveApiToken(token:string):PlatformRequestIdentity|null {
     if(!/^wlc_[A-Za-z0-9_-]{8,}_[A-Za-z0-9_-]{30,}$/.test(token))return null;
     const row=this.connection.prepare(`SELECT id,owner_user_id,name,token_prefix,scopes_json,expires_at,revoked_at FROM api_tokens WHERE token_hash=?`).get(hash(token)) as {id:string;owner_user_id:string;name:string;token_prefix:string;scopes_json:string;expires_at:string|null;revoked_at:string|null}|undefined;
-    if(!row||row.revoked_at||(row.expires_at&&row.expires_at<=now()))return null;
+    if(!row||row.revoked_at||(row.expires_at&&Date.parse(row.expires_at)<=Date.now()))return null;
     const user=this.security.getUser(row.owner_user_id);if(!user||user.status!=='active')return null;
     const effective=parseArray(row.scopes_json).filter((scope)=>user.permissions.includes(scope));if(!effective.length)return null;
     this.connection.prepare(`UPDATE api_tokens SET last_used_at=? WHERE id=?`).run(now(),row.id);
@@ -73,6 +79,14 @@ export class PlatformRepository {
 
   revokeApiToken(id:string):unknown {
     const changed=this.connection.prepare(`UPDATE api_tokens SET revoked_at=coalesce(revoked_at,?) WHERE id=?`).run(now(),id).changes;if(!changed)throw new Error('API token not found');return this.getApiToken(id);
+  }
+
+  rotateApiToken(identity:PlatformRequestIdentity,id:string,input:{expiresAt?:string|null}={}):{token:string;record:unknown}{
+    if(identity.apiTokenId)throw new Error('API tokens cannot rotate API tokens');
+    const row=this.connection.prepare(`SELECT owner_user_id,name,scopes_json,expires_at,revoked_at FROM api_tokens WHERE id=?`).get(id) as {owner_user_id:string;name:string;scopes_json:string;expires_at:string|null;revoked_at:string|null}|undefined;if(!row)throw new Error('API token not found');if(row.revoked_at)throw new Error('Revoked API token cannot be rotated');
+    const owner=this.security.getUser(row.owner_user_id);if(!owner||owner.status!=='active')throw new Error('API token owner is not active');const scopes=parseArray(row.scopes_json);if(!scopes.length||scopes.some((scope)=>!owner.permissions.includes(scope)))throw new Error('API token owner no longer holds every token scope');
+    const expiry=input.expiresAt===undefined?(row.expires_at&&Date.parse(row.expires_at)>Date.now()?new Date(Date.parse(row.expires_at)).toISOString():null):validFutureExpiry(input.expiresAt);
+    let replacement:{token:string;record:unknown}|null=null;this.connection.transaction(()=>{this.connection.prepare(`UPDATE api_tokens SET revoked_at=? WHERE id=?`).run(now(),id);replacement=this.issueApiToken(row.owner_user_id,row.name,scopes,expiry);})();return replacement!;
   }
 
   createWebhook(identity:PlatformRequestIdentity,input:{name:string;endpointUrl:string;eventTypes:string[]}):{secret:string;subscription:unknown}{
