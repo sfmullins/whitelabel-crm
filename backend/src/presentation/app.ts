@@ -42,6 +42,7 @@ app.use(express.json({limit:'12mb'}));
 app.use(express.urlencoded({limit:'12mb',extended:true}));
 app.use((req,res,next)=>{console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} requestId=${res.getHeader('x-request-id')}`);next();});
 app.use(authenticateRequest());
+app.use('/api/v1',enforcePublicApiContract);
 app.use(enforcePermissions());
 app.use(assignCreatedOwnership());
 app.use(auditSuccessfulRequests());
@@ -72,7 +73,6 @@ app.use('/api',communicationsHubRouter);
 app.use('/api',releaseHardeningRouter);
 
 // Stable public aliases. Internal unversioned routes remain for frontend compatibility.
-app.use('/api/v1',enforcePublicApiContract);
 app.use('/api/v1/organisations',organisationsRouter);
 app.use('/api/v1',contactsRouter);
 app.use('/api/v1',engagementsRouter);
