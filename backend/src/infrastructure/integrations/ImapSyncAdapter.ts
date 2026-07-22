@@ -56,8 +56,9 @@ function extractUids(text:string):number[]{const lines=text.split(/\r?\n/).filte
 function extractUidValidity(text:string):string|null{return text.match(/\[UIDVALIDITY\s+(\d+)\]/i)?.[1]??text.match(/UIDVALIDITY\s+(\d+)/i)?.[1]??null;}
 
 export function selectEmailSyncUids(failedUids:number[],newUids:number[],batchSize:number):{targets:number[];pendingFailed:number[]} {
-  const capacity=Math.max(1,batchSize);const failed=[...new Set(failedUids)].sort((a,b)=>a-b);const failedSet=new Set(failed);const fresh=[...new Set(newUids)].filter((uid)=>!failedSet.has(uid)).sort((a,b)=>a-b);
-  const retryCapacity=fresh.length===0?capacity:capacity===1?0:Math.max(1,Math.floor(capacity/4));const retries=failed.slice(0,retryCapacity);const selectedFresh=fresh.slice(0,capacity-retries.length);
+  const failed=[...new Set(failedUids)].sort((a,b)=>a-b);const failedSet=new Set(failed);const fresh=[...new Set(newUids)].filter((uid)=>!failedSet.has(uid)).sort((a,b)=>a-b);
+  const capacity=Math.max(failed.length&&fresh.length?2:1,batchSize);
+  const retryCapacity=fresh.length===0?capacity:Math.max(1,Math.floor(capacity/4));const retries=failed.slice(0,retryCapacity);const selectedFresh=fresh.slice(0,capacity-retries.length);
   return {targets:[...retries,...selectedFresh],pendingFailed:failed.filter((uid)=>!retries.includes(uid))};
 }
 
