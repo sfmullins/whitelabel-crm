@@ -58,6 +58,14 @@ export function ensureConnectedCommunicationsSchema(connection: Database.Databas
       UNIQUE(account_id, rfc_message_id)
     );
 
+    CREATE TABLE IF NOT EXISTS email_ingestion_state (
+      email_message_id TEXT PRIMARY KEY NOT NULL REFERENCES email_messages(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','complete','failed')),
+      error_summary TEXT,
+      updated_at TEXT NOT NULL,
+      completed_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS email_attachments (
       id TEXT PRIMARY KEY NOT NULL,
       email_message_id TEXT NOT NULL REFERENCES email_messages(id) ON DELETE CASCADE,
@@ -66,6 +74,14 @@ export function ensureConnectedCommunicationsSchema(connection: Database.Databas
       inline INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       UNIQUE(email_message_id, document_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS email_attachment_imports (
+      email_message_id TEXT NOT NULL REFERENCES email_messages(id) ON DELETE CASCADE,
+      source_fingerprint TEXT NOT NULL,
+      document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE RESTRICT,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY(email_message_id, source_fingerprint)
     );
 
     CREATE TABLE IF NOT EXISTS calendars (
@@ -154,6 +170,7 @@ export function ensureConnectedCommunicationsSchema(connection: Database.Databas
     CREATE INDEX IF NOT EXISTS account_kind_health_idx ON communication_accounts(kind, health_status, enabled);
     CREATE INDEX IF NOT EXISTS email_thread_match_idx ON email_threads(match_status, latest_message_at DESC);
     CREATE INDEX IF NOT EXISTS email_message_thread_idx ON email_messages(thread_id, sent_at DESC);
+    CREATE INDEX IF NOT EXISTS email_ingestion_status_idx ON email_ingestion_state(status, updated_at);
     CREATE INDEX IF NOT EXISTS calendar_event_time_idx ON calendar_events(starts_at, ends_at);
     CREATE INDEX IF NOT EXISTS calendar_event_match_idx ON calendar_events(match_status, starts_at);
     CREATE INDEX IF NOT EXISTS calendar_resource_href_idx ON calendar_event_resources(calendar_id, resource_href);
