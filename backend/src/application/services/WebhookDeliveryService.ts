@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { PlatformRepository } from '../../infrastructure/database/PlatformRepository';
+import { assertWebhookDestinationAllowed } from '../../infrastructure/security/WebhookUrlPolicy';
 
 export function signWebhookPayload(secret:string,timestamp:string,body:string):string {
   return `sha256=${crypto.createHmac('sha256',secret).update(`${timestamp}.${body}`).digest('hex')}`;
@@ -31,6 +32,7 @@ export class WebhookDeliveryService {
         const timestamp=Math.floor(Date.now()/1000).toString();
         const body=JSON.stringify({id:delivery.eventId,eventType:delivery.eventType,eventVersion:1,occurredAt:delivery.createdAt,payload:JSON.parse(delivery.payload)});
         try{
+          await assertWebhookDestinationAllowed(delivery.endpointUrl);
           const secret=this.repository.getWebhookSecret(delivery.credentialKey);
           const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10_000);
           try{
