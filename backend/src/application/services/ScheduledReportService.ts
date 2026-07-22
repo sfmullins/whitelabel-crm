@@ -31,16 +31,13 @@ function canView(row:{owner_user_id:string;owner_team_id:string|null;visibility:
 export class ScheduledReportService {
   private timer:NodeJS.Timeout|null=null;
   private running=false;
-  private readonly outputDirectory:string;
 
   constructor(
     private readonly connection:Database.Database=sqlite as Database.Database,
     private readonly reporting=new ReportingRepository(connection),
     private readonly security=new SecurityRepository(connection),
     private readonly intervalMs=60_000,
-  ){
-    this.outputDirectory=path.join(getRuntimePaths().dataDirectory,'scheduled-reports');
-  }
+  ){}
 
   start():void{if(this.timer)return;void this.processDue();this.timer=setInterval(()=>void this.processDue(),this.intervalMs);this.timer.unref?.();}
   stop():void{if(this.timer)clearInterval(this.timer);this.timer=null;}
@@ -48,13 +45,13 @@ export class ScheduledReportService {
   async processDue(limit=25):Promise<{succeeded:number;failed:number}> {
     if(this.running)return {succeeded:0,failed:0};this.running=true;let succeeded=0;let failed=0;
     try{
-      this.recoverStaleRuns();fs.mkdirSync(this.outputDirectory,{recursive:true});
+      const outputDirectory=this.outputDirectory();this.recoverStaleRuns();fs.mkdirSync(outputDirectory,{recursive:true});
       const schedules=this.connection.prepare(`SELECT s.id,s.saved_report_id,s.cadence,r.report_key,r.filters_json,r.owner_user_id,r.name AS report_name FROM report_schedules s JOIN saved_reports r ON r.id=s.saved_report_id WHERE s.enabled=1 AND s.next_run_at<=? AND r.archived_at IS NULL AND NOT EXISTS(SELECT 1 FROM report_schedule_runs rr WHERE rr.schedule_id=s.id AND rr.status='running') ORDER BY s.next_run_at LIMIT ?`).all(new Date().toISOString(),Math.max(1,Math.min(100,limit))) as DueSchedule[];
       for(const schedule of schedules){
         const runId=crypto.randomUUID();const startedAt=new Date().toISOString();
         this.connection.prepare(`INSERT INTO report_schedule_runs(id,schedule_id,saved_report_id,report_key,status,started_at) VALUES(?,?,?,?, 'running',?)`).run(runId,schedule.id,schedule.saved_report_id,schedule.report_key,startedAt);
         try{
-          const exported=this.reporting.exportCsv(schedule.report_key,parse<ReportFilters>(schedule.filters_json,{}));const filename=`${runId}-${exported.filename}`;const finalPath=path.join(this.outputDirectory,filename);const temporaryPath=`${finalPath}.tmp`;
+          const exported=this.reporting.exportCsv(schedule.report_key,parse<ReportFilters>(schedule.filters_json,{}));const filename=`${runId}-${exported.filename}`;const finalPath=path.join(outputDirectory,filename);const temporaryPath=`${finalPath}.tmp`;
           fs.writeFileSync(temporaryPath,exported.content,{encoding:'utf8',mode:0o600});fs.renameSync(temporaryPath,finalPath);const completedAt=new Date().toISOString();const expiresAt=new Date(Date.now()+90*24*60*60*1000).toISOString();
           this.connection.transaction(()=>{
             this.connection.prepare(`UPDATE report_schedule_runs SET status='succeeded',filename=?,storage_path=?,byte_size=?,completed_at=?,expires_at=? WHERE id=?`).run(exported.filename,finalPath,Buffer.byteLength(exported.content),completedAt,expiresAt,runId);
@@ -77,6 +74,7 @@ export class ScheduledReportService {
     if(!row||!canView(row,identity))throw new Error('Scheduled report run not found');if(row.status!=='succeeded'||!row.storage_path||!row.filename||!fs.existsSync(row.storage_path))throw new Error('Scheduled report download is unavailable');return {path:row.storage_path,filename:row.filename};
   }
 
+  private outputDirectory():string{return path.join(getRuntimePaths().dataDirectory,'scheduled-reports');}
   private recoverStaleRuns():void{const cutoff=new Date(Date.now()-30*60*1000).toISOString();this.connection.prepare(`UPDATE report_schedule_runs SET status='failed',error_summary='Execution interrupted before completion',completed_at=? WHERE status='running' AND started_at<?`).run(new Date().toISOString(),cutoff);}
   private removeExpiredArtifacts():void{const rows=this.connection.prepare(`SELECT id,storage_path FROM report_schedule_runs WHERE status='succeeded' AND expires_at IS NOT NULL AND expires_at<?`).all(new Date().toISOString()) as Array<{id:string;storage_path:string|null}>;for(const row of rows){if(row.storage_path)try{fs.rmSync(row.storage_path,{force:true});}catch{/* retained for next cleanup */}this.connection.prepare(`UPDATE report_schedule_runs SET storage_path=NULL WHERE id=?`).run(row.id);}}
 }
