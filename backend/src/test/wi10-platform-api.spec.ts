@@ -6,6 +6,7 @@ import { SecurityRepository } from '../infrastructure/database/SecurityRepositor
 import { PlatformRepository } from '../infrastructure/database/PlatformRepository';
 import { LOCAL_OWNER_USER_ID } from '../infrastructure/database/wi8Wi9Schema';
 import { signWebhookPayload } from '../application/services/WebhookDeliveryService';
+import { validateWebhookEndpoint } from '../infrastructure/security/WebhookUrlPolicy';
 import { startServer,type RunningServer } from '../server';
 
 function bearer(token:string){return {authorization:`Bearer ${token}`,'content-type':'application/json'};}
@@ -45,6 +46,14 @@ describe('WI10 platform API',()=>{
   it('publishes an authenticated OpenAPI contract',async()=>{
     const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const token=platform.createApiToken(owner,{name:'Documentation reader',scopes:['crm.read']});let server:RunningServer|null=null;
     try{server=await startServer({host:'127.0.0.1',port:0});const response=await fetch(`${server.url}/api/v1/openapi.json`,{headers:bearer(token.token)});expect(response.status).toBe(200);const document=await response.json() as any;expect(document.openapi).toBe('3.1.0');expect(document.paths['/organisations']).toBeTruthy();expect(document.components.securitySchemes.bearerAuth).toBeTruthy();}finally{await server?.close();}
+  });
+
+  it('blocks private webhook targets unless explicit loopback testing is enabled',()=>{
+    delete process.env.CRM_ALLOW_LOOPBACK_WEBHOOKS;
+    expect(()=>validateWebhookEndpoint('https://127.0.0.1/hook')).toThrow('private, loopback or special-use');
+    expect(()=>validateWebhookEndpoint('https://169.254.169.254/latest/meta-data')).toThrow('private, loopback or special-use');
+    expect(()=>validateWebhookEndpoint('https://metadata.google.internal/hook')).toThrow('local or internal hostname');
+    expect(validateWebhookEndpoint('https://example.com/webhooks/crm')).toBe('https://example.com/webhooks/crm');
   });
 
   it('creates encrypted webhook subscriptions and durable event deliveries',()=>{
