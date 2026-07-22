@@ -35,8 +35,32 @@ jobs:
       - name: Dependency installation
         run: npm ci
 
-      - name: Complete build, test, migration and WI4-WI10 verification
-        run: npm run ci:verify
+      - name: Workspace build
+        run: npm run build
+
+      - name: Backend and frontend tests
+        run: npm test
+
+      - name: Database migration smoke
+        run: npm run db:smoke
+
+      - name: WI4-WI7 regression smoke
+        run: |
+          npm run wi4:smoke
+          npm run wi5:smoke
+          npm run wi6:smoke
+          npm run wi7:smoke
+
+      - name: WI8-WI10 regression smoke
+        run: |
+          npm run wi8-wi9:smoke
+          npm run wi10:smoke
+
+      - name: WI11 extension smoke
+        run: npm run wi11:smoke
+
+      - name: Desktop packaging preflight
+        run: npm run desktop:preflight
 
       - name: Clean repository verification
         run: |
