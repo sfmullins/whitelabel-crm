@@ -1,8 +1,12 @@
 # WI10–WI12 Implementation Plan
 
-## 1. Baseline after WI8–WI9
+## 1. Current baseline
 
-This plan is based on `main` after merged PR #12, **Implement WI8 and WI9 reporting, multi-user and production hardening**.
+This programme now has two completed implementation branches:
+
+- WI10 was merged through PR #13 at `e10171356f582c8fc3c62771f804424adad7f028`;
+- WI11 is completed on `WI11-Extension-Platform` and is presented for final review through PR #14;
+- WI12 must start only after WI11 is reviewed and merged.
 
 The repository now has:
 
@@ -14,297 +18,121 @@ The repository now has:
 - deterministic reports, dashboards and permission-checked CSV exports;
 - saved and scheduled reports with durable generated artifacts;
 - readiness checks, security headers, controlled CORS and rate limiting;
-- permanent WI4–WI9 smoke coverage;
-- validated Linux Debian and portable ZIP packaging;
+- a versioned permission-aware public API with scoped API tokens;
+- immutable platform events and signed retryable webhooks;
+- a declarative extension registry, lifecycle and runtime;
+- verified Linux Debian and portable ZIP packaging;
 - existing transactional customer CSV import, encrypted backup portability and standards-based email/calendar synchronisation.
 
-WIs 10–12 extend those controls. They must not create parallel authentication, permission, audit, reporting, export, readiness, credential or packaging systems.
+WIs 10–12 extend one coherent security, permission, audit, reporting, export, readiness, credential, backup and packaging architecture. Parallel systems are prohibited.
 
 ## 2. Programme corrections
 
-The pre-WI8–WI9 roadmap is revised as follows.
-
-1. **WI10 is implemented first and alone.** WI11 starts only after WI10 is reviewed and merged; WI12 starts only after WI11 is reviewed and merged.
-2. **OAuth authorization-server scope is deferred.** The local-first session model is not an identity-provider product. WI10 uses scoped API tokens. External connector OAuth credentials may use the encrypted credential vault, but WhiteLabelCRM will not present itself as a general OAuth/OIDC provider.
-3. **The public API never trusts loopback identity selection.** `/api/v1` requires a bearer session or scoped API token even on localhost.
-4. **The stable API surface is allow-listed.** Reusing a route module must not make every internal endpoint part of the public compatibility contract.
-5. **Permission policy is explicit for platform administration.** Token, webhook and platform-diagnostic routes do not rely on generic method/path inference.
-6. **Existing report CSV export remains canonical.** WI10 exposes approved report reads/exports without creating a second reporting engine.
-7. **Generic bulk table mutation is rejected.** Existing transactional customer import, backup archives and report exports remain authoritative. Any future bulk operation must be resource-specific, permission-checked and justified by a real workflow rather than a generic entity/table endpoint.
-8. **Existing communication synchronisation remains the connector baseline.** WI10 does not rebuild IMAP, SMTP or CalDAV adapters merely to rename them as a framework.
-9. **Linux packaging is an existing baseline.** WI12 certifies and releases it while adding missing Windows, container and release-engineering work.
-10. **No arbitrary extension code.** WI11 remains declarative and API/webhook based. No JavaScript, SQL or shell plugins run inside the application process.
-11. **SQLite deployment claims remain truthful.** WI12 may provide a single-replica container/Kubernetes reference, but not horizontal multi-writer or active-active claims.
+1. **Sequential delivery remains mandatory.** WI12 starts only after WI11 is reviewed and merged.
+2. **OAuth authorization-server scope remains deferred.** WhiteLabelCRM uses scoped API tokens and is not a general OAuth/OIDC provider.
+3. **The public API never trusts loopback identity selection.** `/api/v1` requires a bearer session or scoped API token.
+4. **The stable API surface is allow-listed.** Internal route reuse does not create accidental public contracts.
+5. **Permission policy is explicit for platform and extension administration.**
+6. **Existing report CSV export and `ReportingRepository` remain canonical.** Extensions may reference supported reports but cannot create another reporting engine.
+7. **Generic bulk table mutation remains rejected.** Existing transactional import, backup and resource-specific operations remain authoritative.
+8. **Existing communication synchronisation remains the connector baseline.**
+9. **Linux packaging is an existing baseline.** WI12 certifies and releases it while adding Windows, container and remaining release-engineering work.
+10. **Extensions are declarative.** No JavaScript, SQL, shell, renderer bundles or direct database access run from packages.
+11. **SQLite deployment claims remain truthful.** WI12 may provide a single-replica reference but not horizontal multi-writer or active-active claims.
 
 ## 3. Delivery policy
 
-| Work item | Branch | Base | Merge gate |
+| Work item | Branch | Base | Status / merge gate |
 |---|---|---|---|
-| WI10 — Platform API | `WI10-Platform-API` | merged WI8–WI9 `main` | full WI4–WI10 verification |
-| WI11 — Extension Platform | `WI11-Extension-Platform` | merged WI10 `main` | full WI4–WI11 verification |
-| WI12 — Enterprise Release | `WI12-Enterprise-Release` | merged WI11 `main` | release certification |
+| WI10 — Platform API | `WI10-Platform-API` | merged WI8–WI9 `main` | merged via PR #13 |
+| WI11 — Extension Platform | `WI11-Extension-Platform` | merged WI10 `main` | implementation complete; full WI4–WI11 and Linux package verification green; PR #14 final review required |
+| WI12 — Enterprise Release | `WI12-Enterprise-Release` | merged WI11 `main` | not started; release certification required |
 
 Each pull request targets `main` directly. Stacked feature-branch PRs are prohibited.
 
 ---
 
-# WI10 — Platform API
+# WI10 — Platform API — Delivered
 
-## 4. Objective
+WI10 provides:
 
-Provide a stable, documented and permission-aware integration surface without direct database access.
+- `/api/v1` with an explicit path/method allowlist;
+- scoped API tokens tied to existing active users and current permissions;
+- authenticated OpenAPI 3.1 metadata;
+- immutable versioned platform events;
+- encrypted webhook secrets, HTTPS/SSRF controls, signed deliveries, bounded retries and dead-letter state;
+- explicit platform permissions, diagnostics and permanent smoke coverage.
 
-WI10 delivers:
-
-- `/api/v1` as the versioned public API namespace;
-- an explicit path/method allowlist for the stable contract;
-- scoped personal/service API tokens tied to existing users;
-- an OpenAPI 3.1 description for the supported public surface;
-- signed webhook subscriptions, immutable events and retryable deliveries;
-- explicit platform-administration permissions and audit actions;
-- bounded platform diagnostics and permanent smoke coverage.
-
-## 5. Security model
-
-### 5.1 Principals
-
-Public API requests may authenticate through:
-
-- an ordinary WI8–WI9 bearer session; or
-- a WI10 API token.
-
-API tokens:
-
-- are generated by the backend;
-- are displayed once;
-- store only a SHA-256 hash in SQLite;
-- retain a non-secret display prefix;
-- belong to one active user;
-- have an explicit scope set;
-- cannot exceed the issuing user’s current permissions;
-- may expire, be rotated and be revoked;
-- record last use;
-- stop working when the owner is disabled;
-- are evaluated against the owner’s current permissions;
-- never gain permissions merely because the owner later receives a broader role.
-
-Rotation revokes the old token and creates its replacement in one SQLite transaction. A revoked token cannot be rotated.
-
-Token-manageable scopes are restricted to the public integration catalogue. User, role, settings, credential and operational-administration permissions are excluded.
-
-### 5.2 Loopback rule
-
-Loopback-trusted profile selection remains available to the desktop UI for existing internal routes. It is never accepted for `/api/v1` or `/api/platform`. Those routes require a real bearer session or API token as appropriate.
-
-### 5.3 Explicit permissions
-
-Add:
-
-- `api.manage` — create, inspect, rotate and revoke API tokens;
-- `webhooks.manage` — create, inspect, archive and retry webhook subscriptions/deliveries;
-- `platform.read` — inspect public API metadata and platform diagnostics.
-
-Owner and Administrator receive all three. Manager receives `platform.read`. Member and Viewer do not receive platform-administration permissions.
-
-## 6. Public API boundary
-
-Expose supported CRM resources under `/api/v1` while preserving the existing internal `/api` routes for frontend compatibility.
-
-Initial stable resources:
-
-- current principal;
-- organisations;
-- contacts;
-- engagements;
-- activities;
-- report catalogue, report reads and existing permission-checked CSV exports.
-
-The v1 boundary uses:
-
-- existing shared Zod contracts;
-- existing services and repositories;
-- existing request IDs and error masking;
-- existing ownership assignment;
-- existing immutable audit storage;
-- existing bounded pagination and filters.
-
-A dedicated contract guard rejects internal-only routes before permission inference. Saved-report management, dashboard management, schedule processing, legacy customer activity compatibility and operational administration do not become public merely because an internal router is reusable.
-
-The application must not expose password/session/token hashes, credential material, filesystem paths, raw SQLite errors or unrestricted internal administration routes.
-
-## 7. OpenAPI
-
-Provide an authenticated OpenAPI 3.1 document at:
-
-```text
-GET /api/v1/openapi.json
-```
-
-The document defines:
-
-- bearer authentication;
-- every allow-listed v1 path;
-- request-ID request/response behaviour;
-- standard error envelopes;
-- pagination parameters;
-- API-token format and scope semantics;
-- additive-v1 and breaking-version policy.
-
-OpenAPI access requires `platform.read` or `crm.read`. It is not anonymous.
-
-## 8. Webhooks and platform events
-
-Create one immutable, versioned platform-event model.
-
-Each event includes:
-
-- event ID;
-- event type and version;
-- aggregate type and optional aggregate ID;
-- actor user/API-token references;
-- request ID;
-- bounded safe JSON payload;
-- creation timestamp.
-
-Initial event types cover organisation, contact, engagement and activity creation, update and archive operations.
-
-Webhook subscriptions contain:
-
-- owner;
-- name;
-- validated endpoint URL;
-- allow-listed event types;
-- enabled/archive state;
-- encrypted signing secret held in the existing credential vault;
-- failure counters and timestamps.
-
-Endpoint policy requires HTTPS, rejects embedded credentials/fragments, blocks loopback/private/link-local/special-use destinations and re-checks DNS before delivery. Explicit loopback HTTP is restricted to a test/development environment flag. Redirects are not followed.
-
-Deliveries contain:
-
-- subscription and event IDs;
-- `pending`, `succeeded`, `failed` or `dead` state;
-- attempt count and next-attempt time;
-- response status and bounded error summary;
-- creation, update and delivery timestamps.
-
-Delivery requirements:
-
-- no HTTP request occurs until event and delivery rows are durable;
-- payloads are HMAC-SHA256 signed;
-- timestamp and delivery ID headers support replay protection;
-- retry uses bounded exponential backoff;
-- repeated failure moves a delivery to dead-letter state;
-- administrators may retry a failed/dead delivery explicitly;
-- subscriptions may be disabled automatically after sustained failure;
-- credentials and unrestricted message/document bodies are not copied into event payloads.
-
-## 9. WI10 administration
-
-Provide authenticated APIs for:
-
-- token creation, listing, rotation and revocation;
-- webhook creation, listing and archival;
-- platform event inspection;
-- webhook delivery inspection and retry;
-- public API/OpenAPI metadata.
-
-API tokens may call the public v1 API but may not manage tokens or webhooks.
-
-## 10. WI10 validation
-
-Required coverage:
-
-- token secret shown once and hash-only persistence;
-- token scope cannot exceed issuer permissions;
-- token expiry, rotation, revocation and disabled-owner enforcement;
-- offset timestamp normalisation;
-- `/api/v1` rejection of loopback-only identity selection;
-- v1 access through a bearer session and API token;
-- explicit public-route allowlist and internal-route rejection;
-- v1 ownership assignment;
-- OpenAPI supported-path, pagination and request-ID assertions;
-- webhook URL, DNS-destination and event-type validation;
-- encrypted webhook-secret persistence;
-- automatic platform-event and delivery creation from v1 mutations;
-- HMAC signature generation;
-- retry/dead-letter state transitions;
-- platform permission denial;
-- secret-redacted immutable audit entries for token/webhook administration;
-- migration rerun and clean-database smoke;
-- full WI4–WI9 regression suite.
-
-Add:
-
-```text
-npm run wi10:smoke
-```
-
-## 11. WI10 exclusions
-
-- OAuth authorization-server implementation;
-- SAML, OIDC provider or enterprise SSO;
-- hosted API gateway;
-- GraphQL;
-- arbitrary bulk table/entity mutation;
-- a second import, backup or report-export engine;
-- direct database credentials for integrations;
-- arbitrary webhook payload templates;
-- unsupervised external communication;
-- marketplace or extension execution.
+Detailed delivered scope is documented in `docs/work-items/WI10.md`.
 
 ---
 
-# WI11 — Extension Platform
+# WI11 — Extension Platform — Delivered
 
-## 12. Objective
+WI11 provides an upgrade-safe declarative extension layer without editing core source.
 
-Allow upgrade-safe specialist and white-label variations without editing core source.
-
-WI11 delivers a declarative extension package format, registry and lifecycle using WI10 API/events/webhooks.
-
-Supported contributions:
+Delivered contribution types:
 
 - namespaced custom entities and fields;
 - forms, views and navigation metadata;
-- theme packages;
-- report definitions using the WI8–WI9 reporting model;
-- workflow templates using the existing allow-listed workflow engine;
-- event subscriptions;
-- localisation and static assets.
+- bounded theme packages;
+- report definitions executed through the existing reporting model;
+- workflow templates instantiated explicitly into disabled allow-listed workflows;
+- event-subscription metadata;
+- localisation dictionaries;
+- verified static assets.
 
-Prohibited:
+Delivered lifecycle controls:
 
-- arbitrary in-process JavaScript;
-- arbitrary SQL or shell execution;
-- direct database access;
-- unrestricted renderer bundles;
-- automatic deletion of extension data.
+- strict manifest/package validation;
+- checksum and optional Ed25519 signature verification;
+- application compatibility and explicit capability approval;
+- verified pre-migration backups;
+- transactional declarative schema updates;
+- atomic verified asset publication;
+- enable/disable without data loss;
+- failed-install rollback preserving the prior active release;
+- separate upgrade-retired and temporarily disabled resource states;
+- metadata/history and extension-owned data exports;
+- disabled-only exact-confirmation data purge with backup;
+- exact-confirmation full-database recovery tooling;
+- full audit and platform-event integration;
+- administration and generic runtime UI;
+- permanent WI11 tests and smoke verification.
 
-Lifecycle requirements:
+The existing custom-field and custom-object data model is bridged into the extension registry and retained. Extension-owned definitions cannot be deleted directly through legacy routes.
 
-- validate, checksum and optionally signature-check packages;
-- enforce application-version compatibility and capability approval;
-- create a backup before schema-affecting install/upgrade;
-- run transactional declarative migrations;
-- enable/disable without losing data;
-- roll back failed installation or upgrade;
-- keep data export and data purge as separate explicit actions;
-- retain a full audit trail.
+Detailed delivered scope and exclusions are documented in `docs/work-items/WI11.md`.
 
-The existing custom fields and customer-oriented custom objects are migrated or bridged into the namespaced extension model; they are not discarded.
+## WI11 final merge gate
 
-Add `npm run wi11:smoke` and retain full WI4–WI10 verification.
+PR #14 is ready for review only when its final head has passed:
+
+```text
+npm run build
+npm test
+npm run db:smoke
+npm run wi4:smoke
+npm run wi5:smoke
+npm run wi6:smoke
+npm run wi7:smoke
+npm run wi8-wi9:smoke
+npm run wi10:smoke
+npm run wi11:smoke
+npm run desktop:preflight
+```
+
+The separate Linux workflow must also build, verify and upload the Debian package. The branch must remain directly based on merged WI10 `main`, with no unresolved review threads or known release-blocking defects.
 
 ---
 
 # WI12 — Enterprise Release
 
-## 13. Objective
+## 4. Objective
 
 Turn the completed product into a reproducible, installable and supportable release. WI12 is a certification and release-engineering work item, not another major domain expansion.
 
-Required workstreams:
+## 5. Required workstreams
 
 - browser and packaged-desktop critical-path end-to-end tests;
 - upgrade, backup, restore and failed-migration rehearsal;
@@ -312,18 +140,18 @@ Required workstreams:
 - measured performance baselines and regression budgets;
 - UX consistency, first-run setup and error recovery;
 - Windows installer and portable artifacts;
-- certification of the existing Linux Debian/ZIP artifacts;
-- optional macOS packaging only where suitable runners/signing exist;
+- certification of existing Linux Debian/ZIP artifacts;
+- optional macOS packaging only where suitable runners and signing exist;
 - OCI container and Docker Compose reference deployment;
 - truthful single-replica Kubernetes reference with persistent-storage limitations;
-- versioned user/admin/API/extension/deployment/support documentation;
+- versioned user, administrator, API, extension, deployment and support documentation;
 - semantic versioning, changelog, SBOM, checksums and provenance;
 - release-candidate and stable release workflows;
 - support, backport and vulnerability-reporting policy.
 
-SQLite limitations must be explicit. WI12 does not claim horizontal multi-writer scaling, active-active operation or distributed high availability.
+SQLite limitations must remain explicit. WI12 does not claim horizontal multi-writer scaling, active-active operation or distributed high availability.
 
-Required gates include:
+## 6. Required gates
 
 ```text
 npm run ci:verify
@@ -336,11 +164,11 @@ npm run container:verify
 
 Add `npm run wi12:smoke` only for deterministic repository-level certification checks; platform-specific installer tests remain separate release jobs.
 
-## 14. Programme completion
+## 7. Programme completion
 
 The programme is complete when:
 
 1. supported external clients use a stable permission-aware API without database access;
 2. extensions are declarative, capability-controlled and upgrade-safe;
 3. the application can be installed, upgraded, backed up, restored and supported from reproducible release artifacts;
-4. every claim about security, packaging, accessibility, performance and deployment is backed by an executable gate or an explicit documented limitation.
+4. every claim about security, packaging, accessibility, performance and deployment is backed by an executable gate or explicit documented limitation.

@@ -3,6 +3,8 @@ import MainLayout from '../components/layouts/MainLayout';
 import Dashboard from '../pages/Dashboard';
 import Reporting from '../pages/Reporting';
 import Administration from '../pages/Administration';
+import Extensions from '../pages/Extensions';
+import ExtensionWorkspace from '../pages/ExtensionWorkspace';
 import Organisations from '../pages/Organisations';
 import OrganisationWorkspace from '../pages/OrganisationWorkspace';
 import Contacts from '../pages/Contacts';
@@ -28,6 +30,8 @@ export const router=createBrowserRouter([{
     {index:true,element:<Dashboard/>},
     {path:'reporting',element:<Reporting/>},
     {path:'administration',element:<Administration/>},
+    {path:'extensions',element:<Extensions/>},
+    {path:'extensions/:packageKey/*',element:<ExtensionWorkspace/>},
     {path:'organisations',element:<Organisations/>},
     {path:'organisations/:organisationId',element:<OrganisationWorkspace/>},
     {path:'contacts',element:<Contacts/>},

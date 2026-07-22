@@ -35,8 +35,64 @@ jobs:
       - name: Dependency installation
         run: npm ci
 
-      - name: Complete build, test, migration and WI4-WI10 verification
-        run: npm run ci:verify
+      - name: Workspace build
+        id: workspace_build
+        continue-on-error: true
+        run: npm run build > "$RUNNER_TEMP/workspace-build.log" 2>&1
+
+      - name: Upload workspace build diagnostics
+        if: steps.workspace_build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-build-failure
+          path: ${{ runner.temp }}/workspace-build.log
+          retention-days: 3
+
+      - name: Enforce workspace build
+        if: steps.workspace_build.outcome == 'failure'
+        run: |
+          tail -n 120 "$RUNNER_TEMP/workspace-build.log"
+          exit 1
+
+      - name: Backend and frontend tests
+        id: workspace_tests
+        continue-on-error: true
+        run: npm test > "$RUNNER_TEMP/workspace-tests.log" 2>&1
+
+      - name: Upload test diagnostics
+        if: steps.workspace_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-test-failure
+          path: ${{ runner.temp }}/workspace-tests.log
+          retention-days: 3
+
+      - name: Enforce backend and frontend tests
+        if: steps.workspace_tests.outcome == 'failure'
+        run: |
+          tail -n 180 "$RUNNER_TEMP/workspace-tests.log"
+          exit 1
+
+      - name: Database migration smoke
+        run: npm run db:smoke
+
+      - name: WI4-WI7 regression smoke
+        run: |
+          npm run wi4:smoke
+          npm run wi5:smoke
+          npm run wi6:smoke
+          npm run wi7:smoke
+
+      - name: WI8-WI10 regression smoke
+        run: |
+          npm run wi8-wi9:smoke
+          npm run wi10:smoke
+
+      - name: WI11 extension smoke
+        run: npm run wi11:smoke
+
+      - name: Desktop packaging preflight
+        run: npm run desktop:preflight
 
       - name: Clean repository verification
         run: |

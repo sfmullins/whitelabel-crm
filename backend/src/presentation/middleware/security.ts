@@ -5,9 +5,8 @@ import { PlatformRepository,type PlatformRequestIdentity } from '../../infrastru
 import { WI10_EVENT_TYPES } from '../../infrastructure/database/wi10PlatformSchema';
 
 export interface CrmRequest extends Request {crm?:{requestId:string;identity:RequestIdentity|null};}
-
 const buckets=new Map<string,{windowStarted:number;count:number}>();
-const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext/i;
+const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext|signature|publickey/i;
 
 export function isLoopback(req:Request):boolean{const address=req.socket.remoteAddress||'';return address==='127.0.0.1'||address==='::1'||address==='::ffff:127.0.0.1';}
 export function isTrustedLocalOrigin(req:Request):boolean{const origin=req.header('origin');if(!origin||origin==='null')return true;try{const hostname=new URL(origin).hostname;return hostname==='localhost'||hostname==='127.0.0.1'||hostname==='::1';}catch{return false;}}
@@ -21,6 +20,9 @@ function permissionFor(method:string,path:string):string|null{
   if(policyPath.startsWith('/platform/api-tokens'))return 'api.manage';
   if(policyPath.startsWith('/platform/webhooks')||policyPath.startsWith('/platform/webhook-deliveries'))return 'webhooks.manage';
   if(policyPath.startsWith('/platform/events'))return 'platform.read';
+  if(policyPath.startsWith('/extensions/runtime/reports'))return 'reports.read';
+  if(policyPath.startsWith('/extensions/runtime'))return 'crm.read';
+  if(policyPath.startsWith('/extensions')){if(policyPath.includes('/data-export'))return 'extensions.manage';return method==='GET'||method==='HEAD'?'extensions.read':'extensions.manage';}
   if(policyPath.startsWith('/reporting')){if(policyPath.includes('/export')||policyPath.endsWith('/download'))return 'reports.export';return method==='GET'?'reports.read':'reports.manage';}
   if(policyPath.startsWith('/admin/users')||policyPath.startsWith('/admin/teams'))return 'users.manage';
   if(policyPath.startsWith('/admin/roles'))return 'roles.manage';
@@ -33,75 +35,16 @@ function permissionFor(method:string,path:string):string|null{
 }
 
 function eventFor(method:string,route:string,statusCode:number):{eventType:typeof WI10_EVENT_TYPES[number];aggregateType:string}|null {
-  const path=route.replace(/^\/api\/v1/,'').replace(/^\/api/,'');
-  let aggregateType:string|null=null;
-  if(/^\/organisations(?:\/|$)/.test(path))aggregateType='organisation';
-  if(/^\/contacts(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/contacts(?:\/|$)/.test(path))aggregateType='contact';
-  if(/^\/engagements(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/engagements(?:\/|$)/.test(path))aggregateType='engagement';
-  if(/^\/activities(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/activities(?:\/|$)/.test(path))aggregateType='activity';
-  if(!aggregateType)return null;
-  let action:string|null=null;
-  if(method==='POST'&&/\/archive$/.test(path))action='archived';
-  else if(method==='POST'&&statusCode===201)action='created';
-  else if(method==='PATCH'||method==='PUT')action='updated';
-  if(!action)return null;
-  const eventType=`${aggregateType}.${action}.v1` as typeof WI10_EVENT_TYPES[number];
-  return (WI10_EVENT_TYPES as readonly string[]).includes(eventType)?{eventType,aggregateType}:null;
+  const path=route.replace(/^\/api\/v1/,'').replace(/^\/api/,'');let aggregateType:string|null=null;
+  if(/^\/organisations(?:\/|$)/.test(path))aggregateType='organisation';if(/^\/contacts(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/contacts(?:\/|$)/.test(path))aggregateType='contact';if(/^\/engagements(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/engagements(?:\/|$)/.test(path))aggregateType='engagement';if(/^\/activities(?:\/|$)/.test(path)||/^\/organisations\/[^/]+\/activities(?:\/|$)/.test(path))aggregateType='activity';if(!aggregateType)return null;
+  let action:string|null=null;if(method==='POST'&&/\/archive$/.test(path))action='archived';else if(method==='POST'&&statusCode===201)action='created';else if(method==='PATCH'||method==='PUT')action='updated';if(!action)return null;const eventType=`${aggregateType}.${action}.v1` as typeof WI10_EVENT_TYPES[number];return (WI10_EVENT_TYPES as readonly string[]).includes(eventType)?{eventType,aggregateType}:null;
 }
 
-export function requestHardening(req:CrmRequest,res:Response,next:NextFunction):void{
-  const requestId=String(req.header('x-request-id')||crypto.randomUUID()).slice(0,120);req.crm={requestId,identity:null};res.setHeader('x-request-id',requestId);
-  res.setHeader('x-content-type-options','nosniff');res.setHeader('x-frame-options','DENY');res.setHeader('referrer-policy','no-referrer');res.setHeader('permissions-policy','camera=(), microphone=(), geolocation=()');res.setHeader('cross-origin-opener-policy','same-origin');res.setHeader('content-security-policy',"default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");next();
-}
+export function requestHardening(req:CrmRequest,res:Response,next:NextFunction):void{const requestId=String(req.header('x-request-id')||crypto.randomUUID()).slice(0,120);req.crm={requestId,identity:null};res.setHeader('x-request-id',requestId);res.setHeader('x-content-type-options','nosniff');res.setHeader('x-frame-options','DENY');res.setHeader('referrer-policy','no-referrer');res.setHeader('permissions-policy','camera=(), microphone=(), geolocation=()');res.setHeader('cross-origin-opener-policy','same-origin');res.setHeader('content-security-policy',"default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");next();}
+export function apiRateLimit(req:Request,res:Response,next:NextFunction):void{if(!req.path.startsWith('/api'))return next();const windowMs=60_000;const maximum=Math.max(30,Number(process.env.CRM_RATE_LIMIT_PER_MINUTE||(isLoopback(req)?1200:240)));const key=`${req.ip||req.socket.remoteAddress||'unknown'}:${Math.floor(Date.now()/windowMs)}`;const current=buckets.get(key)??{windowStarted:Date.now(),count:0};current.count+=1;buckets.set(key,current);if(buckets.size>5000)for(const [bucket,value] of buckets)if(Date.now()-value.windowStarted>windowMs*2)buckets.delete(bucket);res.setHeader('x-ratelimit-limit',String(maximum));res.setHeader('x-ratelimit-remaining',String(Math.max(0,maximum-current.count)));if(current.count>maximum){res.setHeader('retry-after','60');res.status(429).json({error:'RATE_LIMITED',message:'Too many API requests'});return;}next();}
 
-export function apiRateLimit(req:Request,res:Response,next:NextFunction):void{
-  if(!req.path.startsWith('/api'))return next();const windowMs=60_000;const maximum=Math.max(30,Number(process.env.CRM_RATE_LIMIT_PER_MINUTE||(isLoopback(req)?1200:240)));const key=`${req.ip||req.socket.remoteAddress||'unknown'}:${Math.floor(Date.now()/windowMs)}`;const current=buckets.get(key)??{windowStarted:Date.now(),count:0};current.count+=1;buckets.set(key,current);if(buckets.size>5000)for(const [bucket,value] of buckets)if(Date.now()-value.windowStarted>windowMs*2)buckets.delete(bucket);res.setHeader('x-ratelimit-limit',String(maximum));res.setHeader('x-ratelimit-remaining',String(Math.max(0,maximum-current.count)));if(current.count>maximum){res.setHeader('retry-after','60');res.status(429).json({error:'RATE_LIMITED',message:'Too many API requests'});return;}next();
-}
+export function authenticateRequest(repository=new SecurityRepository(),platform=new PlatformRepository()){return (req:CrmRequest,res:Response,next:NextFunction):void=>{if(!req.path.startsWith('/api'))return next();const apiPath=req.path.slice(4)||'/';if(apiPath==='/auth/login'||apiPath==='/auth/local-session'||apiPath==='/auth/local-users')return next();const authorization=req.header('authorization');let identity:RequestIdentity|null=null;if(authorization?.startsWith('Bearer ')){const token=authorization.slice(7).trim();identity=token.startsWith('wlc_')?platform.resolveApiToken(token):repository.resolveSession(token);}const requiresBearer=apiPath.startsWith('/v1')||apiPath.startsWith('/platform');if(!identity&&!requiresBearer&&isLoopback(req)&&isTrustedLocalOrigin(req)&&trustLocalUsers())identity=repository.resolveLocalUser(req.header('x-crm-user-id'));if(!identity){res.status(401).json({error:'UNAUTHENTICATED',message:requiresBearer?'A bearer session or scoped API token is required':'An authenticated CRM session is required'});return;}req.crm={requestId:req.crm?.requestId||crypto.randomUUID(),identity};next();};}
+export function enforcePermissions(repository=new SecurityRepository()){return (req:CrmRequest,res:Response,next:NextFunction):void=>{if(!req.path.startsWith('/api'))return next();const apiPath=req.path.slice(4)||'/';if(apiPath==='/v1/openapi.json'){if(repository.hasPermission(req.crm?.identity,'crm.read')||repository.hasPermission(req.crm?.identity,'platform.read'))return next();res.status(403).json({error:'FORBIDDEN',message:'Permission required: crm.read or platform.read'});return;}const permission=permissionFor(req.method.toUpperCase(),apiPath);if(!permission)return next();if(!repository.hasPermission(req.crm?.identity,permission)){res.status(403).json({error:'FORBIDDEN',message:`Permission required: ${permission}`});return;}next();};}
 
-export function authenticateRequest(repository=new SecurityRepository(),platform=new PlatformRepository()){
-  return (req:CrmRequest,res:Response,next:NextFunction):void=>{
-    if(!req.path.startsWith('/api'))return next();
-    const apiPath=req.path.slice(4)||'/';
-    if(apiPath==='/auth/login'||apiPath==='/auth/local-session'||apiPath==='/auth/local-users')return next();
-    const authorization=req.header('authorization');let identity:RequestIdentity|null=null;
-    if(authorization?.startsWith('Bearer ')){
-      const token=authorization.slice(7).trim();identity=token.startsWith('wlc_')?platform.resolveApiToken(token):repository.resolveSession(token);
-    }
-    const requiresBearer=apiPath.startsWith('/v1')||apiPath.startsWith('/platform');
-    if(!identity&&!requiresBearer&&isLoopback(req)&&isTrustedLocalOrigin(req)&&trustLocalUsers())identity=repository.resolveLocalUser(req.header('x-crm-user-id'));
-    if(!identity){res.status(401).json({error:'UNAUTHENTICATED',message:requiresBearer?'A bearer session or scoped API token is required':'An authenticated CRM session is required'});return;}
-    req.crm={requestId:req.crm?.requestId||crypto.randomUUID(),identity};next();
-  };
-}
-
-export function enforcePermissions(repository=new SecurityRepository()){
-  return (req:CrmRequest,res:Response,next:NextFunction):void=>{
-    if(!req.path.startsWith('/api'))return next();
-    const apiPath=req.path.slice(4)||'/';
-    if(apiPath==='/v1/openapi.json'){
-      if(repository.hasPermission(req.crm?.identity,'crm.read')||repository.hasPermission(req.crm?.identity,'platform.read'))return next();
-      res.status(403).json({error:'FORBIDDEN',message:'Permission required: crm.read or platform.read'});return;
-    }
-    const permission=permissionFor(req.method.toUpperCase(),apiPath);if(!permission)return next();if(!repository.hasPermission(req.crm?.identity,permission)){res.status(403).json({error:'FORBIDDEN',message:`Permission required: ${permission}`});return;}next();
-  };
-}
-
-export function auditSuccessfulRequests(repository=new SecurityRepository(),platform=new PlatformRepository()){
-  return (req:CrmRequest,res:Response,next:NextFunction):void=>{
-    if(!req.path.startsWith('/api')||req.path==='/api/auth/login'||req.path==='/api/auth/local-session')return next();
-    const method=req.method.toUpperCase();const isExport=req.path.includes('/export')||req.path.endsWith('/download');if(!['POST','PUT','PATCH','DELETE'].includes(method)&&!isExport)return next();
-    let responsePayload:unknown;const originalJson=res.json.bind(res);res.json=((body:unknown)=>{responsePayload=body;return originalJson(body);}) as Response['json'];
-    res.on('finish',()=>{
-      if(res.statusCode>=400)return;
-      try{
-        const current=req.crm?.identity;const route=req.originalUrl.split('?')[0];const params=req.params as Record<string,string>;const body=(req.body??{}) as Record<string,unknown>;const query=req.query as Record<string,unknown>;const response=responsePayload&&typeof responsePayload==='object'?responsePayload as Record<string,unknown>:undefined;const responseRecord=response?.record&&typeof response.record==='object'?response.record as Record<string,unknown>:undefined;
-        const rawEntityId=params.id??params.contactId??params.engagementId??params.activityId??response?.id??responseRecord?.id??body.id??null;const entityId=rawEntityId?String(rawEntityId):null;
-        const rawOrganisationId=params.organisationId??response?.organisationId??responseRecord?.organisationId??body.organisationId??query.organisationId??null;const organisationId=rawOrganisationId?String(rawOrganisationId):null;
-        repository.recordAudit({actorUserId:current?.id??null,action:isExport?'report.export':`${method.toLowerCase()}.${entityFromPath(route)||'api'}`,entityType:entityFromPath(route),entityId,organisationId,requestId:req.crm?.requestId||'unknown',route,method,after:redact(responsePayload),metadata:{query:redact(query),body:redact(body),statusCode:res.statusCode,localTrusted:current?.localTrusted??false,apiTokenId:(current as PlatformRequestIdentity|undefined)?.apiTokenId??null}});
-        const event=eventFor(method,route,res.statusCode);if(event)platform.recordEvent({eventType:event.eventType,aggregateType:event.aggregateType,aggregateId:entityId,actorUserId:current?.id??null,apiTokenId:(current as PlatformRequestIdentity|undefined)?.apiTokenId??null,requestId:req.crm?.requestId||'unknown',payload:{id:entityId,organisationId,status:response?.status??responseRecord?.status??null}});
-      }catch(error){console.error('Audit/platform event write failed:',error);}
-    });next();
-  };
-}
-
+export function auditSuccessfulRequests(repository=new SecurityRepository(),platform=new PlatformRepository()){return (req:CrmRequest,res:Response,next:NextFunction):void=>{if(!req.path.startsWith('/api')||req.path==='/api/auth/login'||req.path==='/api/auth/local-session')return next();const method=req.method.toUpperCase();const isDownload=req.path.includes('/export')||req.path.endsWith('/download');if(!['POST','PUT','PATCH','DELETE'].includes(method)&&!isDownload)return next();let responsePayload:unknown;const originalJson=res.json.bind(res);res.json=((body:unknown)=>{responsePayload=body;return originalJson(body);}) as Response['json'];res.on('finish',()=>{if(res.statusCode>=400)return;try{const current=req.crm?.identity;const route=req.originalUrl.split('?')[0];const params=req.params as Record<string,string>;const body=(req.body??{}) as Record<string,unknown>;const query=req.query as Record<string,unknown>;const response=responsePayload&&typeof responsePayload==='object'?responsePayload as Record<string,unknown>:undefined;const responseRecord=response?.record&&typeof response.record==='object'?response.record as Record<string,unknown>:undefined;const rawEntityId=params.id??params.contactId??params.engagementId??params.activityId??response?.id??responseRecord?.id??body.id??null;const entityId=rawEntityId?String(rawEntityId):null;const rawOrganisationId=params.organisationId??response?.organisationId??responseRecord?.organisationId??body.organisationId??query.organisationId??null;const organisationId=rawOrganisationId?String(rawOrganisationId):null;const action=isDownload?(route.startsWith('/api/extensions')?'extension.export':'report.export'):`${method.toLowerCase()}.${entityFromPath(route)||'api'}`;repository.recordAudit({actorUserId:current?.id??null,action,entityType:entityFromPath(route),entityId,organisationId,requestId:req.crm?.requestId||'unknown',route,method,after:redact(responsePayload),metadata:{query:redact(query),body:redact(body),statusCode:res.statusCode,localTrusted:current?.localTrusted??false,apiTokenId:(current as PlatformRequestIdentity|undefined)?.apiTokenId??null}});const event=eventFor(method,route,res.statusCode);if(event)platform.recordEvent({eventType:event.eventType,aggregateType:event.aggregateType,aggregateId:entityId,actorUserId:current?.id??null,apiTokenId:(current as PlatformRequestIdentity|undefined)?.apiTokenId??null,requestId:req.crm?.requestId||'unknown',payload:{id:entityId,organisationId,status:response?.status??responseRecord?.status??null}});}catch(error){console.error('Audit/platform event write failed:',error);}});next();};}
 export function requirePermission(permission:string,repository=new SecurityRepository()){return (req:CrmRequest,res:Response,next:NextFunction):void=>{if(!repository.hasPermission(req.crm?.identity,permission)){res.status(403).json({error:'FORBIDDEN',message:`Permission required: ${permission}`});return;}next();};}
