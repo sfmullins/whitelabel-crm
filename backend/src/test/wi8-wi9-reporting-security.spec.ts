@@ -8,7 +8,7 @@ import { OwnershipRepository } from '../infrastructure/database/OwnershipReposit
 import { DEFAULT_TEAM_ID,LOCAL_OWNER_USER_ID } from '../infrastructure/database/wi8Wi9Schema';
 import { startServer,type RunningServer } from '../server';
 
-const FULL_RANGE={from:'2020-01-01T00:00:00.000Z',to:'2035-12-31T23:59:59.999Z'};
+const FULL_RANGE={from:'2024-01-01T00:00:00.000Z',to:'2028-12-31T23:59:59.999Z'};
 
 function auth(token:string){return {authorization:`Bearer ${token}`,'content-type':'application/json'};}
 
