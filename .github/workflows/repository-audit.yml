@@ -1,8 +1,8 @@
 name: Repository audit
 
 on:
-  push:
-    branches: [docs/record-wi11-completion]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
