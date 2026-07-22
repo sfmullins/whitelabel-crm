@@ -6,8 +6,8 @@
     "dist",
     "drizzle"
   ],
-  "main": "dist/embed.js",
-  "types": "dist/embed.d.ts",
+  "main": "./dist/embed.js",
+  "types": "./dist/embed.d.ts",
   "exports": {
     ".": {
       "types": "./dist/embed.d.ts",
