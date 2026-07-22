@@ -1,17 +1,19 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { ReportingRepository,type ReportFilters,type ReportKey } from '../../infrastructure/database/ReportingRepository';
+import { ScheduledReportService } from '../../application/services/ScheduledReportService';
 import type { CrmRequest } from '../middleware/security';
 
 const router=Router();
 const reporting=new ReportingRepository();
+const scheduledReports=new ScheduledReportService();
 const reportKey=z.enum(['executive','revenue','pipeline','activity','workload','concentration','operations']);
 const uuid=z.string().uuid();
 const filters=z.object({from:z.string().datetime({offset:true}).optional(),to:z.string().datetime({offset:true}).optional(),ownerUserId:uuid.optional(),teamId:uuid.optional()}).strict();
 const visibility=z.enum(['private','team','all']);
 function parse<T>(schema:z.ZodType<T>,value:unknown):T{const result=schema.safeParse(value);if(!result.success)throw new Error(result.error.issues.map((issue)=>issue.message).join('; '));return result.data;}
 function identity(req:CrmRequest){if(!req.crm?.identity)throw new Error('Authenticated identity unavailable');return req.crm.identity;}
-function fail(res:any,error:unknown){const message=error instanceof Error?error.message:String(error);const status=/not found/i.test(message)?404:/only the owner|permission/i.test(message)?403:400;res.status(status).json({error:'REPORTING_ERROR',message});}
+function fail(res:any,error:unknown){const message=error instanceof Error?error.message:String(error);const status=/not found|unavailable/i.test(message)?404:/only the owner|permission/i.test(message)?403:400;res.status(status).json({error:'REPORTING_ERROR',message});}
 
 router.get('/reporting/catalog',(_req,res)=>res.json({reports:[
   {key:'executive',name:'Executive overview',description:'Client, engagement, work, activity and financial KPIs'},
@@ -35,6 +37,9 @@ router.delete('/reporting/widgets/:id',(req:CrmRequest,res)=>{try{const {id}=par
 
 router.get('/reporting/schedules',(req:CrmRequest,res)=>res.json(reporting.listSchedules(identity(req))));
 router.post('/reporting/schedules',(req:CrmRequest,res)=>{try{const input=parse(z.object({savedReportId:uuid,cadence:z.enum(['daily','weekly','monthly']),nextRunAt:z.string().datetime({offset:true})}).strict(),req.body);res.status(201).json(reporting.createSchedule(identity(req),input));}catch(error){fail(res,error);}});
+router.post('/reporting/schedules/process',async (_req,res)=>{try{res.json(await scheduledReports.processDue());}catch(error){fail(res,error);}});
+router.get('/reporting/schedule-runs',(req:CrmRequest,res)=>{try{const {limit}=parse(z.object({limit:z.coerce.number().int().min(1).max(500).default(100)}).strict(),req.query);res.json(scheduledReports.listRuns(identity(req),limit));}catch(error){fail(res,error);}});
+router.get('/reporting/schedule-runs/:id/download',(req:CrmRequest,res)=>{try{const {id}=parse(z.object({id:uuid}).strict(),req.params);const file=scheduledReports.getDownload(identity(req),id);res.download(file.path,file.filename);}catch(error){fail(res,error);}});
 
 router.get('/reporting/:key/export.csv',(req:CrmRequest,res)=>{try{const key=parse(reportKey,req.params.key) as ReportKey;const query=parse(filters,req.query) as ReportFilters;const exported=reporting.exportCsv(key,query);res.setHeader('content-type','text/csv; charset=utf-8');res.setHeader('content-disposition',`attachment; filename="${exported.filename}"`);res.send(exported.content);}catch(error){fail(res,error);}});
 router.get('/reporting/:key',(req,res)=>{try{const key=parse(reportKey,req.params.key) as ReportKey;res.json(reporting.run(key,parse(filters,req.query)));}catch(error){fail(res,error);}});
