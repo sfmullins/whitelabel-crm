@@ -107,7 +107,9 @@ A failed install removes staged assets, records the failed attempt and preserves
 
 Runtime form and view contributions are metadata interpreted by core frontend components. Extension reports call `ReportingRepository`; they cannot supply SQL. Workflow templates instantiate disabled `WorkflowRepository` definitions and never activate automatically. Assets are stored under the runtime data directory and revalidated before serving.
 
-Extension metadata export, extension-owned data export and data purge are separate operations. Purge requires disabled state, an exact confirmation phrase and a successful backup. Release recovery uses the existing full-database restore mechanism and should be followed by an application restart.
+Extension metadata export, extension-owned data export and data purge are separate operations. Purge requires disabled state, an exact confirmation phrase and a successful backup.
+
+Release recovery uses the existing `BackupManager` full-database restore boundary. It integrity-checks the selected snapshot, closes the active SQLite connection, creates a pre-restore safety copy, replaces the database and reopens the connection. Recovery is not a per-extension reverse migration and should be followed by an application restart.
 
 ## Credentials and external operations
 
