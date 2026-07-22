@@ -1,5 +1,6 @@
 import tls from 'node:tls';
 import type { ConnectedAccountConfig,EmailSyncAdapter,EmailSyncBatch,RemoteEmailMessage } from './ConnectedAdapters';
+import { parseEmailSyncCursor,serializeEmailSyncCursor } from './ConnectedAdapters';
 import { parseRawEmail } from './RawEmailParser';
 
 interface ImapResponse { text:string;literals:Buffer[]; }
@@ -92,6 +93,9 @@ function extractUids(text:string):number[] {
   const lines=text.split(/\r?\n/).filter((line)=>/^\* SEARCH/i.test(line));
   return lines.flatMap((line)=>line.replace(/^\* SEARCH\s*/i,'').trim().split(/\s+/)).map(Number).filter((value)=>Number.isInteger(value)&&value>0);
 }
+function extractUidValidity(text:string):string|null {
+  return text.match(/\[UIDVALIDITY\s+(\d+)\]/i)?.[1]??text.match(/UIDVALIDITY\s+(\d+)/i)?.[1]??null;
+}
 
 export class ImapSyncAdapter implements EmailSyncAdapter {
   async test(config:ConnectedAccountConfig,secret:Record<string,string>):Promise<void> {
@@ -103,23 +107,29 @@ export class ImapSyncAdapter implements EmailSyncAdapter {
   async fetchSince(config:ConnectedAccountConfig,secret:Record<string,string>,cursor:string|null):Promise<EmailSyncBatch> {
     const session=new ImapSession();
     const mailbox=String(config.settings.mailbox??'INBOX');
-    const start=Math.max(1,Number(cursor??0)+1);
+    const batchSize=Math.max(1,Math.min(500,Number(config.settings.batchSize??100)));
     const messages:RemoteEmailMessage[]=[];
-    let highest=Number(cursor??0)||0;
     try {
       await session.connect(config.serverUrl);
       await session.command(`LOGIN ${quote(config.username)} ${quote(secret.password??'')}`);
-      await session.command(`SELECT ${quote(mailbox)}`);
-      const search=await session.command(`UID SEARCH UID ${start}:*`);
-      const uids=extractUids(search.text).slice(0,Number(config.settings.batchSize??100));
-      for(const uid of uids){
+      const selected=await session.command(`SELECT ${quote(mailbox)}`);
+      const uidValidity=extractUidValidity(selected.text);
+      let state=parseEmailSyncCursor(cursor,mailbox);
+      if(state.mailbox!==mailbox || (state.uidValidity&&uidValidity&&state.uidValidity!==uidValidity))state={mailbox,uidValidity,lastUid:0,failedUids:[]};
+      else state={...state,mailbox,uidValidity:uidValidity??state.uidValidity};
+      const search=await session.command(`UID SEARCH UID ${Math.max(1,state.lastUid+1)}:*`);
+      const newUids=extractUids(search.text);
+      const targets=[...new Set([...state.failedUids,...newUids])].sort((a,b)=>a-b).slice(0,batchSize);
+      const pendingFailed=state.failedUids.filter((uid)=>!targets.includes(uid));
+      let highest=state.lastUid;
+      for(const uid of targets){
         const fetched=await session.command(`UID FETCH ${uid} (UID FLAGS INTERNALDATE BODY.PEEK[])`);
         const raw=fetched.literals.at(-1)?.toString('utf8');
         if(!raw)continue;
         messages.push(parseRawEmail({raw,providerMessageKey:`${mailbox}:${uid}`,uid,receivedAt:extractInternalDate(fetched.text),username:config.username,flags:extractFlags(fetched.text)}));
         highest=Math.max(highest,uid);
       }
-      return {messages,nextCursor:String(highest)};
+      return {messages,nextCursor:serializeEmailSyncCursor({mailbox,uidValidity:state.uidValidity,lastUid:highest,failedUids:pendingFailed})};
     } finally { await session.close(); }
   }
 }
