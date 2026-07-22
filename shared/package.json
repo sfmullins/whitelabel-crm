@@ -2,6 +2,8 @@
   "name": "shared",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
+  "sideEffects": false,
   "files": [
     "dist"
   ],
@@ -9,11 +11,15 @@
   "module": "./dist/types.js",
   "types": "./dist/types.d.ts",
   "exports": {
-    "import": "./dist/types.js",
-    "require": "./dist/cjs/types.js"
+    ".": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js",
+      "require": "./dist/cjs/types.js",
+      "default": "./dist/types.js"
+    }
   },
   "scripts": {
-    "build": "tsc && tsc -p tsconfig.cjs.json"
+    "build": "tsc && tsc -p tsconfig.cjs.json && node scripts/write-cjs-package.cjs"
   },
   "dependencies": {
     "zod": "^3.23.8"
