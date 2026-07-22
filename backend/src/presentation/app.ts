@@ -23,6 +23,7 @@ import releaseHardeningRouter from './routes/releaseHardening';
 import authRouter from './routes/auth';
 import administrationRouter from './routes/administration';
 import reportingRouter from './routes/reporting';
+import publicReportingRouter from './routes/publicReporting';
 import ownershipRouter from './routes/ownership';
 import platformRouter from './routes/platform';
 import { AppError } from '../application/errors';
@@ -74,7 +75,7 @@ app.use('/api/v1/organisations',organisationsRouter);
 app.use('/api/v1',contactsRouter);
 app.use('/api/v1',engagementsRouter);
 app.use('/api/v1',activitiesRouter);
-app.use('/api/v1',reportingRouter);
+app.use('/api/v1',publicReportingRouter);
 
 if(process.env.NODE_ENV==='test')app.get('/api/__test/unknown-error',()=>{throw new Error('internal test database path /tmp/secret.sqlite constraint stack sqlite');});
 app.get('/health',(_req,res)=>res.json({status:'OK',time:new Date().toISOString()}));
