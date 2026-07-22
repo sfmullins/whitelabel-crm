@@ -1,6 +1,8 @@
 name: Repository audit
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [docs/record-wi11-completion]
   workflow_dispatch:
@@ -15,7 +17,7 @@ jobs:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
     steps:
-      - name: Check out repository
+      - name: Check out audit branch
         uses: actions/checkout@v4
         with:
           ref: docs/record-wi11-completion
