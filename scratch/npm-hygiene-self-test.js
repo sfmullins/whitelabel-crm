@@ -113,8 +113,9 @@ try {
   expectFailure(fixtureRoot, /duplicate JSON key "key"/);
   fs.rmSync(path.join(fixtureRoot, 'duplicate.json'));
 
-  writeFile(fixtureRoot, 'README.md', 'This is definately incorrect.\n');
-  expectFailure(fixtureRoot, /common misspelling detected: definately/);
+  const intentionalMisspelling = ['defin', 'ately'].join('');
+  writeFile(fixtureRoot, 'README.md', `This is ${intentionalMisspelling} incorrect.\n`);
+  expectFailure(fixtureRoot, new RegExp(`common misspelling detected: ${intentionalMisspelling}`));
   fs.rmSync(path.join(fixtureRoot, 'README.md'));
 
   writeFile(fixtureRoot, 'desktop/stage/generated.txt', 'generated\n');
