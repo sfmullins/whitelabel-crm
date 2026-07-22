@@ -54,6 +54,9 @@ jobs:
           tail -n 120 "$RUNNER_TEMP/workspace-build.log"
           exit 1
 
+      - name: NPM and syntax hygiene
+        run: npm run check:npm-hygiene
+
       - name: Backend and frontend tests
         id: workspace_tests
         continue-on-error: true
