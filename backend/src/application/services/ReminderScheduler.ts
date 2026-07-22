@@ -1,4 +1,5 @@
 import { WorkRepository } from '../../infrastructure/database/WorkRepository';
+import { NotificationRepository } from '../../infrastructure/database/NotificationRepository';
 
 export interface ReminderDelivery {
   id:string;
@@ -14,12 +15,14 @@ export type ReminderDeliverer=(reminder:ReminderDelivery)=>Promise<void>|void;
 export class ReminderScheduler {
   private timer:NodeJS.Timeout|null=null;
   private running=false;
+  private readonly notifications:NotificationRepository;
 
   constructor(
     private readonly repository=new WorkRepository(),
-    private readonly deliverer:ReminderDeliverer=async()=>{},
+    private readonly deliverer?:ReminderDeliverer,
     private readonly intervalMs=60_000,
-  ){}
+    notifications?:NotificationRepository,
+  ){this.notifications=notifications??new NotificationRepository();}
 
   start():void {
     if(this.timer)return;
@@ -36,8 +39,12 @@ export class ReminderScheduler {
     try{
       const reminders=this.repository.listReminders({status:'pending',dueOnly:true}) as ReminderDelivery[];
       for(const reminder of reminders){
-        try{await this.deliverer(reminder);this.repository.updateReminderStatus(reminder.id,'delivered');delivered+=1;}
-        catch(error){this.repository.updateReminderStatus(reminder.id,'failed',error instanceof Error?error.message:String(error));failed+=1;}
+        try{
+          if(this.deliverer)await this.deliverer(reminder);
+          else this.notifications.enqueueReminder(reminder);
+          this.repository.updateReminderStatus(reminder.id,'delivered');
+          delivered+=1;
+        }catch(error){this.repository.updateReminderStatus(reminder.id,'failed',error instanceof Error?error.message:String(error));failed+=1;}
       }
       return {delivered,failed};
     }finally{this.running=false;}
