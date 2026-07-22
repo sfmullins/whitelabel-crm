@@ -37,15 +37,6 @@
     "wi10:smoke": "npm exec -w backend -- tsx ../scratch/wi10-smoke.ts",
     "wi11:smoke": "npm exec -w backend -- tsx ../scratch/wi11-smoke.ts"
   },
-  "overrides": {
-    "@electron/rebuild": "4.2.0",
-    "tar": "7.5.19",
-    "tmp": "0.2.7",
-    "fast-uri": "4.1.1",
-    "@esbuild-kit/core-utils": {
-      "esbuild": "0.25.12"
-    }
-  },
   "devDependencies": {
     "concurrently": "^8.2.2"
   }
