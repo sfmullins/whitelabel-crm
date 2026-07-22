@@ -8,8 +8,8 @@ const buckets=new Map<string,{windowStarted:number;count:number}>();
 const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext/i;
 
 export function isLoopback(req:Request):boolean{const address=req.socket.remoteAddress||'';return address==='127.0.0.1'||address==='::1'||address==='::ffff:127.0.0.1';}
+export function isTrustedLocalOrigin(req:Request):boolean{const origin=req.header('origin');if(!origin||origin==='null')return true;try{const hostname=new URL(origin).hostname;return hostname==='localhost'||hostname==='127.0.0.1'||hostname==='::1';}catch{return false;}}
 function trustLocalUsers():boolean{return process.env.CRM_TRUST_LOCAL_USERS!=='false';}
-function trustedLocalOrigin(req:Request):boolean{const origin=req.header('origin');if(!origin||origin==='null')return true;try{const hostname=new URL(origin).hostname;return hostname==='localhost'||hostname==='127.0.0.1'||hostname==='::1';}catch{return false;}}
 function redact(value:unknown,depth=0):unknown{if(depth>5)return '[truncated]';if(Array.isArray(value))return value.slice(0,50).map((item)=>redact(item,depth+1));if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([key,item])=>[key,SENSITIVE.test(key)?'[redacted]':redact(item,depth+1)]));if(typeof value==='string'&&value.length>2000)return `${value.slice(0,2000)}…`;return value;}
 function entityFromPath(path:string):string|null{const parts=path.split('?')[0].split('/').filter(Boolean);const value=parts[0]==='api'?parts[1]:parts[0];return value&&value!=='auth'?value.replace(/-/g,'_'):null;}
 function permissionFor(method:string,path:string):string|null{
@@ -35,7 +35,7 @@ export function apiRateLimit(req:Request,res:Response,next:NextFunction):void{
 }
 
 export function authenticateRequest(repository=new SecurityRepository()){
-  return (req:CrmRequest,res:Response,next:NextFunction):void=>{if(!req.path.startsWith('/api'))return next();const apiPath=req.path.slice(4)||'/';if(apiPath==='/auth/login'||apiPath==='/auth/local-session')return next();const authorization=req.header('authorization');let identity:RequestIdentity|null=null;if(authorization?.startsWith('Bearer '))identity=repository.resolveSession(authorization.slice(7).trim());if(!identity&&isLoopback(req)&&trustedLocalOrigin(req)&&trustLocalUsers())identity=repository.resolveLocalUser(req.header('x-crm-user-id'));if(!identity){res.status(401).json({error:'UNAUTHENTICATED',message:'An authenticated CRM session is required'});return;}req.crm={requestId:req.crm?.requestId||crypto.randomUUID(),identity};next();};
+  return (req:CrmRequest,res:Response,next:NextFunction):void=>{if(!req.path.startsWith('/api'))return next();const apiPath=req.path.slice(4)||'/';if(apiPath==='/auth/login'||apiPath==='/auth/local-session'||apiPath==='/auth/local-users')return next();const authorization=req.header('authorization');let identity:RequestIdentity|null=null;if(authorization?.startsWith('Bearer '))identity=repository.resolveSession(authorization.slice(7).trim());if(!identity&&isLoopback(req)&&isTrustedLocalOrigin(req)&&trustLocalUsers())identity=repository.resolveLocalUser(req.header('x-crm-user-id'));if(!identity){res.status(401).json({error:'UNAUTHENTICATED',message:'An authenticated CRM session is required'});return;}req.crm={requestId:req.crm?.requestId||crypto.randomUUID(),identity};next();};
 }
 
 export function enforcePermissions(repository=new SecurityRepository()){
