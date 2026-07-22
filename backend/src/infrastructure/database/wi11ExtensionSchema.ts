@@ -8,7 +8,6 @@ export const WI11_PERMISSIONS=[
 
 const LEGACY_EXTENSION_ID='00000000-0000-4000-8110-000000000001';
 const LEGACY_RELEASE_ID='00000000-0000-4000-8110-000000000002';
-
 function tableExists(connection:Database.Database,name:string):boolean{return Boolean(connection.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name=?`).get(name));}
 function columnExists(connection:Database.Database,table:string,column:string):boolean{return (connection.prepare(`PRAGMA table_info(${table})`).all() as Array<{name:string}>).some((item)=>item.name===column);}
 function stableKey(parts:string[]):string{return parts.map((part)=>part.trim().toLowerCase().replace(/[^a-z0-9._-]+/g,'-').replace(/^-+|-+$/g,'')||'item').join(':');}
@@ -29,97 +28,53 @@ function bridgeLegacyCustomisations(connection:Database.Database):void {
 export function ensureWi11ExtensionSchema(connection:Database.Database):void {
   connection.exec(`
     CREATE TABLE IF NOT EXISTS extensions (
-      id TEXT PRIMARY KEY NOT NULL,
-      package_key TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      description TEXT,
-      current_version TEXT NOT NULL,
-      status TEXT NOT NULL CHECK(status IN ('enabled','disabled','failed')),
-      system_managed INTEGER NOT NULL DEFAULT 0 CHECK(system_managed IN (0,1)),
-      manifest_json TEXT NOT NULL CHECK(json_valid(manifest_json)),
-      checksum_sha256 TEXT NOT NULL CHECK(length(checksum_sha256)=64),
-      signature_status TEXT NOT NULL CHECK(signature_status IN ('unsigned','verified')),
-      capabilities_json TEXT NOT NULL CHECK(json_valid(capabilities_json)),
-      installed_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      installed_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      enabled_at TEXT,
-      disabled_at TEXT,
-      failure_details TEXT
+      id TEXT PRIMARY KEY NOT NULL, package_key TEXT NOT NULL UNIQUE, name TEXT NOT NULL, description TEXT, current_version TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('enabled','disabled','failed')), system_managed INTEGER NOT NULL DEFAULT 0 CHECK(system_managed IN (0,1)),
+      manifest_json TEXT NOT NULL CHECK(json_valid(manifest_json)), checksum_sha256 TEXT NOT NULL CHECK(length(checksum_sha256)=64),
+      signature_status TEXT NOT NULL CHECK(signature_status IN ('unsigned','verified')), capabilities_json TEXT NOT NULL CHECK(json_valid(capabilities_json)),
+      installed_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL, installed_at TEXT NOT NULL, updated_at TEXT NOT NULL, enabled_at TEXT, disabled_at TEXT, failure_details TEXT
     );
-
     CREATE TABLE IF NOT EXISTS extension_releases (
-      id TEXT PRIMARY KEY NOT NULL,
-      extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT,
-      version TEXT NOT NULL,
-      checksum_sha256 TEXT NOT NULL CHECK(length(checksum_sha256)=64),
-      manifest_json TEXT NOT NULL CHECK(json_valid(manifest_json)),
-      signature_status TEXT NOT NULL CHECK(signature_status IN ('unsigned','verified')),
-      status TEXT NOT NULL CHECK(status IN ('active','superseded','failed')),
-      backup_filename TEXT,
-      installed_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      installed_at TEXT NOT NULL,
-      failure_details TEXT,
-      UNIQUE(extension_id,version)
+      id TEXT PRIMARY KEY NOT NULL, extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT, version TEXT NOT NULL,
+      checksum_sha256 TEXT NOT NULL CHECK(length(checksum_sha256)=64), manifest_json TEXT NOT NULL CHECK(json_valid(manifest_json)),
+      signature_status TEXT NOT NULL CHECK(signature_status IN ('unsigned','verified')), status TEXT NOT NULL CHECK(status IN ('active','superseded','failed')),
+      backup_filename TEXT, installed_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL, installed_at TEXT NOT NULL, failure_details TEXT, UNIQUE(extension_id,version)
     );
-
     CREATE TABLE IF NOT EXISTS extension_contributions (
-      id TEXT PRIMARY KEY NOT NULL,
-      extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT,
-      release_id TEXT NOT NULL REFERENCES extension_releases(id) ON DELETE RESTRICT,
-      contribution_type TEXT NOT NULL,
-      contribution_key TEXT NOT NULL,
-      definition_json TEXT NOT NULL CHECK(json_valid(definition_json)),
-      enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
-      created_at TEXT NOT NULL,
+      id TEXT PRIMARY KEY NOT NULL, extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT, release_id TEXT NOT NULL REFERENCES extension_releases(id) ON DELETE RESTRICT,
+      contribution_type TEXT NOT NULL, contribution_key TEXT NOT NULL, definition_json TEXT NOT NULL CHECK(json_valid(definition_json)), enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)), created_at TEXT NOT NULL,
       UNIQUE(release_id,contribution_type,contribution_key)
     );
-
     CREATE TABLE IF NOT EXISTS extension_bindings (
-      id TEXT PRIMARY KEY NOT NULL,
-      extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT,
-      contribution_type TEXT NOT NULL,
-      contribution_key TEXT NOT NULL,
-      resource_type TEXT NOT NULL,
-      resource_id TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      disabled_at TEXT,
-      retired_at TEXT,
-      UNIQUE(extension_id,contribution_type,contribution_key),
-      UNIQUE(resource_type,resource_id)
+      id TEXT PRIMARY KEY NOT NULL, extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT, contribution_type TEXT NOT NULL, contribution_key TEXT NOT NULL,
+      resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, created_at TEXT NOT NULL, disabled_at TEXT, retired_at TEXT,
+      UNIQUE(extension_id,contribution_type,contribution_key), UNIQUE(resource_type,resource_id)
     );
-
     CREATE TABLE IF NOT EXISTS extension_migrations (
-      id TEXT PRIMARY KEY NOT NULL,
-      extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT,
-      release_id TEXT NOT NULL REFERENCES extension_releases(id) ON DELETE RESTRICT,
-      migration_key TEXT NOT NULL,
-      operation_type TEXT NOT NULL,
-      operation_json TEXT NOT NULL CHECK(json_valid(operation_json)),
-      rollback_json TEXT CHECK(rollback_json IS NULL OR json_valid(rollback_json)),
-      status TEXT NOT NULL CHECK(status IN ('applied','failed')),
-      applied_at TEXT NOT NULL,
-      failure_details TEXT,
-      UNIQUE(extension_id,release_id,migration_key)
+      id TEXT PRIMARY KEY NOT NULL, extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT, release_id TEXT NOT NULL REFERENCES extension_releases(id) ON DELETE RESTRICT,
+      migration_key TEXT NOT NULL, operation_type TEXT NOT NULL, operation_json TEXT NOT NULL CHECK(json_valid(operation_json)), rollback_json TEXT CHECK(rollback_json IS NULL OR json_valid(rollback_json)),
+      status TEXT NOT NULL CHECK(status IN ('applied','failed')), applied_at TEXT NOT NULL, failure_details TEXT, UNIQUE(extension_id,release_id,migration_key)
     );
-
     CREATE TABLE IF NOT EXISTS extension_install_attempts (
-      id TEXT PRIMARY KEY NOT NULL,
-      package_key TEXT NOT NULL,
-      version TEXT NOT NULL,
-      actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      checksum_sha256 TEXT NOT NULL CHECK(length(checksum_sha256)=64),
-      status TEXT NOT NULL CHECK(status IN ('running','succeeded','failed')),
-      backup_filename TEXT,
-      failure_details TEXT,
-      started_at TEXT NOT NULL,
-      completed_at TEXT
+      id TEXT PRIMARY KEY NOT NULL, package_key TEXT NOT NULL, version TEXT NOT NULL, actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      checksum_sha256 TEXT NOT NULL CHECK(length(checksum_sha256)=64), status TEXT NOT NULL CHECK(status IN ('running','succeeded','failed')), backup_filename TEXT, failure_details TEXT, started_at TEXT NOT NULL, completed_at TEXT
     );
-
+    CREATE TABLE IF NOT EXISTS extension_assets (
+      id TEXT PRIMARY KEY NOT NULL, extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT, release_id TEXT NOT NULL REFERENCES extension_releases(id) ON DELETE RESTRICT,
+      asset_key TEXT NOT NULL, relative_path TEXT NOT NULL, media_type TEXT NOT NULL, sha256 TEXT NOT NULL CHECK(length(sha256)=64), size_bytes INTEGER NOT NULL CHECK(size_bytes>=0), created_at TEXT NOT NULL,
+      UNIQUE(release_id,asset_key), UNIQUE(release_id,relative_path)
+    );
+    CREATE TABLE IF NOT EXISTS extension_data_actions (
+      id TEXT PRIMARY KEY NOT NULL, extension_id TEXT NOT NULL REFERENCES extensions(id) ON DELETE RESTRICT, actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL CHECK(action IN ('purge','restore')), status TEXT NOT NULL CHECK(status IN ('running','succeeded','failed')), backup_filename TEXT,
+      summary_json TEXT CHECK(summary_json IS NULL OR json_valid(summary_json)), failure_details TEXT, started_at TEXT NOT NULL, completed_at TEXT
+    );
     CREATE INDEX IF NOT EXISTS extension_status_idx ON extensions(status,package_key);
     CREATE INDEX IF NOT EXISTS extension_release_idx ON extension_releases(extension_id,status,installed_at DESC);
     CREATE INDEX IF NOT EXISTS extension_contribution_idx ON extension_contributions(extension_id,release_id,contribution_type,enabled);
     CREATE INDEX IF NOT EXISTS extension_attempt_idx ON extension_install_attempts(package_key,started_at DESC);
+    CREATE INDEX IF NOT EXISTS extension_asset_idx ON extension_assets(extension_id,release_id,asset_key);
+    CREATE INDEX IF NOT EXISTS extension_data_action_idx ON extension_data_actions(extension_id,started_at DESC);
   `);
   if(!columnExists(connection,'extension_bindings','retired_at'))connection.exec(`ALTER TABLE extension_bindings ADD COLUMN retired_at TEXT`);
   connection.exec(`CREATE INDEX IF NOT EXISTS extension_binding_idx ON extension_bindings(extension_id,resource_type,disabled_at,retired_at)`);
