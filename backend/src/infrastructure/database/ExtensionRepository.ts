@@ -34,9 +34,9 @@ export class ExtensionRepository {
     if(existing&&existing.systemManaged)throw new Error('System-managed extension packages cannot be upgraded through the package API');
     if(existing&&compareSemver(manifest.version,existing.currentVersion)<=0)throw new Error(`Extension version must be newer than ${existing.currentVersion}`);
     const schemaAffecting=manifest.contributions.customFields.length>0||manifest.contributions.customEntities.length>0;let backupFilename:string|null=null;
-    if(schemaAffecting)backupFilename=await BackupManager.createBackup({isPreMigration:true});
-    const attemptId=crypto.randomUUID();const startedAt=timestamp();this.connection.prepare(`INSERT INTO extension_install_attempts(id,package_key,version,actor_user_id,checksum_sha256,status,backup_filename,started_at) VALUES(?,?,?,?,?,'running',?,?)`).run(attemptId,manifest.packageKey,manifest.version,context.actorUserId,validated.checksum,backupFilename,startedAt);
+    const attemptId=crypto.randomUUID();const startedAt=timestamp();this.connection.prepare(`INSERT INTO extension_install_attempts(id,package_key,version,actor_user_id,checksum_sha256,status,backup_filename,started_at) VALUES(?,?,?,?,?,'running',NULL,?)`).run(attemptId,manifest.packageKey,manifest.version,context.actorUserId,validated.checksum,startedAt);
     try{
+      if(schemaAffecting){backupFilename=await BackupManager.createBackup({isPreMigration:true});this.connection.prepare(`UPDATE extension_install_attempts SET backup_filename=? WHERE id=?`).run(backupFilename,attemptId);}
       const extensionId=existing?.id??crypto.randomUUID();const releaseId=crypto.randomUUID();const installedAt=timestamp();
       this.connection.transaction(()=>{
         if(existing)this.connection.prepare(`UPDATE extension_releases SET status='superseded' WHERE extension_id=? AND status='active'`).run(extensionId);
@@ -72,9 +72,10 @@ export class ExtensionRepository {
 
   private persistContributions(extensionId:string,releaseId:string,manifest:ExtensionManifest,createdAt:string):void {
     const insert=this.connection.prepare(`INSERT INTO extension_contributions(id,extension_id,release_id,contribution_type,contribution_key,definition_json,enabled,created_at) VALUES(?,?,?,?,?,?,1,?)`);
-    for(const item of manifest.contributions.customFields)insert.run(crypto.randomUUID(),extensionId,releaseId,'custom_field',`${item.entityType}:${item.key}`,JSON.stringify(item),createdAt);
+    for(const item of manifest.contributions.customFields)insert.run(crypto.randomUUID(),extensionId,releaseId,'custom_field',contributionKey('field',item.entityType,item.key),JSON.stringify(item),createdAt);
+    for(const item of manifest.contributions.customEntities)insert.run(crypto.randomUUID(),extensionId,releaseId,'custom_entity',contributionKey('entity',item.key),JSON.stringify(item),createdAt);
     const categories:Array<[string,Array<Record<string,unknown>>,string]>=[
-      ['custom_entity',manifest.contributions.customEntities as Array<Record<string,unknown>>,'key'],['form',manifest.contributions.forms as Array<Record<string,unknown>>,'key'],['view',manifest.contributions.views as Array<Record<string,unknown>>,'key'],['navigation',manifest.contributions.navigation as Array<Record<string,unknown>>,'key'],['theme',manifest.contributions.themes as Array<Record<string,unknown>>,'key'],['report',manifest.contributions.reports as Array<Record<string,unknown>>,'key'],['workflow_template',manifest.contributions.workflowTemplates as Array<Record<string,unknown>>,'key'],['event_subscription',manifest.contributions.eventSubscriptions as Array<Record<string,unknown>>,'key'],['localisation',manifest.contributions.localisations as Array<Record<string,unknown>>,'locale'],['asset',manifest.contributions.assets as Array<Record<string,unknown>>,'key'],
+      ['form',manifest.contributions.forms as Array<Record<string,unknown>>,'key'],['view',manifest.contributions.views as Array<Record<string,unknown>>,'key'],['navigation',manifest.contributions.navigation as Array<Record<string,unknown>>,'key'],['theme',manifest.contributions.themes as Array<Record<string,unknown>>,'key'],['report',manifest.contributions.reports as Array<Record<string,unknown>>,'key'],['workflow_template',manifest.contributions.workflowTemplates as Array<Record<string,unknown>>,'key'],['event_subscription',manifest.contributions.eventSubscriptions as Array<Record<string,unknown>>,'key'],['localisation',manifest.contributions.localisations as Array<Record<string,unknown>>,'locale'],['asset',manifest.contributions.assets as Array<Record<string,unknown>>,'key'],
     ];
     for(const [type,items,keyField] of categories)for(const item of items)insert.run(crypto.randomUUID(),extensionId,releaseId,type,String(item[keyField]),JSON.stringify(item),createdAt);
   }
