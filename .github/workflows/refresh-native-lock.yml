@@ -31,7 +31,23 @@ jobs:
           cache: npm
 
       - name: Regenerate dependency lock
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+        id: regenerate_lock
+        continue-on-error: true
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund > "$RUNNER_TEMP/native-lock.log" 2>&1
+
+      - name: Upload native lock diagnostics
+        if: steps.regenerate_lock.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-lock-failure
+          path: ${{ runner.temp }}/native-lock.log
+          retention-days: 3
+
+      - name: Enforce native lock regeneration
+        if: steps.regenerate_lock.outcome == 'failure'
+        run: |
+          cat "$RUNNER_TEMP/native-lock.log"
+          exit 1
 
       - name: Commit regenerated dependency lock
         run: |
