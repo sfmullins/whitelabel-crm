@@ -31,21 +31,24 @@ describe('WI10 platform API',()=>{
     expect(()=>platform.createApiToken(identity,{name:'Unsupported token',scopes:['users.manage']})).toThrow('Unsupported API token scope');
   });
 
-  it('requires bearer authentication on v1 and applies token scopes',async()=>{
-    const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const session=security.createSession(owner.id);const read=platform.createApiToken(owner,{name:'Read only',scopes:['crm.read']});const write=platform.createApiToken(owner,{name:'Writer',scopes:['crm.read','crm.write']});let server:RunningServer|null=null;
+  it('requires bearer authentication, applies token scopes and rejects internal routes on v1',async()=>{
+    const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const session=security.createSession(owner.id);const read=platform.createApiToken(owner,{name:'Read only',scopes:['crm.read','reports.read']});const write=platform.createApiToken(owner,{name:'Writer',scopes:['crm.read','crm.write']});let server:RunningServer|null=null;
     try{
       server=await startServer({host:'127.0.0.1',port:0});
       const anonymous=await fetch(`${server.url}/api/v1/me`);expect(anonymous.status).toBe(401);
       const sessionMe=await fetch(`${server.url}/api/v1/me`,{headers:bearer(session.token)});expect(sessionMe.status).toBe(200);expect((await sessionMe.json() as any).authType).toBe('session');
       const tokenMe=await fetch(`${server.url}/api/v1/me`,{headers:bearer(read.token)});expect(tokenMe.status).toBe(200);expect((await tokenMe.json() as any).authType).toBe('api_token');
+      const report=await fetch(`${server.url}/api/v1/reporting/executive`,{headers:bearer(read.token)});expect(report.status).toBe(200);
       const denied=await fetch(`${server.url}/api/v1/organisations`,{method:'POST',headers:bearer(read.token),body:JSON.stringify({name:'Denied v1 organisation',status:'prospect'})});expect(denied.status).toBe(403);
       const created=await fetch(`${server.url}/api/v1/organisations`,{method:'POST',headers:bearer(write.token),body:JSON.stringify({name:'Created through v1',status:'prospect'})});expect(created.status).toBe(201);const body=await created.json() as {id:string};expect(body.id).toBeTruthy();
+      const savedReports=await fetch(`${server.url}/api/v1/reporting/saved`,{headers:bearer(session.token)});expect(savedReports.status).toBe(404);
+      const legacyActivities=await fetch(`${server.url}/api/v1/customers/00000000-0000-4000-8000-000000000001/activities`,{headers:bearer(read.token)});expect(legacyActivities.status).toBe(404);
     }finally{await server?.close();}
   });
 
-  it('publishes an authenticated OpenAPI contract',async()=>{
+  it('publishes an authenticated OpenAPI contract matching the allowlist',async()=>{
     const security=new SecurityRepository();const platform=new PlatformRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const token=platform.createApiToken(owner,{name:'Documentation reader',scopes:['crm.read']});let server:RunningServer|null=null;
-    try{server=await startServer({host:'127.0.0.1',port:0});const response=await fetch(`${server.url}/api/v1/openapi.json`,{headers:bearer(token.token)});expect(response.status).toBe(200);const document=await response.json() as any;expect(document.openapi).toBe('3.1.0');expect(document.paths['/organisations']).toBeTruthy();expect(document.components.securitySchemes.bearerAuth).toBeTruthy();}finally{await server?.close();}
+    try{server=await startServer({host:'127.0.0.1',port:0});const response=await fetch(`${server.url}/api/v1/openapi.json`,{headers:bearer(token.token)});expect(response.status).toBe(200);const document=await response.json() as any;expect(document.openapi).toBe('3.1.0');expect(document.paths['/organisations']).toBeTruthy();expect(document.paths['/contacts/{id}']).toBeTruthy();expect(document.paths['/reporting/{key}']).toBeTruthy();expect(document.paths['/reporting/saved']).toBeUndefined();expect(document.components.securitySchemes.bearerAuth).toBeTruthy();}finally{await server?.close();}
   });
 
   it('blocks private webhook targets unless explicit loopback testing is enabled',()=>{
