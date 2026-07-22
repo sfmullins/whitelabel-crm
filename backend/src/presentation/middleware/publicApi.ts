@@ -1,6 +1,8 @@
 import type { NextFunction,Request,Response } from 'express';
 
 const ALLOWED:Array<{method:string;pattern:RegExp}>=[
+  {method:'GET',pattern:/^\/openapi\.json$/},
+  {method:'GET',pattern:/^\/me$/},
   {method:'GET',pattern:/^\/organisations$/},
   {method:'POST',pattern:/^\/organisations$/},
   {method:'GET',pattern:/^\/organisations\/[0-9a-f-]+$/i},
