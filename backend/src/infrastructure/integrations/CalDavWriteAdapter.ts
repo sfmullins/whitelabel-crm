@@ -42,7 +42,8 @@ async function write(
   mode:'create'|'update'|'cancel',
 ):Promise<CalendarWriteResult>{
   const generated=new URL(`${encodeURIComponent(event.providerEventKey)}.ics`,calendarUrl.endsWith('/')?calendarUrl:`${calendarUrl}/`).toString();
-  const href=mode==='create'?generated:(event.resourceHref??generated);
+  const href=mode==='create'?generated:event.resourceHref;
+  if(!href)throw new Error('Calendar resource href is unavailable; synchronize the calendar before modifying this event');
   const headers:Record<string,string>={
     authorization:authorization(config.username,secret.password??''),
     'content-type':'text/calendar; charset=utf-8',
