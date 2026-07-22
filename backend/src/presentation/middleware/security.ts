@@ -7,7 +7,7 @@ import { WI10_EVENT_TYPES } from '../../infrastructure/database/wi10PlatformSche
 export interface CrmRequest extends Request {crm?:{requestId:string;identity:RequestIdentity|null};}
 
 const buckets=new Map<string,{windowStarted:number;count:number}>();
-const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext/i;
+const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext|signature|publickey/i;
 
 export function isLoopback(req:Request):boolean{const address=req.socket.remoteAddress||'';return address==='127.0.0.1'||address==='::1'||address==='::ffff:127.0.0.1';}
 export function isTrustedLocalOrigin(req:Request):boolean{const origin=req.header('origin');if(!origin||origin==='null')return true;try{const hostname=new URL(origin).hostname;return hostname==='localhost'||hostname==='127.0.0.1'||hostname==='::1';}catch{return false;}}
@@ -21,6 +21,7 @@ function permissionFor(method:string,path:string):string|null{
   if(policyPath.startsWith('/platform/api-tokens'))return 'api.manage';
   if(policyPath.startsWith('/platform/webhooks')||policyPath.startsWith('/platform/webhook-deliveries'))return 'webhooks.manage';
   if(policyPath.startsWith('/platform/events'))return 'platform.read';
+  if(policyPath.startsWith('/extensions'))return method==='GET'||method==='HEAD'?'extensions.read':'extensions.manage';
   if(policyPath.startsWith('/reporting')){if(policyPath.includes('/export')||policyPath.endsWith('/download'))return 'reports.export';return method==='GET'?'reports.read':'reports.manage';}
   if(policyPath.startsWith('/admin/users')||policyPath.startsWith('/admin/teams'))return 'users.manage';
   if(policyPath.startsWith('/admin/roles'))return 'roles.manage';
