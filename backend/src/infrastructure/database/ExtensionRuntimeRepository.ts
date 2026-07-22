@@ -1,0 +1,69 @@
+import crypto from 'node:crypto';
+import type Database from 'better-sqlite3';
+import { sqlite } from './connection';
+import { ReportingRepository,type ReportFilters,type ReportKey } from './ReportingRepository';
+import { WorkflowRepository,type WorkflowAction } from './WorkflowRepository';
+import { BackupManager } from '../backup/BackupManager';
+import { ExtensionAssetStore } from '../extensions/ExtensionAssetStore';
+
+const now=()=>new Date().toISOString();
+function parseJson<T>(value:unknown,fallback:T):T{if(typeof value!=='string')return fallback;try{return JSON.parse(value) as T;}catch{return fallback;}}
+function placeholders(values:unknown[]):string{return values.map(()=>'?').join(',');}
+
+interface RuntimeRow {extension_id:string;package_key:string;extension_name:string;current_version:string;contribution_type:string;contribution_key:string;definition_json:string;}
+
+export class ExtensionRuntimeRepository {
+  private readonly reporting:ReportingRepository;
+  private readonly workflows:WorkflowRepository;
+  constructor(private readonly connection:Database.Database=sqlite as Database.Database,private readonly assetStore=new ExtensionAssetStore()) {this.reporting=new ReportingRepository(connection);this.workflows=new WorkflowRepository(connection);}
+
+  runtime(locale='en'){
+    const rows=this.connection.prepare(`SELECT e.id AS extension_id,e.package_key,e.name AS extension_name,e.current_version,c.contribution_type,c.contribution_key,c.definition_json FROM extensions e JOIN extension_releases r ON r.extension_id=e.id AND r.status='active' JOIN extension_contributions c ON c.release_id=r.id AND c.enabled=1 WHERE e.status='enabled' ORDER BY e.package_key,c.contribution_type,c.contribution_key`).all() as RuntimeRow[];
+    const packages=new Map<string,{id:string;packageKey:string;name:string;version:string}>();const grouped:Record<string,unknown[]>={forms:[],views:[],navigation:[],themes:[],reports:[],workflowTemplates:[],eventSubscriptions:[],localisations:[],customFields:[],customEntities:[],assets:[]};
+    const target:Record<string,keyof typeof grouped>={form:'forms',view:'views',navigation:'navigation',theme:'themes',report:'reports',workflow_template:'workflowTemplates',event_subscription:'eventSubscriptions',localisation:'localisations',custom_field:'customFields',custom_entity:'customEntities',asset:'assets'};
+    for(const row of rows){packages.set(row.extension_id,{id:row.extension_id,packageKey:row.package_key,name:row.extension_name,version:row.current_version});const group=target[row.contribution_type];if(!group)continue;grouped[group].push({extensionId:row.extension_id,packageKey:row.package_key,extensionName:row.extension_name,version:row.current_version,key:row.contribution_key,...parseJson<Record<string,unknown>>(row.definition_json,{})});}
+    const assetRows=this.connection.prepare(`SELECT e.id AS extension_id,e.package_key,e.name AS extension_name,e.current_version,a.asset_key,a.relative_path,a.media_type,a.sha256,a.size_bytes FROM extensions e JOIN extension_releases r ON r.extension_id=e.id AND r.status='active' JOIN extension_assets a ON a.release_id=r.id WHERE e.status='enabled' ORDER BY e.package_key,a.asset_key`).all() as Array<Record<string,unknown>>;
+    grouped.assets=assetRows.map((row)=>({extensionId:row.extension_id,packageKey:row.package_key,extensionName:row.extension_name,version:row.current_version,key:row.asset_key,path:row.relative_path,mediaType:row.media_type,sha256:row.sha256,sizeBytes:row.size_bytes,url:`/api/extensions/runtime/assets/${row.extension_id}/${encodeURIComponent(String(row.asset_key))}`}));
+    const requested=locale.trim()||'en';const language=requested.split('-')[0];const localisations=grouped.localisations as Array<Record<string,unknown>>;const messages:Record<string,string>={};for(const candidate of ['en',language,requested])for(const item of localisations)if(item.locale===candidate)Object.assign(messages,item.messages as Record<string,string>);
+    return {generatedAt:now(),locale:requested,packages:[...packages.values()],messages,...grouped};
+  }
+
+  runReport(extensionId:string,key:string,filters:ReportFilters={}){
+    const contribution=this.requireContribution(extensionId,'report',key);const definition=contribution.definition as {name:string;description?:string|null;baseReportKey:ReportKey;defaultFilters?:ReportFilters;columns?:string[]};const merged={...(definition.defaultFilters??{}),...filters};return {extension:contribution.extension,definition,report:this.reporting.run(definition.baseReportKey,merged)};
+  }
+
+  instantiateWorkflow(extensionId:string,key:string,name?:string){
+    const contribution=this.requireContribution(extensionId,'workflow_template',key);const template=contribution.definition as {name:string;description?:string|null;triggerType:string;conditions?:unknown;actions:WorkflowAction[]};
+    const existing=this.connection.prepare(`SELECT resource_id FROM extension_bindings WHERE extension_id=? AND contribution_type='workflow_template' AND contribution_key=?`).get(extensionId,key) as {resource_id:string}|undefined;
+    if(existing){const workflow=this.workflows.getDefinition(existing.resource_id);if(workflow)return {...workflow,reused:true,extension:contribution.extension};}
+    return this.connection.transaction(()=>{const workflow=this.workflows.createDefinition({name:name?.trim()||`${contribution.extension.name}: ${template.name}`,description:template.description??`Instantiated from ${contribution.extension.packageKey} workflow template ${key}.`,enabled:false,triggerType:template.triggerType,conditions:template.conditions??{},actions:template.actions});if(existing)this.connection.prepare(`UPDATE extension_bindings SET resource_id=?,disabled_at=NULL,retired_at=NULL WHERE extension_id=? AND contribution_type='workflow_template' AND contribution_key=?`).run(workflow.id,extensionId,key);else this.connection.prepare(`INSERT INTO extension_bindings(id,extension_id,contribution_type,contribution_key,resource_type,resource_id,created_at,disabled_at,retired_at) VALUES(?,?,'workflow_template',?,'workflow_definition',?,?,NULL,NULL)`).run(crypto.randomUUID(),extensionId,key,workflow.id,now());return {...workflow,reused:false,extension:contribution.extension};})();
+  }
+
+  asset(extensionId:string,key:string){
+    const row=this.connection.prepare(`SELECT e.package_key,r.version,a.relative_path,a.media_type,a.sha256,a.size_bytes FROM extensions e JOIN extension_releases r ON r.extension_id=e.id AND r.status='active' JOIN extension_assets a ON a.release_id=r.id WHERE e.id=? AND e.status='enabled' AND a.asset_key=?`).get(extensionId,key) as {package_key:string;version:string;relative_path:string;media_type:string;sha256:string;size_bytes:number}|undefined;if(!row)throw new Error('Extension asset not found');return {path:this.assetStore.resolve(row.package_key,row.version,row.relative_path,row.sha256,row.size_bytes),mediaType:row.media_type};
+  }
+
+  exportData(extensionId:string){
+    const extension=this.requireExtension(extensionId);const fieldIds=this.bindingIds(extensionId,'custom_field');const entityIds=this.bindingIds(extensionId,'custom_entity');
+    const fieldDefinitions=fieldIds.length?this.connection.prepare(`SELECT * FROM custom_fields_definition WHERE id IN (${placeholders(fieldIds)}) ORDER BY entity_type,name`).all(...fieldIds):[];
+    const fieldValues=fieldIds.length?this.connection.prepare(`SELECT * FROM custom_fields_values WHERE field_id IN (${placeholders(fieldIds)}) ORDER BY field_id,entity_id`).all(...fieldIds):[];
+    const entityDefinitions=entityIds.length?this.connection.prepare(`SELECT * FROM custom_objects_definition WHERE id IN (${placeholders(entityIds)}) ORDER BY api_name`).all(...entityIds):[];
+    const records=entityIds.length?this.connection.prepare(`SELECT * FROM custom_objects_records WHERE object_definition_id IN (${placeholders(entityIds)}) ORDER BY object_definition_id,id`).all(...entityIds) as Array<Record<string,unknown>>:[];const recordIds=records.map((row)=>String(row.id));
+    const recordValues=recordIds.length?this.connection.prepare(`SELECT * FROM custom_objects_values WHERE record_id IN (${placeholders(recordIds)}) ORDER BY record_id,field_id`).all(...recordIds):[];
+    const payload={formatVersion:1,exportedAt:now(),extension:{id:extension.id,packageKey:extension.package_key,name:extension.name,version:extension.current_version},customFields:{definitions:fieldDefinitions,values:fieldValues},customEntities:{definitions:entityDefinitions,records,values:recordValues}};const content=JSON.stringify(payload);if(Buffer.byteLength(content,'utf8')>50_000_000)throw new Error('Extension data export exceeds the 50 MB response limit');return {...payload,sha256:crypto.createHash('sha256').update(content).digest('hex')};
+  }
+
+  async purgeData(extensionId:string,actorUserId:string,confirmation:string){
+    const extension=this.requireExtension(extensionId);if(Boolean(extension.system_managed))throw new Error('System-managed extension data cannot be purged');if(extension.status!=='disabled')throw new Error('Extension must be disabled before its data can be purged');if(confirmation!==`PURGE ${extension.package_key}`)throw new Error(`Confirmation must exactly match: PURGE ${extension.package_key}`);
+    const actionId=crypto.randomUUID();const startedAt=now();this.connection.prepare(`INSERT INTO extension_data_actions(id,extension_id,actor_user_id,action,status,started_at) VALUES(?,?,?,'purge','running',?)`).run(actionId,extensionId,actorUserId,startedAt);let backupFilename:string|null=null;
+    try{backupFilename=await BackupManager.createBackup({isPreMigration:true});this.connection.prepare(`UPDATE extension_data_actions SET backup_filename=? WHERE id=?`).run(backupFilename,actionId);const fieldIds=this.bindingIds(extensionId,'custom_field');const entityIds=this.bindingIds(extensionId,'custom_entity');const summary=this.connection.transaction(()=>{let fieldValues=0,entityValues=0,entityRecords=0;if(fieldIds.length)fieldValues=this.connection.prepare(`DELETE FROM custom_fields_values WHERE field_id IN (${placeholders(fieldIds)})`).run(...fieldIds).changes;if(entityIds.length){const records=this.connection.prepare(`SELECT id FROM custom_objects_records WHERE object_definition_id IN (${placeholders(entityIds)})`).all(...entityIds) as Array<{id:string}>;const recordIds=records.map((row)=>row.id);if(recordIds.length)entityValues=this.connection.prepare(`DELETE FROM custom_objects_values WHERE record_id IN (${placeholders(recordIds)})`).run(...recordIds).changes;entityRecords=this.connection.prepare(`DELETE FROM custom_objects_records WHERE object_definition_id IN (${placeholders(entityIds)})`).run(...entityIds).changes;}return {fieldValues,entityValues,entityRecords};})();this.connection.prepare(`UPDATE extension_data_actions SET status='succeeded',summary_json=?,completed_at=? WHERE id=?`).run(JSON.stringify(summary),now(),actionId);return {extensionId,packageKey:extension.package_key,backupFilename,summary};}catch(error){const message=error instanceof Error?error.message:String(error);this.connection.prepare(`UPDATE extension_data_actions SET status='failed',failure_details=?,completed_at=? WHERE id=?`).run(message.slice(0,4000),now(),actionId);throw error;}
+  }
+
+  async restoreRelease(extensionId:string,releaseId:string,confirmation:string){
+    const extension=this.requireExtension(extensionId);const release=this.connection.prepare(`SELECT version,backup_filename FROM extension_releases WHERE id=? AND extension_id=?`).get(releaseId,extensionId) as {version:string;backup_filename:string|null}|undefined;if(!release||!release.backup_filename)throw new Error('Extension release has no recovery backup');if(confirmation!==`RESTORE ${extension.package_key} ${release.version}`)throw new Error(`Confirmation must exactly match: RESTORE ${extension.package_key} ${release.version}`);await BackupManager.restoreBackup(`${release.backup_filename}.db`);return {restored:true,packageKey:extension.package_key,version:release.version,backupFilename:release.backup_filename,restartRecommended:true};
+  }
+
+  private requireExtension(id:string):Record<string,unknown>{const row=this.connection.prepare(`SELECT * FROM extensions WHERE id=?`).get(id) as Record<string,unknown>|undefined;if(!row)throw new Error('Extension not found');return row;}
+  private bindingIds(extensionId:string,resourceType:string):string[]{return (this.connection.prepare(`SELECT resource_id FROM extension_bindings WHERE extension_id=? AND resource_type=?`).all(extensionId,resourceType) as Array<{resource_id:string}>).map((row)=>row.resource_id);}
+  private requireContribution(extensionId:string,type:string,key:string){const row=this.connection.prepare(`SELECT e.id,e.package_key,e.name,e.current_version,c.definition_json FROM extensions e JOIN extension_releases r ON r.extension_id=e.id AND r.status='active' JOIN extension_contributions c ON c.release_id=r.id AND c.enabled=1 WHERE e.id=? AND e.status='enabled' AND c.contribution_type=? AND c.contribution_key=?`).get(extensionId,type,key) as {id:string;package_key:string;name:string;current_version:string;definition_json:string}|undefined;if(!row)throw new Error('Active extension contribution not found');return {extension:{id:row.id,packageKey:row.package_key,name:row.name,version:row.current_version},definition:parseJson<Record<string,unknown>>(row.definition_json,{})};}
+}
