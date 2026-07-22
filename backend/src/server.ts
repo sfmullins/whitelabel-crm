@@ -4,6 +4,7 @@ import path from 'path';
 import app from './presentation/app';
 import { ReminderScheduler } from './application/services/ReminderScheduler';
 import { ScheduledReportService } from './application/services/ScheduledReportService';
+import { WebhookDeliveryService } from './application/services/WebhookDeliveryService';
 
 export interface StartServerOptions {
   host?: string;
@@ -20,8 +21,8 @@ export interface RunningServer {
 
 export async function startServer(options?:StartServerOptions):Promise<RunningServer>{
   const host=options?.host??'127.0.0.1';const port=options?.port??0;
-  const reminderScheduler=new ReminderScheduler();const scheduledReports=new ScheduledReportService();
-  reminderScheduler.start();scheduledReports.start();
+  const reminderScheduler=new ReminderScheduler();const scheduledReports=new ScheduledReportService();const webhookDeliveries=new WebhookDeliveryService();
+  reminderScheduler.start();scheduledReports.start();webhookDeliveries.start();
 
   if(options?.frontendDirectory){
     const staticPath=path.resolve(options.frontendDirectory);app.use(express.static(staticPath));
@@ -30,10 +31,11 @@ export async function startServer(options?:StartServerOptions):Promise<RunningSe
 
   return new Promise((resolve,reject)=>{
     const server=http.createServer(app);
-    server.on('error',(err)=>{reminderScheduler.stop();scheduledReports.stop();reject(err);});
+    const stopServices=()=>{reminderScheduler.stop();scheduledReports.stop();webhookDeliveries.stop();};
+    server.on('error',(err)=>{stopServices();reject(err);});
     server.listen(port,host,()=>{
       const address=server.address();let actualPort=port;if(address&&typeof address==='object')actualPort=address.port;const url=`http://${host}:${actualPort}`;
-      resolve({host,port:actualPort,url,close:()=>{reminderScheduler.stop();scheduledReports.stop();return new Promise<void>((resolveClose,rejectClose)=>{server.close((err)=>err?rejectClose(err):resolveClose());});}});
+      resolve({host,port:actualPort,url,close:()=>{stopServices();return new Promise<void>((resolveClose,rejectClose)=>{server.close((err)=>err?rejectClose(err):resolveClose());});}});
     });
   });
 }

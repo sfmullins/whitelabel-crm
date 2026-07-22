@@ -4,9 +4,10 @@ import type { CrmRequest } from './security';
 
 function createdEntity(path:string,method:string):OwnedEntity|null{
   if(method!=='POST')return null;
-  if(path==='/api/organisations')return 'organisation';
-  if(/^\/api\/organisations\/[^/]+\/engagements$/.test(path))return 'engagement';
-  if(path==='/api/tasks')return 'task';
+  const normalized=path.replace(/^\/api\/v1(?=\/|$)/,'/api');
+  if(normalized==='/api/organisations')return 'organisation';
+  if(/^\/api\/organisations\/[^/]+\/engagements$/.test(normalized))return 'engagement';
+  if(normalized==='/api/tasks')return 'task';
   return null;
 }
 
