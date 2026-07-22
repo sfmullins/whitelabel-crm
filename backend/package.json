@@ -8,6 +8,13 @@
   ],
   "main": "dist/embed.js",
   "types": "dist/embed.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/embed.d.ts",
+      "require": "./dist/embed.js",
+      "default": "./dist/embed.js"
+    }
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
