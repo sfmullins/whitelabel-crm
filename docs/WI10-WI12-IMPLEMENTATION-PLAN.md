@@ -5,7 +5,7 @@
 This programme now has two completed implementation branches:
 
 - WI10 was merged through PR #13 at `e10171356f582c8fc3c62771f804424adad7f028`;
-- WI11 is completed on `WI11-Extension-Platform` and is awaiting review through PR #14;
+- WI11 is completed on `WI11-Extension-Platform` and is presented for final review through PR #14;
 - WI12 must start only after WI11 is reviewed and merged.
 
 The repository now has:
@@ -45,7 +45,7 @@ WIs 10–12 extend one coherent security, permission, audit, reporting, export, 
 | Work item | Branch | Base | Status / merge gate |
 |---|---|---|---|
 | WI10 — Platform API | `WI10-Platform-API` | merged WI8–WI9 `main` | merged via PR #13 |
-| WI11 — Extension Platform | `WI11-Extension-Platform` | merged WI10 `main` | implementation complete; full WI4–WI11 verification green; PR #14 review required |
+| WI11 — Extension Platform | `WI11-Extension-Platform` | merged WI10 `main` | implementation complete; full WI4–WI11 and Linux package verification green; PR #14 final review required |
 | WI12 — Enterprise Release | `WI12-Enterprise-Release` | merged WI11 `main` | not started; release certification required |
 
 Each pull request targets `main` directly. Stacked feature-branch PRs are prohibited.
@@ -103,6 +103,26 @@ Delivered lifecycle controls:
 The existing custom-field and custom-object data model is bridged into the extension registry and retained. Extension-owned definitions cannot be deleted directly through legacy routes.
 
 Detailed delivered scope and exclusions are documented in `docs/work-items/WI11.md`.
+
+## WI11 final merge gate
+
+PR #14 is ready for review only when its final head has passed:
+
+```text
+npm run build
+npm test
+npm run db:smoke
+npm run wi4:smoke
+npm run wi5:smoke
+npm run wi6:smoke
+npm run wi7:smoke
+npm run wi8-wi9:smoke
+npm run wi10:smoke
+npm run wi11:smoke
+npm run desktop:preflight
+```
+
+The separate Linux workflow must also build, verify and upload the Debian package. The branch must remain directly based on merged WI10 `main`, with no unresolved review threads or known release-blocking defects.
 
 ---
 
