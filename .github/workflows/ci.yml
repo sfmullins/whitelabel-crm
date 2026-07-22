@@ -36,7 +36,23 @@ jobs:
         run: npm ci
 
       - name: Workspace build
-        run: npm run build
+        id: workspace_build
+        continue-on-error: true
+        run: npm run build > "$RUNNER_TEMP/workspace-build.log" 2>&1
+
+      - name: Upload workspace build diagnostics
+        if: steps.workspace_build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-build-failure
+          path: ${{ runner.temp }}/workspace-build.log
+          retention-days: 3
+
+      - name: Enforce workspace build
+        if: steps.workspace_build.outcome == 'failure'
+        run: |
+          tail -n 120 "$RUNNER_TEMP/workspace-build.log"
+          exit 1
 
       - name: Backend and frontend tests
         run: npm test
