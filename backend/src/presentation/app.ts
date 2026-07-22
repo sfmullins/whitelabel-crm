@@ -18,6 +18,7 @@ import workspaceRouter from './routes/workspace';
 import operationalRouter from './routes/operational';
 import connectedCommunicationsRouter from './routes/connectedCommunications';
 import communicationsHubRouter from './routes/communicationsHub';
+import releaseHardeningRouter from './routes/releaseHardening';
 import { AppError } from '../application/errors';
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api', workspaceRouter);
 app.use('/api', operationalRouter);
 app.use('/api', connectedCommunicationsRouter);
 app.use('/api', communicationsHubRouter);
+app.use('/api', releaseHardeningRouter);
 
 if (process.env.NODE_ENV === 'test') {
   app.get('/api/__test/unknown-error', () => {

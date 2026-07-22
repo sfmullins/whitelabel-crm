@@ -1,9 +1,6 @@
 import type Database from 'better-sqlite3';
 
-/**
- * WI7 prelaunch communications-hub extension.
- * Tables are additive and safe to recreate for disposable development databases.
- */
+/** WI7 communications-hub extension. */
 export function ensureCommunicationsHubSchema(connection: Database.Database): void {
   connection.exec(`
     CREATE TABLE IF NOT EXISTS email_drafts (
@@ -66,6 +63,32 @@ export function ensureCommunicationsHubSchema(connection: Database.Database): vo
       completed_at TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS outbound_reconciliation_records (
+      id TEXT PRIMARY KEY NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('email','calendar')),
+      source_id TEXT NOT NULL,
+      operation TEXT NOT NULL,
+      payload_json TEXT NOT NULL CHECK(json_valid(payload_json)),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','reconciled','failed')),
+      error_summary TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      reconciled_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS in_app_notifications (
+      id TEXT PRIMARY KEY NOT NULL,
+      reminder_id TEXT NOT NULL UNIQUE REFERENCES reminders(id) ON DELETE CASCADE,
+      organisation_id TEXT REFERENCES organisations(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      route TEXT,
+      status TEXT NOT NULL DEFAULT 'unread' CHECK(status IN ('unread','dismissed')),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      dismissed_at TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS workflow_templates (
       id TEXT PRIMARY KEY NOT NULL,
       key TEXT NOT NULL UNIQUE,
@@ -101,44 +124,18 @@ export function ensureCommunicationsHubSchema(connection: Database.Database): vo
     CREATE INDEX IF NOT EXISTS email_draft_status_idx ON email_drafts(status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS email_draft_org_idx ON email_drafts(organisation_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS outbound_attempt_status_idx ON outbound_email_attempts(status, started_at DESC);
+    CREATE INDEX IF NOT EXISTS reconciliation_status_idx ON outbound_reconciliation_records(status, created_at);
+    CREATE INDEX IF NOT EXISTS notification_status_idx ON in_app_notifications(status, created_at DESC);
     CREATE INDEX IF NOT EXISTS calendar_write_status_idx ON calendar_write_operations(status, started_at DESC);
     CREATE INDEX IF NOT EXISTS maintenance_status_idx ON maintenance_runs(status, started_at DESC);
   `);
 
   const now = new Date().toISOString();
   const templates = [
-    {
-      key: 'post_meeting_follow_up',
-      name: 'Post-meeting follow-up',
-      description: 'Create a follow-up task when a meeting is completed.',
-      trigger: 'meeting_completed',
-      conditions: {},
-      actions: [{ type: 'create_task', title: 'Complete post-meeting follow-up', priority: 'high' }],
-    },
-    {
-      key: 'important_email_review',
-      name: 'Important email review',
-      description: 'Create a review task for important inbound email.',
-      trigger: 'email_received',
-      conditions: { subject: { contains: 'important' } },
-      actions: [{ type: 'create_task', title: 'Review important email', priority: 'high' }],
-    },
-    {
-      key: 'meeting_preparation',
-      name: 'Meeting preparation',
-      description: 'Create preparation work for a scheduled meeting.',
-      trigger: 'calendar_event_created',
-      conditions: {},
-      actions: [{ type: 'create_task', title: 'Prepare for meeting', priority: 'normal' }],
-    },
-    {
-      key: 'draft_customer_reply',
-      name: 'Draft customer reply',
-      description: 'Create a reviewable draft only. The workflow never sends it.',
-      trigger: 'email_received',
-      conditions: {},
-      actions: [{ type: 'create_email_draft', subject: 'Re: {{subject}}', body: 'Draft response for review.' }],
-    },
+    {key:'post_meeting_follow_up',name:'Post-meeting follow-up',description:'Create a follow-up task when a meeting is completed.',trigger:'meeting_completed',conditions:{},actions:[{type:'create_task',title:'Complete post-meeting follow-up',priority:'high'}]},
+    {key:'important_email_review',name:'Important email review',description:'Create a review task for important inbound email.',trigger:'email_received',conditions:{subject:{contains:'important'}},actions:[{type:'create_task',title:'Review important email',priority:'high'}]},
+    {key:'meeting_preparation',name:'Meeting preparation',description:'Create preparation work for a scheduled meeting.',trigger:'calendar_event_created',conditions:{},actions:[{type:'create_task',title:'Prepare for meeting',priority:'normal'}]},
+    {key:'draft_customer_reply',name:'Draft customer reply',description:'Create a reviewable draft only. The workflow never sends it.',trigger:'email_received',conditions:{},actions:[{type:'create_email_draft',subject:'Re: {{subject}}',body:'Draft response for review.'}]},
   ];
   const statement = connection.prepare(`
     INSERT INTO workflow_templates(id,key,name,description,trigger_type,condition_json,action_json,built_in,created_at,updated_at)
@@ -146,16 +143,5 @@ export function ensureCommunicationsHubSchema(connection: Database.Database): vo
     ON CONFLICT(key) DO UPDATE SET name=excluded.name,description=excluded.description,trigger_type=excluded.trigger_type,
       condition_json=excluded.condition_json,action_json=excluded.action_json,updated_at=excluded.updated_at
   `);
-  for (const template of templates) {
-    statement.run({
-      id: `wi7-template-${template.key}`,
-      key: template.key,
-      name: template.name,
-      description: template.description,
-      trigger: template.trigger,
-      conditions: JSON.stringify(template.conditions),
-      actions: JSON.stringify(template.actions),
-      now,
-    });
-  }
+  for (const template of templates) statement.run({id:`wi7-template-${template.key}`,key:template.key,name:template.name,description:template.description,trigger:template.trigger,conditions:JSON.stringify(template.conditions),actions:JSON.stringify(template.actions),now});
 }

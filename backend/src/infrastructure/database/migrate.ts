@@ -11,6 +11,7 @@ import { rebuildSearchIndex } from './WorkspaceRepository';
 import { ensureOperationalSchema } from './operationalSchema';
 import { ensureConnectedCommunicationsSchema } from './connectedCommunicationsSchema';
 import { ensureCommunicationsHubSchema } from './communicationsHubSchema';
+import { ensureReleaseHardeningSchema } from './releaseHardeningSchema';
 
 export function runMigrations(
   dbInstance: DatabaseInstance,
@@ -22,6 +23,7 @@ export function runMigrations(
   ensureOperationalSchema(sqliteConnection);
   ensureConnectedCommunicationsSchema(sqliteConnection);
   ensureCommunicationsHubSchema(sqliteConnection);
+  ensureReleaseHardeningSchema(sqliteConnection);
   runWi3LegacyActivityBackfill(sqliteConnection);
   rebuildSearchIndex(sqliteConnection);
 }

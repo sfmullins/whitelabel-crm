@@ -95,6 +95,7 @@ export function parseRawEmail(input:{raw:string;providerMessageKey:string;uid:nu
   const dateValue=Date.parse(headers.date??'');
   const sentAt=Number.isFinite(dateValue)?new Date(dateValue).toISOString():input.receivedAt;
   return {
+    uid:input.uid,
     providerMessageKey:input.providerMessageKey,
     providerThreadKey,
     rfcMessageId,

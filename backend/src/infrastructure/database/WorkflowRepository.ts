@@ -6,139 +6,66 @@ import { CommunicationsHubRepository } from './CommunicationsHubRepository';
 import type { EmailAddress } from '../integrations/ConnectedAdapters';
 
 export interface WorkflowAction {
-  type: 'create_task' | 'create_reminder' | 'create_activity' | 'create_email_draft';
-  organisationId?: string;
-  title?: string;
-  description?: string;
-  priority?: TaskPriority;
-  dueAt?: string;
-  sourceType?: string;
-  sourceId?: string;
-  scheduledAt?: string;
-  deliveryMethod?: string;
-  activityType?: 'note' | 'call' | 'email' | 'meeting' | 'message' | 'other';
-  body?: string;
-  contactId?: string;
-  engagementId?: string;
-  accountId?: string;
-  to?: EmailAddress[];
-  cc?: EmailAddress[];
-  subject?: string;
-  documentIds?: string[];
+  type:'create_task'|'create_reminder'|'create_activity'|'create_email_draft';
+  organisationId?:string;title?:string;description?:string;priority?:TaskPriority;dueAt?:string;sourceType?:string;sourceId?:string;scheduledAt?:string;deliveryMethod?:string;
+  activityType?:'note'|'call'|'email'|'meeting'|'message'|'other';body?:string;contactId?:string;engagementId?:string;accountId?:string;to?:EmailAddress[];cc?:EmailAddress[];subject?:string;documentIds?:string[];
 }
 
-const timestamp = () => new Date().toISOString();
-function parseJson<T>(value: unknown,fallback: T): T {
-  if (typeof value !== 'string' || !value) return fallback;
-  try { return JSON.parse(value) as T; } catch { return fallback; }
-}
-function interpolate(value:string|undefined,context:Record<string,unknown>,fallback:string):string {
-  return (value??fallback).replace(/\{\{([a-zA-Z0-9_]+)\}\}/g,(_match,key)=>String(context[key]??''));
-}
+const timestamp=()=>new Date().toISOString();
+function parseJson<T>(value:unknown,fallback:T):T{if(typeof value!=='string'||!value)return fallback;try{return JSON.parse(value) as T;}catch{return fallback;}}
+function interpolate(value:string|undefined,context:Record<string,unknown>,fallback:string):string{return (value??fallback).replace(/\{\{([a-zA-Z0-9_]+)\}\}/g,(_match,key)=>String(context[key]??''));}
 
 export class WorkflowRepository {
-  private readonly work: WorkRepository;
-  private readonly hub: CommunicationsHubRepository;
+  private readonly work:WorkRepository;
+  private readonly hub:CommunicationsHubRepository;
+  constructor(private readonly connection:Database.Database=sqlite as Database.Database){this.work=new WorkRepository(connection);this.hub=new CommunicationsHubRepository(connection);}
 
-  constructor(private readonly connection: Database.Database = sqlite as Database.Database) {
-    this.work = new WorkRepository(connection);
-    this.hub = new CommunicationsHubRepository(connection);
-  }
+  createDefinition(input:{name:string;description?:string|null;enabled?:boolean;triggerType:string;conditions?:unknown;actions:WorkflowAction[]}){const id=randomUUID();const now=timestamp();this.connection.prepare(`INSERT INTO workflow_definitions(id,name,description,enabled,version,trigger_type,condition_json,action_json,created_at,updated_at,archived_at) VALUES(@id,@name,@description,@enabled,1,@triggerType,@conditions,@actions,@now,@now,NULL)`).run({id,name:input.name.trim(),description:input.description?.trim()||null,enabled:input.enabled===false?0:1,triggerType:input.triggerType,conditions:JSON.stringify(input.conditions??{}),actions:JSON.stringify(input.actions),now});this.hub.setWorkflowPolicy(id,{maxRunsPerHour:100,timeoutMs:10000,maxDepth:3,dryRun:false});return this.getDefinition(id)!;}
+  updateDefinition(id:string,input:{name?:string;description?:string|null;triggerType?:string;conditions?:unknown;actions?:WorkflowAction[]}){const current=this.getDefinition(id);if(!current||current.archivedAt)throw new Error('Workflow not found');const now=timestamp();this.connection.prepare(`UPDATE workflow_definitions SET name=?,description=?,trigger_type=?,condition_json=?,action_json=?,version=version+1,updated_at=? WHERE id=?`).run(input.name?.trim()||current.name,input.description===undefined?current.description:input.description?.trim()||null,input.triggerType??current.triggerType,JSON.stringify(input.conditions??current.conditions),JSON.stringify(input.actions??current.actions),now,id);return this.getDefinition(id)!;}
+  getDefinition(id:string){const row=this.connection.prepare('SELECT * FROM workflow_definitions WHERE id=?').get(id) as Record<string,unknown>|undefined;return row?{id:row.id,name:row.name,description:row.description,enabled:Boolean(row.enabled),version:row.version,triggerType:row.trigger_type,conditions:parseJson(row.condition_json,{}),actions:parseJson<WorkflowAction[]>(row.action_json,[]),policy:this.hub.getWorkflowPolicy(id),createdAt:row.created_at,updatedAt:row.updated_at,archivedAt:row.archived_at}:null;}
+  listDefinitions(includeArchived=false){return (this.connection.prepare('SELECT id FROM workflow_definitions WHERE (?=1 OR archived_at IS NULL) ORDER BY name').all(includeArchived?1:0) as Array<{id:string}>).map((row)=>this.getDefinition(row.id)!);}
+  setEnabled(id:string,enabled:boolean){const result=this.connection.prepare('UPDATE workflow_definitions SET enabled=?,updated_at=? WHERE id=? AND archived_at IS NULL').run(enabled?1:0,timestamp(),id);if(!result.changes)throw new Error('Workflow not found');return this.getDefinition(id)!;}
+  archiveDefinition(id:string){const now=timestamp();const result=this.connection.prepare('UPDATE workflow_definitions SET archived_at=coalesce(archived_at,?),enabled=0,updated_at=? WHERE id=?').run(now,now,id);if(!result.changes)throw new Error('Workflow not found');return this.getDefinition(id)!;}
 
-  createDefinition(input: { name: string; description?: string | null; enabled?: boolean; triggerType: string; conditions?: unknown; actions: WorkflowAction[] }) {
-    const id = randomUUID();
-    const now = timestamp();
-    this.connection.prepare(`
-      INSERT INTO workflow_definitions(id,name,description,enabled,version,trigger_type,condition_json,action_json,created_at,updated_at,archived_at)
-      VALUES(@id,@name,@description,@enabled,1,@triggerType,@conditions,@actions,@now,@now,NULL)
-    `).run({id,name:input.name.trim(),description:input.description?.trim()||null,enabled:input.enabled===false?0:1,triggerType:input.triggerType,conditions:JSON.stringify(input.conditions??{}),actions:JSON.stringify(input.actions),now});
-    this.hub.setWorkflowPolicy(id,{maxRunsPerHour:100,timeoutMs:10000,maxDepth:3,dryRun:false});
-    return this.getDefinition(id)!;
-  }
-
-  updateDefinition(id:string,input:{name?:string;description?:string|null;triggerType?:string;conditions?:unknown;actions?:WorkflowAction[]}){
-    const current=this.getDefinition(id);if(!current||current.archivedAt)throw new Error('Workflow not found');
-    const now=timestamp();
-    this.connection.prepare(`UPDATE workflow_definitions SET name=?,description=?,trigger_type=?,condition_json=?,action_json=?,version=version+1,updated_at=? WHERE id=?`).run(
-      input.name?.trim()||current.name,
-      input.description===undefined?current.description:input.description?.trim()||null,
-      input.triggerType??current.triggerType,
-      JSON.stringify(input.conditions??current.conditions),
-      JSON.stringify(input.actions??current.actions),
-      now,id,
-    );
-    return this.getDefinition(id)!;
-  }
-
-  getDefinition(id: string) {
-    const row = this.connection.prepare('SELECT * FROM workflow_definitions WHERE id=?').get(id) as Record<string, unknown> | undefined;
-    return row ? {id:row.id,name:row.name,description:row.description,enabled:Boolean(row.enabled),version:row.version,triggerType:row.trigger_type,conditions:parseJson(row.condition_json,{}),actions:parseJson<WorkflowAction[]>(row.action_json,[]),policy:this.hub.getWorkflowPolicy(id),createdAt:row.created_at,updatedAt:row.updated_at,archivedAt:row.archived_at} : null;
-  }
-
-  listDefinitions(includeArchived=false) {
-    const rows = this.connection.prepare('SELECT id FROM workflow_definitions WHERE (?=1 OR archived_at IS NULL) ORDER BY name').all(includeArchived?1:0) as Array<{ id: string }>;
-    return rows.map((row) => this.getDefinition(row.id)!);
-  }
-
-  setEnabled(id: string,enabled: boolean) {const result=this.connection.prepare('UPDATE workflow_definitions SET enabled=?,updated_at=? WHERE id=? AND archived_at IS NULL').run(enabled?1:0,timestamp(),id);if(!result.changes)throw new Error('Workflow not found');return this.getDefinition(id)!;}
-  archiveDefinition(id: string) {const now=timestamp();const result=this.connection.prepare('UPDATE workflow_definitions SET archived_at=coalesce(archived_at,?),enabled=0,updated_at=? WHERE id=?').run(now,now,id);if(!result.changes)throw new Error('Workflow not found');return this.getDefinition(id)!;}
-
-  run(input: { workflowId: string; sourceType: string; sourceId: string; triggerEvent: string; idempotencyKey: string; context: Record<string,unknown>; dryRun?:boolean }) {
-    const existing=this.connection.prepare('SELECT id FROM workflow_runs WHERE idempotency_key=?').get(input.idempotencyKey) as {id:string}|undefined;
-    if(existing)return {...this.getRun(existing.id),reused:true};
-    const workflow=this.getDefinition(input.workflowId);
-    if(!workflow||workflow.archivedAt||!workflow.enabled)throw new Error('Workflow is not available');
-    const policy=workflow.policy as {maxRunsPerHour:number;timeoutMs:number;maxDepth:number;dryRun:boolean};
-    const depth=Number(input.context.workflowDepth??0);
-    const ancestry=Array.isArray(input.context.workflowAncestry)?input.context.workflowAncestry.map(String):[];
-    if(depth>=policy.maxDepth)throw new Error('Workflow recursion depth exceeded');
-    if(ancestry.includes(input.workflowId))throw new Error('Workflow cycle detected');
-    const since=new Date(Date.now()-3600000).toISOString();
-    if(this.hub.recentWorkflowRuns(input.workflowId,since)>=policy.maxRunsPerHour)throw new Error('Workflow hourly run limit exceeded');
-
-    const runId=randomUUID();const startedAt=timestamp();const startedMs=Date.now();
-    this.connection.prepare(`INSERT INTO workflow_runs(id,workflow_definition_id,workflow_version,source_type,source_id,trigger_event,idempotency_key,status,started_at) VALUES(?,?,?,?,?,?,?,'running',?)`).run(runId,input.workflowId,workflow.version,input.sourceType,input.sourceId,input.triggerEvent,input.idempotencyKey,startedAt);
-    let failures=0;const outputs:unknown[]=[];const dryRun=input.dryRun===true||policy.dryRun;
+  run(input:{workflowId:string;sourceType:string;sourceId:string;triggerEvent:string;idempotencyKey:string;context:Record<string,unknown>;dryRun?:boolean;actionIndexes?:number[]}){
+    const existing=this.connection.prepare('SELECT id FROM workflow_runs WHERE idempotency_key=?').get(input.idempotencyKey) as {id:string}|undefined;if(existing)return {...this.getRun(existing.id),reused:true};
+    const workflow=this.getDefinition(input.workflowId);if(!workflow||workflow.archivedAt||!workflow.enabled)throw new Error('Workflow is not available');
+    const policy=workflow.policy as {maxRunsPerHour:number;timeoutMs:number;maxDepth:number;dryRun:boolean};const depth=Number(input.context.workflowDepth??0);const ancestry=Array.isArray(input.context.workflowAncestry)?input.context.workflowAncestry.map(String):[];
+    if(depth>=policy.maxDepth)throw new Error('Workflow recursion depth exceeded');if(ancestry.includes(input.workflowId))throw new Error('Workflow cycle detected');const since=new Date(Date.now()-3600000).toISOString();if(this.hub.recentWorkflowRuns(input.workflowId,since)>=policy.maxRunsPerHour)throw new Error('Workflow hourly run limit exceeded');
+    const selected=input.actionIndexes?new Set(input.actionIndexes):null;const runId=randomUUID();const startedAt=timestamp();const startedMs=Date.now();this.connection.prepare(`INSERT INTO workflow_runs(id,workflow_definition_id,workflow_version,source_type,source_id,trigger_event,idempotency_key,status,started_at) VALUES(?,?,?,?,?,?,?,'running',?)`).run(runId,input.workflowId,workflow.version,input.sourceType,input.sourceId,input.triggerEvent,input.idempotencyKey,startedAt);
+    let failures=0;let attempted=0;const outputs:unknown[]=[];const dryRun=input.dryRun===true||policy.dryRun;
     for(const [index,action] of workflow.actions.entries()){
-      const actionRunId=randomUUID();const actionStartedAt=timestamp();
-      this.connection.prepare(`INSERT INTO workflow_action_runs(id,workflow_run_id,action_index,action_type,status,started_at) VALUES(?,?,?,?,'running',?)`).run(actionRunId,runId,index,action.type,actionStartedAt);
+      if(selected&&!selected.has(index))continue;attempted+=1;const actionRunId=randomUUID();const actionStartedAt=timestamp();this.connection.prepare(`INSERT INTO workflow_action_runs(id,workflow_run_id,action_index,action_type,status,started_at) VALUES(?,?,?,?,'running',?)`).run(actionRunId,runId,index,action.type,actionStartedAt);
       try{
         if(Date.now()-startedMs>policy.timeoutMs)throw new Error('Workflow execution timed out');
         if(dryRun){const output={dryRun:true,action};outputs.push(output);this.connection.prepare(`UPDATE workflow_action_runs SET status='skipped',output_json=?,completed_at=? WHERE id=?`).run(JSON.stringify(output),timestamp(),actionRunId);continue;}
-        const organisationId=action.organisationId??String(input.context.organisationId??'');
-        let output:unknown;
-        if(action.type==='create_task'){
-          if(!organisationId)throw new Error('create_task requires organisationId');
-          output=this.work.createTask({organisationId,title:interpolate(action.title,input.context,'Workflow task'),description:interpolate(action.description,input.context,'')||null,priority:action.priority??'normal',dueAt:action.dueAt??null,createdBySource:'workflow',workflowRunId:runId,sourceType:input.sourceType,sourceId:input.sourceId});
-        }else if(action.type==='create_reminder'){
-          output=this.work.createReminder({sourceType:action.sourceType??input.sourceType,sourceId:action.sourceId??input.sourceId,organisationId:organisationId||null,scheduledAt:action.scheduledAt??String(input.context.scheduledAt??timestamp()),deliveryMethod:action.deliveryMethod??'in_app'});
-        }else if(action.type==='create_activity'){
-          if(!organisationId)throw new Error('create_activity requires organisationId');
-          const organisation=this.connection.prepare('SELECT id FROM organisations WHERE id=? AND archived_at IS NULL').get(organisationId);if(!organisation)throw new Error('Organisation not found or archived');
-          const id=randomUUID();const now=timestamp();this.connection.prepare(`INSERT INTO activities(id,organisation_id,contact_id,engagement_id,type,body,author,occurred_at,follow_up_date,follow_up_completed_at,source,source_reference,created_at,updated_at,archived_at) VALUES(@id,@organisationId,@contactId,@engagementId,@type,@body,'Workflow automation',@now,NULL,NULL,'system',@sourceReference,@now,@now,NULL)`).run({id,organisationId,contactId:action.contactId??input.context.contactId??null,engagementId:action.engagementId??input.context.engagementId??null,type:action.activityType??'note',body:interpolate(action.body,input.context,'Workflow activity'),sourceReference:`workflow:${runId}:${index}`,now});output={id,organisationId};
-        }else if(action.type==='create_email_draft'){
-          const accountId=action.accountId??String(input.context.accountId??'');if(!accountId)throw new Error('create_email_draft requires accountId');
-          const contextTo=typeof input.context.replyToAddress==='string'?[{address:String(input.context.replyToAddress)}]:[];
-          output=this.hub.createDraft({accountId,organisationId:organisationId||null,contactId:String(input.context.contactId??'')||null,engagementId:String(input.context.engagementId??'')||null,mode:'reply',threadId:String(input.context.threadId??'')||null,inReplyToMessageId:input.sourceType==='email_message'?input.sourceId:null,to:action.to?.length?action.to:contextTo,cc:action.cc??[],subject:interpolate(action.subject,input.context,'Draft response'),bodyText:interpolate(action.body,input.context,'Draft response for review.'),documentIds:action.documentIds??[]});
-        }else throw new Error(`Unsupported workflow action: ${String((action as {type:unknown}).type)}`);
-        outputs.push(output);this.connection.prepare(`UPDATE workflow_action_runs SET status='succeeded',output_json=?,completed_at=? WHERE id=?`).run(JSON.stringify(output),timestamp(),actionRunId);
+        const execute=this.connection.transaction(()=>{
+          const organisationId=action.organisationId??String(input.context.organisationId??'');let output:unknown;
+          if(action.type==='create_task'){
+            if(!organisationId)throw new Error('create_task requires organisationId');output=this.work.createTask({organisationId,title:interpolate(action.title,input.context,'Workflow task'),description:interpolate(action.description,input.context,'')||null,priority:action.priority??'normal',dueAt:action.dueAt??null,createdBySource:'workflow',workflowRunId:runId,sourceType:input.sourceType,sourceId:input.sourceId});
+          }else if(action.type==='create_reminder'){
+            output=this.work.createReminder({sourceType:action.sourceType??input.sourceType,sourceId:action.sourceId??input.sourceId,organisationId:organisationId||null,scheduledAt:action.scheduledAt??String(input.context.scheduledAt??timestamp()),deliveryMethod:action.deliveryMethod??'in_app'});
+          }else if(action.type==='create_activity'){
+            if(!organisationId)throw new Error('create_activity requires organisationId');const organisation=this.connection.prepare('SELECT id FROM organisations WHERE id=? AND archived_at IS NULL').get(organisationId);if(!organisation)throw new Error('Organisation not found or archived');const id=randomUUID();const now=timestamp();this.connection.prepare(`INSERT INTO activities(id,organisation_id,contact_id,engagement_id,type,body,author,occurred_at,follow_up_date,follow_up_completed_at,source,source_reference,created_at,updated_at,archived_at) VALUES(@id,@organisationId,@contactId,@engagementId,@type,@body,'Workflow automation',@now,NULL,NULL,'system',@sourceReference,@now,@now,NULL)`).run({id,organisationId,contactId:action.contactId??input.context.contactId??null,engagementId:action.engagementId??input.context.engagementId??null,type:action.activityType??'note',body:interpolate(action.body,input.context,'Workflow activity'),sourceReference:`workflow:${runId}:${index}`,now});output={id,organisationId};
+          }else if(action.type==='create_email_draft'){
+            const accountId=action.accountId??String(input.context.accountId??'');if(!accountId)throw new Error('create_email_draft requires accountId');const contextTo=typeof input.context.replyToAddress==='string'?[{address:String(input.context.replyToAddress)}]:[];output=this.hub.createDraft({accountId,organisationId:organisationId||null,contactId:String(input.context.contactId??'')||null,engagementId:String(input.context.engagementId??'')||null,mode:'reply',threadId:String(input.context.threadId??'')||null,inReplyToMessageId:input.sourceType==='email_message'?input.sourceId:null,to:action.to?.length?action.to:contextTo,cc:action.cc??[],subject:interpolate(action.subject,input.context,'Draft response'),bodyText:interpolate(action.body,input.context,'Draft response for review.'),documentIds:action.documentIds??[]});
+          }else throw new Error(`Unsupported workflow action: ${String((action as {type:unknown}).type)}`);
+          this.connection.prepare(`UPDATE workflow_action_runs SET status='succeeded',output_json=?,completed_at=? WHERE id=?`).run(JSON.stringify(output),timestamp(),actionRunId);return output;
+        });
+        outputs.push(execute());
       }catch(error){failures+=1;const message=error instanceof Error?error.message:String(error);this.connection.prepare(`UPDATE workflow_action_runs SET status='failed',failure_details=?,completed_at=? WHERE id=?`).run(message,timestamp(),actionRunId);}
     }
-    const status=failures===0?'succeeded':failures===workflow.actions.length?'failed':'partially_failed';
-    this.connection.prepare(`UPDATE workflow_runs SET status=?,output_summary=?,failure_details=?,completed_at=? WHERE id=?`).run(status,JSON.stringify(outputs),failures?`${failures} action(s) failed`:null,timestamp(),runId);
-    return {...this.getRun(runId),reused:false,dryRun};
+    const status=failures===0?'succeeded':failures===attempted?'failed':'partially_failed';this.connection.prepare(`UPDATE workflow_runs SET status=?,output_summary=?,failure_details=?,completed_at=? WHERE id=?`).run(status,JSON.stringify(outputs),failures?`${failures} action(s) failed`:null,timestamp(),runId);return {...this.getRun(runId),reused:false,dryRun};
   }
 
-  retryRun(id:string){const run=this.getRun(id) as any;if(!run)throw new Error('Workflow run not found');if(!['failed','partially_failed'].includes(run.status))throw new Error('Only failed workflow runs can be retried');const context=this.resolveSourceContext(run.sourceType,run.sourceId);return this.run({workflowId:run.workflowDefinitionId,sourceType:run.sourceType,sourceId:run.sourceId,triggerEvent:`${run.triggerEvent}:retry`,idempotencyKey:`retry:${id}:${randomUUID()}`,context});}
-
-  private resolveSourceContext(sourceType:string,sourceId:string):Record<string,unknown>{
-    if(sourceType==='email_message'){const row=this.connection.prepare(`SELECT m.account_id,m.thread_id,m.sender_json,t.organisation_id,t.contact_id FROM email_messages m JOIN email_threads t ON t.id=m.thread_id WHERE m.id=?`).get(sourceId) as Record<string,unknown>|undefined;if(row){const sender=parseJson<EmailAddress>(row.sender_json,{address:''});return {accountId:row.account_id,threadId:row.thread_id,organisationId:row.organisation_id,contactId:row.contact_id,replyToAddress:sender.address};}}
-    if(sourceType==='calendar_event'){const row=this.connection.prepare('SELECT organisation_id,contact_id,engagement_id FROM calendar_events WHERE id=?').get(sourceId) as Record<string,unknown>|undefined;if(row)return {organisationId:row.organisation_id,contactId:row.contact_id,engagementId:row.engagement_id};}
-    const table=sourceType==='task'?'tasks':sourceType==='communication'?'communications':sourceType==='activity'?'activities':null;
-    if(table){const row=this.connection.prepare(`SELECT organisation_id,contact_id,engagement_id FROM ${table} WHERE id=?`).get(sourceId) as Record<string,unknown>|undefined;if(row)return {organisationId:row.organisation_id,contactId:row.contact_id,engagementId:row.engagement_id};}
-    return {};
+  retryRun(id:string){
+    const run=this.getRun(id) as any;if(!run)throw new Error('Workflow run not found');if(!['failed','partially_failed'].includes(run.status))throw new Error('Only failed workflow runs can be retried');
+    const definition=this.getDefinition(String(run.workflowDefinitionId));if(!definition||Number(definition.version)!==Number(run.workflowVersion))throw new Error('Workflow definition changed after this run; it cannot be retried safely');
+    const failedIndexes=run.actions.filter((action:any)=>action.status==='failed').map((action:any)=>Number(action.actionIndex));if(!failedIndexes.length)throw new Error('Workflow run has no failed actions');
+    const childKey=`retry:${id}`;const existing=this.connection.prepare('SELECT id FROM workflow_runs WHERE idempotency_key=?').get(childKey) as {id:string}|undefined;if(existing)return {...this.getRun(existing.id),reused:true};
+    const context=this.resolveSourceContext(run.sourceType,run.sourceId);return this.run({workflowId:run.workflowDefinitionId,sourceType:run.sourceType,sourceId:run.sourceId,triggerEvent:`${run.triggerEvent}:retry`,idempotencyKey:childKey,context,actionIndexes:failedIndexes});
   }
-
-  getRun(id: string) {const row=this.connection.prepare(`SELECT r.*,w.name AS workflow_name FROM workflow_runs r JOIN workflow_definitions w ON w.id=r.workflow_definition_id WHERE r.id=?`).get(id) as Record<string,unknown>|undefined;if(!row)return null;const actions=this.connection.prepare('SELECT * FROM workflow_action_runs WHERE workflow_run_id=? ORDER BY action_index').all(id) as Array<Record<string,unknown>>;return {id:row.id,workflowDefinitionId:row.workflow_definition_id,workflowName:row.workflow_name,workflowVersion:row.workflow_version,sourceType:row.source_type,sourceId:row.source_id,triggerEvent:row.trigger_event,idempotencyKey:row.idempotency_key,status:row.status,outputSummary:parseJson(row.output_summary,[]),failureDetails:row.failure_details,startedAt:row.started_at,completedAt:row.completed_at,actions:actions.map((action)=>({id:action.id,actionIndex:action.action_index,actionType:action.action_type,status:action.status,output:parseJson(action.output_json,null),failureDetails:action.failure_details,startedAt:action.started_at,completedAt:action.completed_at}))};}
-  listRuns(limit=100){const rows=this.connection.prepare('SELECT id FROM workflow_runs ORDER BY started_at DESC LIMIT ?').all(limit) as Array<{id:string}>;return rows.map((row)=>this.getRun(row.id)!);}
+  private resolveSourceContext(sourceType:string,sourceId:string):Record<string,unknown>{if(sourceType==='email_message'){const row=this.connection.prepare(`SELECT m.account_id,m.thread_id,m.sender_json,t.organisation_id,t.contact_id FROM email_messages m JOIN email_threads t ON t.id=m.thread_id WHERE m.id=?`).get(sourceId) as Record<string,unknown>|undefined;if(row){const sender=parseJson<EmailAddress>(row.sender_json,{address:''});return {accountId:row.account_id,threadId:row.thread_id,organisationId:row.organisation_id,contactId:row.contact_id,replyToAddress:sender.address};}}if(sourceType==='calendar_event'){const row=this.connection.prepare('SELECT organisation_id,contact_id,engagement_id FROM calendar_events WHERE id=?').get(sourceId) as Record<string,unknown>|undefined;if(row)return {organisationId:row.organisation_id,contactId:row.contact_id,engagementId:row.engagement_id};}const table=sourceType==='task'?'tasks':sourceType==='communication'?'communications':sourceType==='activity'?'activities':null;if(table){const row=this.connection.prepare(`SELECT organisation_id,contact_id,engagement_id FROM ${table} WHERE id=?`).get(sourceId) as Record<string,unknown>|undefined;if(row)return {organisationId:row.organisation_id,contactId:row.contact_id,engagementId:row.engagement_id};}return {};}
+  getRun(id:string){const row=this.connection.prepare(`SELECT r.*,w.name AS workflow_name FROM workflow_runs r JOIN workflow_definitions w ON w.id=r.workflow_definition_id WHERE r.id=?`).get(id) as Record<string,unknown>|undefined;if(!row)return null;const actions=this.connection.prepare('SELECT * FROM workflow_action_runs WHERE workflow_run_id=? ORDER BY action_index').all(id) as Array<Record<string,unknown>>;return {id:row.id,workflowDefinitionId:row.workflow_definition_id,workflowName:row.workflow_name,workflowVersion:row.workflow_version,sourceType:row.source_type,sourceId:row.source_id,triggerEvent:row.trigger_event,idempotencyKey:row.idempotency_key,status:row.status,outputSummary:parseJson(row.output_summary,[]),failureDetails:row.failure_details,startedAt:row.started_at,completedAt:row.completed_at,actions:actions.map((action)=>({id:action.id,actionIndex:action.action_index,actionType:action.action_type,status:action.status,output:parseJson(action.output_json,null),failureDetails:action.failure_details,startedAt:action.started_at,completedAt:action.completed_at}))};}
+  listRuns(limit=100){return (this.connection.prepare('SELECT id FROM workflow_runs ORDER BY started_at DESC LIMIT ?').all(limit) as Array<{id:string}>).map((row)=>this.getRun(row.id)!);}
 }

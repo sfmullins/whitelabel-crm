@@ -32,6 +32,7 @@ export interface EmailSendAdapter {
 
 export interface CalendarWriteInput {
   providerEventKey: string;
+  resourceHref?: string | null;
   etag?: string | null;
   title: string;
   description?: string | null;
@@ -46,6 +47,7 @@ export interface CalendarWriteInput {
 
 export interface CalendarWriteResult {
   providerEventKey: string;
+  resourceHref: string;
   etag: string | null;
 }
 

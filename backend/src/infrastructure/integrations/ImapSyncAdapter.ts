@@ -1,5 +1,6 @@
 import tls from 'node:tls';
 import type { ConnectedAccountConfig,EmailSyncAdapter,EmailSyncBatch,RemoteEmailMessage } from './ConnectedAdapters';
+import { parseEmailSyncCursor,serializeEmailSyncCursor } from './ConnectedAdapters';
 import { parseRawEmail } from './RawEmailParser';
 
 interface ImapResponse { text:string;literals:Buffer[]; }
@@ -38,88 +39,40 @@ class ImapSession {
       const line=await this.readUntilLine();
       text+=`${line}\r\n`;
       const literal=line.match(/\{(\d+)\}$/);
-      if(literal){
-        const bytes=await this.readBytes(Number(literal[1]));
-        literals.push(bytes);
-        text+=`<${bytes.byteLength} byte literal>\r\n`;
-      }
-      if(line.startsWith(`${tag} `)){
-        if(!line.startsWith(`${tag} OK`))throw new Error(`IMAP command failed: ${line.slice(0,500)}`);
-        return {text,literals};
-      }
+      if(literal){const bytes=await this.readBytes(Number(literal[1]));literals.push(bytes);text+=`<${bytes.byteLength} byte literal>\r\n`;}
+      if(line.startsWith(`${tag} `)){if(!line.startsWith(`${tag} OK`))throw new Error(`IMAP command failed: ${line.slice(0,500)}`);return {text,literals};}
     }
   }
 
-  async close():Promise<void> {
-    if(!this.socket)return;
-    try { await this.command('LOGOUT'); } catch { /* connection may already be gone */ }
-    this.socket.end();this.socket.destroy();this.socket=null;
-  }
-
-  private async readUntilLine():Promise<string> {
-    while(true){
-      const index=this.buffer.indexOf('\r\n');
-      if(index>=0){const line=this.buffer.subarray(0,index).toString('utf8');this.buffer=this.buffer.subarray(index+2);return line;}
-      await this.readChunk();
-    }
-  }
-
-  private async readBytes(size:number):Promise<Buffer> {
-    while(this.buffer.byteLength<size)await this.readChunk();
-    const result=this.buffer.subarray(0,size);this.buffer=this.buffer.subarray(size);return result;
-  }
-
-  private async readChunk():Promise<void> {
-    if(!this.socket)throw new Error('IMAP session is closed');
-    const chunk=await new Promise<Buffer>((resolve,reject)=>{
-      const onData=(value:Buffer)=>{cleanup();resolve(value);};
-      const onError=(error:Error)=>{cleanup();reject(error);};
-      const onEnd=()=>{cleanup();reject(new Error('IMAP connection closed unexpectedly'));};
-      const cleanup=()=>{this.socket?.off('data',onData);this.socket?.off('error',onError);this.socket?.off('end',onEnd);};
-      this.socket!.once('data',onData);this.socket!.once('error',onError);this.socket!.once('end',onEnd);
-    });
-    this.buffer=Buffer.concat([this.buffer,chunk]);
-  }
+  async close():Promise<void> {if(!this.socket)return;try{await this.command('LOGOUT');}catch{/* connection may already be gone */}this.socket.end();this.socket.destroy();this.socket=null;}
+  private async readUntilLine():Promise<string>{while(true){const index=this.buffer.indexOf('\r\n');if(index>=0){const line=this.buffer.subarray(0,index).toString('utf8');this.buffer=this.buffer.subarray(index+2);return line;}await this.readChunk();}}
+  private async readBytes(size:number):Promise<Buffer>{while(this.buffer.byteLength<size)await this.readChunk();const result=this.buffer.subarray(0,size);this.buffer=this.buffer.subarray(size);return result;}
+  private async readChunk():Promise<void>{if(!this.socket)throw new Error('IMAP session is closed');const chunk=await new Promise<Buffer>((resolve,reject)=>{const onData=(value:Buffer)=>{cleanup();resolve(value);};const onError=(error:Error)=>{cleanup();reject(error);};const onEnd=()=>{cleanup();reject(new Error('IMAP connection closed unexpectedly'));};const cleanup=()=>{this.socket?.off('data',onData);this.socket?.off('error',onError);this.socket?.off('end',onEnd);};this.socket!.once('data',onData);this.socket!.once('error',onError);this.socket!.once('end',onEnd);});this.buffer=Buffer.concat([this.buffer,chunk]);}
 }
 
-function extractFlags(text:string):string[] {
-  const match=text.match(/FLAGS \(([^)]*)\)/i);return match?match[1].split(/\s+/).filter(Boolean):[];
-}
-function extractInternalDate(text:string):string {
-  const match=text.match(/INTERNALDATE "([^"]+)"/i);const parsed=Date.parse(match?.[1]??'');return Number.isFinite(parsed)?new Date(parsed).toISOString():new Date().toISOString();
-}
-function extractUids(text:string):number[] {
-  const lines=text.split(/\r?\n/).filter((line)=>/^\* SEARCH/i.test(line));
-  return lines.flatMap((line)=>line.replace(/^\* SEARCH\s*/i,'').trim().split(/\s+/)).map(Number).filter((value)=>Number.isInteger(value)&&value>0);
+function extractFlags(text:string):string[]{const match=text.match(/FLAGS \(([^)]*)\)/i);return match?match[1].split(/\s+/).filter(Boolean):[];}
+function extractInternalDate(text:string):string{const match=text.match(/INTERNALDATE "([^"]+)"/i);const parsed=Date.parse(match?.[1]??'');return Number.isFinite(parsed)?new Date(parsed).toISOString():new Date().toISOString();}
+function extractUids(text:string):number[]{const lines=text.split(/\r?\n/).filter((line)=>/^\* SEARCH/i.test(line));return lines.flatMap((line)=>line.replace(/^\* SEARCH\s*/i,'').trim().split(/\s+/)).map(Number).filter((value)=>Number.isInteger(value)&&value>0);}
+function extractUidValidity(text:string):string|null{return text.match(/\[UIDVALIDITY\s+(\d+)\]/i)?.[1]??text.match(/UIDVALIDITY\s+(\d+)/i)?.[1]??null;}
+
+export function selectEmailSyncUids(failedUids:number[],newUids:number[],batchSize:number):{targets:number[];pendingFailed:number[]} {
+  const failed=[...new Set(failedUids)].sort((a,b)=>a-b);const failedSet=new Set(failed);const fresh=[...new Set(newUids)].filter((uid)=>!failedSet.has(uid)).sort((a,b)=>a-b);
+  const capacity=Math.max(failed.length&&fresh.length?2:1,batchSize);
+  const retryCapacity=fresh.length===0?capacity:Math.max(1,Math.floor(capacity/4));const retries=failed.slice(0,retryCapacity);const selectedFresh=fresh.slice(0,capacity-retries.length);
+  return {targets:[...retries,...selectedFresh],pendingFailed:failed.filter((uid)=>!retries.includes(uid))};
 }
 
 export class ImapSyncAdapter implements EmailSyncAdapter {
-  async test(config:ConnectedAccountConfig,secret:Record<string,string>):Promise<void> {
-    const session=new ImapSession();
-    try { await session.connect(config.serverUrl);await session.command(`LOGIN ${quote(config.username)} ${quote(secret.password??'')}`); }
-    finally { await session.close(); }
-  }
+  async test(config:ConnectedAccountConfig,secret:Record<string,string>):Promise<void>{const session=new ImapSession();try{await session.connect(config.serverUrl);await session.command(`LOGIN ${quote(config.username)} ${quote(secret.password??'')}`);}finally{await session.close();}}
 
   async fetchSince(config:ConnectedAccountConfig,secret:Record<string,string>,cursor:string|null):Promise<EmailSyncBatch> {
-    const session=new ImapSession();
-    const mailbox=String(config.settings.mailbox??'INBOX');
-    const start=Math.max(1,Number(cursor??0)+1);
-    const messages:RemoteEmailMessage[]=[];
-    let highest=Number(cursor??0)||0;
-    try {
-      await session.connect(config.serverUrl);
-      await session.command(`LOGIN ${quote(config.username)} ${quote(secret.password??'')}`);
-      await session.command(`SELECT ${quote(mailbox)}`);
-      const search=await session.command(`UID SEARCH UID ${start}:*`);
-      const uids=extractUids(search.text).slice(0,Number(config.settings.batchSize??100));
-      for(const uid of uids){
-        const fetched=await session.command(`UID FETCH ${uid} (UID FLAGS INTERNALDATE BODY.PEEK[])`);
-        const raw=fetched.literals.at(-1)?.toString('utf8');
-        if(!raw)continue;
-        messages.push(parseRawEmail({raw,providerMessageKey:`${mailbox}:${uid}`,uid,receivedAt:extractInternalDate(fetched.text),username:config.username,flags:extractFlags(fetched.text)}));
-        highest=Math.max(highest,uid);
-      }
-      return {messages,nextCursor:String(highest)};
-    } finally { await session.close(); }
+    const session=new ImapSession();const mailbox=String(config.settings.mailbox??'INBOX');const batchSize=Math.max(1,Math.min(500,Number(config.settings.batchSize??100)));const messages:RemoteEmailMessage[]=[];
+    try{
+      await session.connect(config.serverUrl);await session.command(`LOGIN ${quote(config.username)} ${quote(secret.password??'')}`);const selected=await session.command(`SELECT ${quote(mailbox)}`);const uidValidity=extractUidValidity(selected.text);
+      let state=parseEmailSyncCursor(cursor,mailbox);if(state.mailbox!==mailbox||(state.uidValidity&&uidValidity&&state.uidValidity!==uidValidity))state={mailbox,uidValidity,lastUid:0,failedUids:[]};else state={...state,mailbox,uidValidity:uidValidity??state.uidValidity};
+      const search=await session.command(`UID SEARCH UID ${Math.max(1,state.lastUid+1)}:*`);const selection=selectEmailSyncUids(state.failedUids,extractUids(search.text),batchSize);let highest=state.lastUid;
+      for(const uid of selection.targets){const fetched=await session.command(`UID FETCH ${uid} (UID FLAGS INTERNALDATE BODY.PEEK[])`);const raw=fetched.literals.at(-1)?.toString('utf8');if(!raw)continue;messages.push(parseRawEmail({raw,providerMessageKey:`${mailbox}:${uid}`,uid,receivedAt:extractInternalDate(fetched.text),username:config.username,flags:extractFlags(fetched.text)}));highest=Math.max(highest,uid);}
+      return {messages,nextCursor:serializeEmailSyncCursor({mailbox,uidValidity:state.uidValidity,lastUid:highest,failedUids:selection.pendingFailed})};
+    }finally{await session.close();}
   }
 }
