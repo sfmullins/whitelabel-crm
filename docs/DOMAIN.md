@@ -1,94 +1,139 @@
 # Domain Model
 
-## Current implemented entities and relationships
+## Core and legacy records
 
-- Settings: a singleton-style settings row stores business identity, theme colours, contact details, invoice footer, default tax rate, currency, timezone, and date format.
-- Customers: individual-first records with first name, last name, optional company, email, phone/mobile, address, notes, tags, and timestamps.
-- Services: named offerings with description, duration in minutes, price in cents, tax rate, active flag, and timestamps.
-- Bookings: appointment records linking one customer to one service with date, time, status, notes, and timestamps.
-- Invoices: invoice headers link to a customer and optionally a booking. They store invoice number, status, notes, snapshotted tax rate, discount in cents, and timestamps.
-- Invoice items: invoice line items link to an invoice and optionally a service. They snapshot item name, quantity, unit price in cents, and tax rate.
-- Payments: payment records link to invoices and store amount in cents, method, payment date, notes, and creation timestamp.
-- Custom fields: field definitions describe fields for core entities or custom object API names. Values store serialized data by entity and field.
-- Custom objects: custom object definitions describe Salesforce-style object types. Records link custom object instances to customers. Values link record fields to serialized values.
-- Backups: backup management is infrastructure around the SQLite database and runtime paths rather than a primary Drizzle table in the current schema.
+- **Settings:** singleton business identity, theme colours, contact details, invoice footer, default tax rate, currency, timezone and date format.
+- **Customers:** retained individual-first records used by legacy bookings, invoices and custom objects.
+- **Services:** named offerings with duration, price and tax configuration.
+- **Bookings:** appointments linking a legacy customer to a service.
+- **Invoices and invoice items:** customer-linked billing headers and snapshotted line items.
+- **Payments:** amounts recorded against invoices.
+- **Custom fields and custom objects:** existing dynamic definitions and values; extension-safe namespacing and lifecycle management remain WI11 work.
 
-## Current relationship summary
-Customers own bookings, invoices, and custom object records. Services can be referenced by bookings and invoice items. Invoices own invoice items and payments. Custom field definitions are reused by core entity values and custom object record values.
-
-## Future work and known gaps
-- Future work: Decide whether and how legacy individual-first customers should relate to the implemented organisation/contact domain.
-- Future work: Client notes are currently stored as combined customer text and parsed into timeline-style entries rather than being formal engagement or activity records.
-- Future work: Invoice states are limited and do not model a complete accounting lifecycle.
-- Future work: There is no formal credit-note model.
-- Future work: Invoice calculations may be duplicated across frontend, repository, and PDF layers and should be centralized before behaviour changes.
-- Future work: Currency presentation is not consistently enforced across all layers.
-- Future work: Build frontend workflows around first-class B2B consulting engagements.
+Legacy financial foreign keys remain intact. WI3 added deterministic customer-to-organisation/contact mapping rather than rewriting bookings, invoices or payments.
 
 ## Organisations, contacts and engagements
 
-WhiteLabelCRM now models a first-class B2B consulting domain alongside the existing individual-first customer model.
-
 ### Organisations
 
-An organisation represents a business account. Organisation status values are `prospect`, `active_client`, `past_client`, `partner`, and `inactive`. Optional descriptive fields such as legal name, website, industry, employee band, annual revenue band, country and source are nullable when absent. Organisation archival is soft: archived records keep their rows and timestamps, are excluded from normal lookups/lists, cannot be edited by ordinary update operations, and cannot receive new contacts or engagements.
+An organisation is a business account with status `prospect`, `active_client`, `past_client`, `partner` or `inactive`. Archival is soft. Archived organisations remain historical records, are excluded from ordinary lists and cannot receive new active child records.
+
+WI8–WI9 added nullable user/team ownership with deterministic owner backfill for existing organisations.
 
 ### Contacts
 
-A contact belongs to exactly one organisation and cannot be moved by ordinary updates. Contact status values are `active` and `inactive`. At least one of first name, last name or email must remain populated. Email addresses are optional, normalized to lowercase when present, indexed for lookup, and intentionally not unique.
+A contact belongs to exactly one organisation and cannot be moved by ordinary updates. Contact status is `active` or `inactive`. At least one of first name, last name or email must remain populated.
 
-Only one active, non-archived contact per organisation may be primary at a time. Assigning a primary contact clears other active organisation-level primaries in the same transaction. A contact cannot be primary while inactive or archived, and changing a primary contact to inactive or archiving it clears its primary flag without deleting the row.
+Only one active, non-archived contact per organisation may be primary. Primary-contact promotion and demotion are transactional.
 
 ### Engagements
 
-An engagement belongs to exactly one organisation and cannot be moved by ordinary updates. Engagement type values are `diagnostic`, `sounding_board`, `guardrail`, `redesign`, `implementation`, and `other`. Engagement status values are `proposed`, `active`, `paused`, `completed`, and `cancelled`.
+An engagement belongs to one organisation. Supported types are `diagnostic`, `sounding_board`, `guardrail`, `redesign`, `implementation` and `other`; statuses are `proposed`, `active`, `paused`, `completed` and `cancelled`.
 
-Engagement dates are date-only `YYYY-MM-DD` values. The start date is required, the end date is nullable, and the end date cannot precede the start date. Date validation checks real calendar validity rather than only string shape.
+Dates are real calendar dates in `YYYY-MM-DD` form. A referenced primary contact must belong to the same organisation and be active when assigned. WI8–WI9 added user/team ownership.
 
-An engagement may optionally reference a primary contact. When assigned or changed, that contact must exist, belong to the same organisation, be active, and be non-archived. Later contact archival does not erase the historical engagement contact ID.
+## Activities and legacy note migration
 
-### Relationship with legacy customers and financial records
-
-Legacy `customers` remain the appointment and financial customer model for bookings, invoices, custom object records and payments. There is deliberately no relationship in this PR between legacy customers and organisations, contacts or engagements. The system does not infer organisations from customer company names, convert customers into contacts, link invoices to organisations, or link bookings to engagements.
-
-### Deletion and archival
-
-The organisation/contact/engagement API exposes archive endpoints and no hard-delete endpoints. Foreign keys do not cascade-delete organisations, contacts or engagements; business records are preserved for future activity, notes and reporting work.
-
-## Activity
-
-An activity is an immutable-organisation interaction record with:
+An activity is one interaction record with:
 
 - required organisation ownership;
 - optional same-organisation contact and engagement links;
-- a controlled type: `note`, `call`, `email`, `meeting`, `message` or `other`;
+- type `note`, `call`, `email`, `meeting`, `message` or `other`;
 - trimmed body and author attribution;
-- canonical ISO event time and optional date-only follow-up;
+- canonical event time and optional follow-up date;
 - backend-owned source and source reference;
 - timestamp-based soft archive.
 
-New assignments cannot target archived organisations, contacts or engagements.
-Archiving a parent later does not erase historical relationships. Archived
-activities are excluded from normal reads and cannot be edited; archive requests
-are idempotent and no hard-delete route is exposed.
+Historic combined `customers.notes` text remains preserved as source data. The idempotent WI3 backfill creates explicit mappings and imports recognised and malformed/unmatched text into independent activities without discarding content.
 
-### Legacy customer mapping
+A follow-up remains part of the activity history. Completion sets `follow_up_completed_at`; it does not archive or delete the activity.
 
-Legacy customer records are retained because the existing booking and finance
-tables still reference them. Exact imported company keys share one imported
-organisation; customers without a company receive one dedicated organisation.
-Each mapped customer receives one contact and one stable mapping row. Mapping
-creation is transactional and idempotent.
+## Work, documents and communications
 
-The migration backfill parses recognised `[Note logged on ...]:` blocks into
-separate note activities and also imports unmatched or malformed text so no
-content is discarded. It never clears or rewrites `customers.notes`.
+WIs 5–7 added:
 
-## WI4 workspace concepts
+- standalone tasks and a work queue unified with activity follow-ups;
+- persistent reminders and delivery state;
+- versioned document metadata, safe local files, attachments and entity links;
+- manual communications across supported channels;
+- email threads/messages and calendar event projections;
+- connected account, cursor, retry and reconciliation state;
+- outbound journals for SMTP and remote calendar operations;
+- constrained workflow definitions, runs and action runs.
 
-- **Search document:** a local derived projection used by SQLite FTS5. It is not a new source of truth.
-- **Saved view:** a local single-user, versioned and context-specific filter definition. Built-in views remain code-defined.
-- **Follow-up:** an activity with a due date. It is open while `follow_up_completed_at` is null, can be completed or reopened, and remains part of immutable interaction history.
-- **Unified timeline event:** a typed projection of activities, engagements and mapped legacy booking/financial records for one organisation. Legacy foreign keys are not rewritten.
+Workflows use allow-listed triggers/actions, idempotency and bounded retries. They cannot execute arbitrary JavaScript, SQL or shell commands and cannot transmit an email without the existing explicit-send controls.
 
-Development data is intentionally resettable before launch. The deterministic seed identifies Good Order Ltd and Stephen Mullins without invented personal contact data and uses Acme Ltd as the principal demonstration account.
+## Identity, ownership and audit
+
+WIs 8–9 added:
+
+- users with `active`, `invited` and `disabled` states;
+- teams and memberships;
+- system roles and explicit permission mappings;
+- hash-only expiring/revocable sessions;
+- user/team ownership for organisations, engagements and tasks;
+- immutable audit events with actor, request, route, entity and redacted metadata.
+
+The local owner is a real user record. Loopback-trusted profile selection is limited to internal desktop routes and is not accepted as public-API authentication.
+
+## Reporting
+
+Implemented report keys are:
+
+- `executive`;
+- `revenue`;
+- `pipeline`;
+- `activity`;
+- `workload`;
+- `concentration`;
+- `operations`.
+
+Saved reports and dashboards have user ownership and `private`, `team` or `all` visibility. Report schedules generate durable download artifacts. CSV exports use the same persisted reporting result and require `reports.export`.
+
+## WI10 platform records
+
+### API tokens
+
+An API token belongs to one active user and stores:
+
+- non-secret name and display prefix;
+- SHA-256 token hash;
+- explicit scope array;
+- created, expiry, last-used and revocation timestamps.
+
+The plaintext token is returned once. Scopes cannot exceed the issuer’s permissions at creation and are intersected with the owner’s current permissions at use. Disabling the owner invalidates the token.
+
+### Platform events
+
+A platform event is an immutable versioned integration record containing:
+
+- controlled event type and version;
+- aggregate type and optional aggregate ID;
+- actor user and optional API-token references;
+- request ID;
+- bounded safe JSON payload;
+- creation timestamp.
+
+Platform events are separate from audit events: audit records support accountability, while platform events support external delivery. Neither can be updated or deleted through SQLite.
+
+### Webhook subscriptions and deliveries
+
+A webhook subscription belongs to a user and stores its endpoint, selected event types, enabled/archive state and delivery health. The signing secret is encrypted outside SQLite through `CredentialVault`; SQLite stores only its credential key.
+
+Each matching platform event creates one durable delivery row. Delivery status is `pending`, `succeeded`, `failed` or `dead`. Attempts, next retry, response status and bounded errors are retained. HMAC-SHA256 signatures cover the timestamp and exact request body.
+
+## Search and workspace projections
+
+- **Search document:** local derived projection indexed by SQLite FTS5; not a source of truth.
+- **Saved view:** versioned and schema-validated filters, never executable SQL.
+- **Unified timeline event:** typed projection of activities, engagements and mapped legacy operational/financial events.
+
+## Known gaps
+
+- Invoice states do not yet model a complete accounting lifecycle and there is no formal credit-note model.
+- Some financial calculation/presentation responsibilities still require consolidation.
+- Legacy customers remain the financial parent model.
+- Existing custom objects are customer-oriented and require WI11 extension-safe migration or compatibility treatment.
+- Horizontal multi-writer or active-active operation is not supported by the SQLite architecture.
+
+Development data remains resettable before launch. Deterministic fixtures use Good Order Ltd and Acme Ltd and do not include invented personal contact data.
