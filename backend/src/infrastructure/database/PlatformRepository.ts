@@ -29,23 +29,23 @@ function boundedLimit(value:number|undefined,maximum=500):number{return Math.max
 function validateWebhookUrl(value:string):string {
   const url=new URL(value.trim());
   if(url.username||url.password||url.hash)throw new Error('Webhook URL must not contain credentials or a fragment');
-  const loopback=['localhost','127.0.0.1','::1'].includes(url.hostname);
+  const loopback=['localhost','127.0.0.1','::1','[::1]'].includes(url.hostname);
   if(url.protocol!=='https:'&&!(loopback&&url.protocol==='http:'&&process.env.CRM_ALLOW_LOOPBACK_WEBHOOKS==='true'))throw new Error('Webhook URL must use HTTPS');
   return url.toString();
 }
 
 export class PlatformRepository {
   private readonly security:SecurityRepository;
-  private readonly vault:CredentialVault;
 
   constructor(
     private readonly connection:Database.Database=sqlite as Database.Database,
     security?:SecurityRepository,
-    vault?:CredentialVault,
+    private readonly suppliedVault?:CredentialVault,
   ){
     this.security=security??new SecurityRepository(connection);
-    this.vault=vault??new CredentialVault();
   }
+
+  private vault():CredentialVault{return this.suppliedVault??new CredentialVault();}
 
   createApiToken(identity:PlatformRequestIdentity,input:{name:string;scopes:string[];expiresAt?:string|null}):{token:string;record:unknown}{
     if(identity.apiTokenId)throw new Error('API tokens cannot create other API tokens');
@@ -86,9 +86,9 @@ export class PlatformRepository {
     if(identity.apiTokenId)throw new Error('API tokens cannot create webhook subscriptions');
     const name=input.name.trim();if(!name)throw new Error('Webhook name is required');const endpointUrl=validateWebhookUrl(input.endpointUrl);const eventTypes=[...new Set(input.eventTypes)];if(!eventTypes.length)throw new Error('At least one webhook event type is required');
     const supported=new Set<string>(WI10_EVENT_TYPES);for(const eventType of eventTypes)if(!supported.has(eventType))throw new Error(`Unsupported webhook event type: ${eventType}`);
-    const id=crypto.randomUUID();const credentialKey=`webhook_${id}`;const secret=crypto.randomBytes(32).toString('base64url');const timestamp=now();
-    this.vault.store(credentialKey,{secret});
-    try{this.connection.prepare(`INSERT INTO webhook_subscriptions(id,owner_user_id,name,endpoint_url,event_types_json,credential_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`).run(id,identity.id,name,endpointUrl,JSON.stringify(eventTypes),credentialKey,timestamp,timestamp);}catch(error){this.vault.remove(credentialKey);throw error;}
+    const id=crypto.randomUUID();const credentialKey=`webhook_${id}`;const secret=crypto.randomBytes(32).toString('base64url');const timestamp=now();const vault=this.vault();
+    vault.store(credentialKey,{secret});
+    try{this.connection.prepare(`INSERT INTO webhook_subscriptions(id,owner_user_id,name,endpoint_url,event_types_json,credential_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)`).run(id,identity.id,name,endpointUrl,JSON.stringify(eventTypes),credentialKey,timestamp,timestamp);}catch(error){vault.remove(credentialKey);throw error;}
     return {secret,subscription:this.getWebhook(id)};
   }
 
@@ -101,7 +101,7 @@ export class PlatformRepository {
 
   archiveWebhook(id:string):unknown {
     const row=this.connection.prepare(`SELECT credential_key FROM webhook_subscriptions WHERE id=? AND archived_at IS NULL`).get(id) as {credential_key:string}|undefined;if(!row)throw new Error('Webhook subscription not found');const timestamp=now();
-    this.connection.prepare(`UPDATE webhook_subscriptions SET enabled=0,archived_at=?,updated_at=? WHERE id=?`).run(timestamp,timestamp,id);this.vault.remove(row.credential_key);return {id,archivedAt:timestamp};
+    this.connection.prepare(`UPDATE webhook_subscriptions SET enabled=0,archived_at=?,updated_at=? WHERE id=?`).run(timestamp,timestamp,id);this.vault().remove(row.credential_key);return {id,archivedAt:timestamp};
   }
 
   recordEvent(input:PlatformEventInput):string {
@@ -130,7 +130,7 @@ export class PlatformRepository {
     return (this.connection.prepare(`SELECT d.id,d.subscription_id,d.event_id,d.attempt_count,s.endpoint_url,s.credential_key,e.event_type,e.payload_json,e.created_at FROM webhook_deliveries d JOIN webhook_subscriptions s ON s.id=d.subscription_id JOIN platform_events e ON e.id=d.event_id WHERE d.status IN ('pending','failed') AND d.next_attempt_at<=? AND s.enabled=1 AND s.archived_at IS NULL ORDER BY d.next_attempt_at,d.id LIMIT ?`).all(now(),boundedLimit(limit,100)) as Array<Record<string,unknown>>).map((row)=>({id:String(row.id),subscriptionId:String(row.subscription_id),eventId:String(row.event_id),eventType:String(row.event_type),endpointUrl:String(row.endpoint_url),credentialKey:String(row.credential_key),attemptCount:Number(row.attempt_count),payload:String(row.payload_json),createdAt:String(row.created_at)}));
   }
 
-  getWebhookSecret(credentialKey:string):string {const secret=this.vault.read(credentialKey).secret;if(!secret)throw new Error('Webhook signing secret is unavailable');return secret;}
+  getWebhookSecret(credentialKey:string):string {const secret=this.vault().read(credentialKey).secret;if(!secret)throw new Error('Webhook signing secret is unavailable');return secret;}
 
   markDeliverySucceeded(deliveryId:string,responseStatus:number):void {
     const timestamp=now();this.connection.transaction(()=>{const delivery=this.connection.prepare(`SELECT subscription_id FROM webhook_deliveries WHERE id=?`).get(deliveryId) as {subscription_id:string}|undefined;if(!delivery)throw new Error('Webhook delivery not found');this.connection.prepare(`UPDATE webhook_deliveries SET status='succeeded',attempt_count=attempt_count+1,response_status=?,error_summary=NULL,updated_at=?,delivered_at=? WHERE id=?`).run(responseStatus,timestamp,timestamp,deliveryId);this.connection.prepare(`UPDATE webhook_subscriptions SET consecutive_failures=0,last_success_at=?,updated_at=? WHERE id=?`).run(timestamp,timestamp,delivery.subscription_id);})();
