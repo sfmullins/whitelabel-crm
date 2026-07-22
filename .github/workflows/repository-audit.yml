@@ -11,7 +11,7 @@ permissions:
 jobs:
   dependency-audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
     steps:
@@ -24,7 +24,10 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
+      - name: Regenerate dependency lock
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Install regenerated dependency graph
         run: npm ci
 
       - name: Capture production dependency audit
@@ -36,11 +39,12 @@ jobs:
       - name: Capture outdated dependency report
         run: npm outdated --json > outdated.json || true
 
-      - name: Upload repository audit reports
+      - name: Upload generated lock and audit reports
         uses: actions/upload-artifact@v4
         with:
           name: repository-audit-reports
           path: |
+            package-lock.json
             production-audit.json
             complete-audit.json
             outdated.json
