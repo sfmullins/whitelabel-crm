@@ -18,7 +18,7 @@ The review covered:
 - production and complete dependency advisory reports;
 - backend build, tests, migrations and WI4–WI11 smoke coverage;
 - frontend build, test configuration and WI11 runtime behaviour;
-- Electron version, staging, package preflight and Linux package creation;
+- Electron version, native SQLite compatibility, staging, package preflight and Linux package creation;
 - remote runtime assets and local-first/offline assumptions;
 - CI failure diagnostics, clean-repository enforcement and dependency monitoring;
 - README, architecture and WI10–WI12 roadmap accuracy;
@@ -45,16 +45,19 @@ Remediation:
 
 Result: the post-remediation production audit reports zero vulnerabilities.
 
-### B. Unsupported desktop runtime — remediated
+### B. Unsupported desktop and native runtime — remediated
 
-Electron 29 was outside the supported Electron major window.
+Electron 29 was outside the supported Electron major window. The first audit candidate moved directly to Electron 43, but the real Debian packaging gate demonstrated that the existing `better-sqlite3` 11 native binding could not compile against Electron 43's V8 API. Although an upstream GitHub tag described Electron 43 support, the corresponding package version was not available from npm and could not form a reproducible lockfile.
 
 Remediation:
 
-- upgraded Electron to 43.2;
-- upgraded Electron Forge packages to 7.11.2;
-- retained a real Debian package build as the compatibility gate for the Electron/native-module transition;
+- selected Electron `42.7.1`, a supported release line with an npm-published compatible native stack;
+- upgraded `better-sqlite3` to `12.11.1`, which provides the Electron 42 native compatibility required by the packaged application;
+- upgraded Electron Forge packages to `7.11.2`;
+- retained a real Debian package build as the compatibility gate for every Electron/native-module transition;
 - declared the supported Node/npm range, including the Node 22.12 minimum required by the updated Electron tooling.
+
+The runtime is therefore upgraded from the obsolete Electron 29 baseline without depending on an unpublished package or accepting a source-only build as evidence of native compatibility.
 
 ### C. Frontend test suite could silently disappear — remediated
 
@@ -118,7 +121,8 @@ Added now:
 
 1. negative fixtures for the npm/source-hygiene scanner;
 2. frontend WI11 runtime helper tests;
-3. packaged-frontend remote-subresource rejection in desktop preflight.
+3. packaged-frontend remote-subresource rejection in desktop preflight;
+4. the real Debian package build as the native Electron/SQLite compatibility test.
 
 Existing permanent coverage remains authoritative for:
 
@@ -151,6 +155,10 @@ These findings are not present in the production dependency set, but they affect
 - continue tracking upstream Forge/rebuild and Drizzle Kit releases;
 - replace or isolate the packaging/migration toolchain if patched upstream graphs do not become available;
 - produce SBOM, provenance and checksums for released artifacts.
+
+### Runtime support cadence
+
+Electron `42.7.1` is a supported audit baseline, not a permanent pin. WI12 and subsequent maintenance must monitor Electron's support window and move the Electron/native-SQLite pair together, using a produced desktop artifact—not compilation alone—as the acceptance test.
 
 ### Release-certification gaps
 
@@ -204,6 +212,6 @@ The repository must remain unchanged after the deterministic CI sequence.
 
 ## 7. Audit conclusion
 
-No WI11 rollback or redesign is required. The extension platform remains valid after the dependency, package-boundary, frontend and packaging review.
+No WI11 rollback or redesign is required. The extension platform remains valid after the dependency, package-boundary, frontend, native-runtime and packaging review.
 
 Once the exact audit head passes the permanent CI and Linux package workflows, the repository is suitable to become the WI12 base. WI12 should then focus on certification, release integrity and the explicitly recorded residual risks rather than reopening completed platform scope.
