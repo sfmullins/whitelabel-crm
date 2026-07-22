@@ -28,26 +28,35 @@ describe('WI11 extension platform',()=>{
   beforeEach(async()=>{setupTempDatabase();await runSeed();});
   afterEach(()=>cleanupTempDatabase());
 
-  it('validates capability approval and optional Ed25519 signatures',()=>{
+  it('validates capability approval, unique keys and optional Ed25519 signatures',()=>{
     const repository=new ExtensionRepository();const unsigned=extensionPackage();
     expect(()=>repository.validate(unsigned,['custom_fields'])).toThrow('was not approved');
+    const duplicate=structuredClone(unsigned);duplicate.manifest.contributions.customFields.push({...duplicate.manifest.contributions.customFields[0]});expect(()=>repository.validate(duplicate,approved)).toThrow('Duplicate custom field key');
     const {privateKey,publicKey}=crypto.generateKeyPairSync('ed25519');const canonical=canonicalJson(unsigned.manifest);const signed={...unsigned,signature:{algorithm:'ed25519' as const,publicKeyPem:publicKey.export({format:'pem',type:'spki'}).toString(),signatureBase64:crypto.sign(null,Buffer.from(canonical),privateKey).toString('base64')}};
     const result=repository.validate(signed,approved);expect(result.signatureStatus).toBe('verified');expect(result.checksum).toMatch(/^[a-f0-9]{64}$/);
-    signed.signature.signatureBase64=Buffer.from('tampered').toString('base64');expect(()=>repository.validate(signed,approved)).toThrow('signature verification failed');
+    const tampered=Buffer.from(signed.signature.signatureBase64,'base64');tampered[0]^=1;signed.signature.signatureBase64=tampered.toString('base64');expect(()=>repository.validate(signed,approved)).toThrow('signature verification failed');
   });
 
-  it('installs and upgrades declarative contributions with backup and release history',async()=>{
-    const security=new SecurityRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const repository=new ExtensionRepository();
+  it('installs, upgrades, retires and rolls back declarative contributions',async()=>{
+    const security=new SecurityRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const repository=new ExtensionRepository();const fields=new CustomFieldRepository();
     const installed=await repository.install(extensionPackage(),{actorUserId:owner.id,approvedCapabilities:approved}) as any;
     expect(installed.status).toBe('enabled');expect(installed.backupFilename).toContain('pre-migration-');expect(installed.releases).toHaveLength(1);
     const field=getSqliteConnection().prepare(`SELECT id,name,label FROM custom_fields_definition WHERE entity_type='organisation' AND name='good_order_case_management__case_reference'`).get() as {id:string;name:string;label:string};expect(field.label).toBe('Case reference');
     const entity=getSqliteConnection().prepare(`SELECT id,api_name FROM custom_objects_definition WHERE api_name='good_order_case_management__case_file'`).get() as {id:string;api_name:string};expect(entity.api_name).toContain('case_file');
-    expect((await new CustomFieldRepository().getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(true);
-    repository.setEnabled(installed.id,false);expect((await new CustomFieldRepository().getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(false);
-    repository.setEnabled(installed.id,true);expect((await new CustomFieldRepository().getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(true);
+    expect((await fields.getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(true);
+    repository.setEnabled(installed.id,false);expect((await fields.getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(false);
+    repository.setEnabled(installed.id,true);expect((await fields.getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(true);
+
     const upgraded=await repository.install(extensionPackage('1.1.0','Case number'),{actorUserId:owner.id,approvedCapabilities:approved}) as any;expect(upgraded.currentVersion).toBe('1.1.0');expect(upgraded.releases).toHaveLength(2);expect(upgraded.releases.filter((release:any)=>release.status==='active')).toHaveLength(1);
     expect((getSqliteConnection().prepare(`SELECT label FROM custom_fields_definition WHERE id=?`).get(field.id) as {label:string}).label).toBe('Case number');
-    const attempts=getSqliteConnection().prepare(`SELECT status FROM extension_install_attempts WHERE package_key='good-order.case-management'`).all() as Array<{status:string}>;expect(attempts).toHaveLength(2);expect(attempts.every((attempt)=>attempt.status==='succeeded')).toBe(true);
+
+    const retiring=extensionPackage('1.2.0','Case number');retiring.manifest.contributions.customFields=[];const retired=await repository.install(retiring,{actorUserId:owner.id,approvedCapabilities:approved}) as any;expect(retired.currentVersion).toBe('1.2.0');expect((await fields.getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(false);
+    repository.setEnabled(retired.id,false);repository.setEnabled(retired.id,true);expect((await fields.getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(false);
+    expect((getSqliteConnection().prepare(`SELECT retired_at FROM extension_bindings WHERE resource_id=?`).get(field.id) as {retired_at:string|null}).retired_at).toBeTruthy();
+
+    const broken=extensionPackage('1.3.0','Invalid type change');broken.manifest.contributions.customFields[0].type='number';await expect(repository.install(broken,{actorUserId:owner.id,approvedCapabilities:approved})).rejects.toThrow('identity or type cannot change');
+    const afterFailure=repository.getByPackageKey('good-order.case-management') as any;expect(afterFailure.currentVersion).toBe('1.2.0');expect(afterFailure.releases.filter((release:any)=>release.status==='active')).toHaveLength(1);
+    const attempts=getSqliteConnection().prepare(`SELECT version,status,backup_filename,failure_details FROM extension_install_attempts WHERE package_key='good-order.case-management' ORDER BY started_at`).all() as Array<{version:string;status:string;backup_filename:string|null;failure_details:string|null}>;expect(attempts).toHaveLength(4);expect(attempts.slice(0,3).every((attempt)=>attempt.status==='succeeded')).toBe(true);expect(attempts[3].status).toBe('failed');expect(attempts[3].backup_filename).toContain('pre-migration-');expect(attempts[3].failure_details).toContain('identity or type cannot change');
   });
 
   it('bridges pre-WI11 customisations without deleting data',()=>{
