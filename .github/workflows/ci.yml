@@ -35,7 +35,7 @@ jobs:
       - name: Dependency installation
         run: npm ci
 
-      - name: Complete build, test, migration and WI4-WI9 verification
+      - name: Complete build, test, migration and WI4-WI10 verification
         run: npm run ci:verify
 
       - name: Clean repository verification
