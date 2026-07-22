@@ -1,10 +1,11 @@
 import { ICustomFieldRepository } from '../../../application/interfaces/IRepositories';
 import { CustomFieldDefinition } from 'shared';
-import { db } from '../connection';
+import { db,sqlite } from '../connection';
 import { customFieldsDefinition, customFieldsValues } from '../schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { cleanNulls } from './utils';
+import { assertResourceNotExtensionOwned,isExtensionResourceEnabled } from '../ExtensionVisibility';
 
 export class CustomFieldRepository implements ICustomFieldRepository {
   private mapDefRow(row: any): CustomFieldDefinition {
@@ -35,7 +36,7 @@ export class CustomFieldRepository implements ICustomFieldRepository {
       .from(customFieldsDefinition)
       .where(eq(customFieldsDefinition.entityType, entityType))
       .all();
-    return rows.map(r => this.mapDefRow(r));
+    return rows.filter((row)=>isExtensionResourceEnabled(sqlite,'custom_field',row.id)).map(r => this.mapDefRow(r));
   }
 
   async getDefinitionByName(entityType: string, name: string): Promise<CustomFieldDefinition | null> {
@@ -43,10 +44,11 @@ export class CustomFieldRepository implements ICustomFieldRepository {
       .from(customFieldsDefinition)
       .where(and(eq(customFieldsDefinition.entityType, entityType), eq(customFieldsDefinition.name, name)))
       .get();
-    return row ? this.mapDefRow(row) : null;
+    return row&&isExtensionResourceEnabled(sqlite,'custom_field',row.id) ? this.mapDefRow(row) : null;
   }
 
   async deleteDefinition(id: string): Promise<void> {
+    assertResourceNotExtensionOwned(sqlite,'custom_field',id);
     db.delete(customFieldsDefinition).where(eq(customFieldsDefinition.id, id)).run();
   }
 
@@ -54,17 +56,16 @@ export class CustomFieldRepository implements ICustomFieldRepository {
     const names = Object.keys(values);
     if (names.length === 0) return;
 
-    // Retrieve definitions matching the keys to get their IDs
     const fieldDefs = db.select()
       .from(customFieldsDefinition)
       .where(inArray(customFieldsDefinition.name, names))
-      .all();
+      .all()
+      .filter((definition)=>isExtensionResourceEnabled(sqlite,'custom_field',definition.id));
 
     db.transaction((tx) => {
       const now = new Date().toISOString();
       for (const def of fieldDefs) {
         const val = values[def.name];
-        
         const existing = tx.select()
           .from(customFieldsValues)
           .where(
@@ -98,6 +99,7 @@ export class CustomFieldRepository implements ICustomFieldRepository {
 
   async getValues(entityId: string): Promise<Record<string, string>> {
     const rows = db.select({
+      id: customFieldsDefinition.id,
       name: customFieldsDefinition.name,
       value: customFieldsValues.value
     })
@@ -108,7 +110,7 @@ export class CustomFieldRepository implements ICustomFieldRepository {
 
     const result: Record<string, string> = {};
     for (const r of rows) {
-      result[r.name] = r.value;
+      if(isExtensionResourceEnabled(sqlite,'custom_field',r.id))result[r.name] = r.value;
     }
     return result;
   }
