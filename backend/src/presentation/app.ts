@@ -31,6 +31,7 @@ import { getSqliteConnection } from '../infrastructure/database/connection';
 import { getRuntimePaths } from '../config/runtimePaths';
 import { apiRateLimit,auditSuccessfulRequests,authenticateRequest,enforcePermissions,requestHardening } from './middleware/security';
 import { assignCreatedOwnership } from './middleware/ownership';
+import { enforcePublicApiContract } from './middleware/publicApi';
 
 const app=express();
 const allowedOrigins=new Set((process.env.CRM_ALLOWED_ORIGINS||'').split(',').map((value)=>value.trim()).filter(Boolean));
@@ -71,6 +72,7 @@ app.use('/api',communicationsHubRouter);
 app.use('/api',releaseHardeningRouter);
 
 // Stable public aliases. Internal unversioned routes remain for frontend compatibility.
+app.use('/api/v1',enforcePublicApiContract);
 app.use('/api/v1/organisations',organisationsRouter);
 app.use('/api/v1',contactsRouter);
 app.use('/api/v1',engagementsRouter);
