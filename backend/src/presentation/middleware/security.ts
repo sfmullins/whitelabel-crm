@@ -13,20 +13,22 @@ export function isLoopback(req:Request):boolean{const address=req.socket.remoteA
 export function isTrustedLocalOrigin(req:Request):boolean{const origin=req.header('origin');if(!origin||origin==='null')return true;try{const hostname=new URL(origin).hostname;return hostname==='localhost'||hostname==='127.0.0.1'||hostname==='::1';}catch{return false;}}
 function trustLocalUsers():boolean{return process.env.CRM_TRUST_LOCAL_USERS!=='false';}
 function redact(value:unknown,depth=0):unknown{if(depth>5)return '[truncated]';if(Array.isArray(value))return value.slice(0,50).map((item)=>redact(item,depth+1));if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([key,item])=>[key,SENSITIVE.test(key)?'[redacted]':redact(item,depth+1)]));if(typeof value==='string'&&value.length>2000)return `${value.slice(0,2000)}…`;return value;}
-function entityFromPath(path:string):string|null{const parts=path.split('?')[0].split('/').filter(Boolean);const value=parts[0]==='api'?parts[1]:parts[0];return value&&value!=='auth'?value.replace(/-/g,'_'):null;}
+function normalizeApiPath(path:string):string{return path.startsWith('/v1/')?path.slice(3):path==='/v1'?'/':path;}
+function entityFromPath(path:string):string|null{const normalized=path.replace(/^\/api\/v1/,'/api').split('?')[0];const parts=normalized.split('/').filter(Boolean);const value=parts[0]==='api'?parts[1]:parts[0];return value&&value!=='auth'?value.replace(/-/g,'_'):null;}
 function permissionFor(method:string,path:string):string|null{
-  if(path.startsWith('/auth/'))return null;
-  if(path.startsWith('/platform/api-tokens'))return 'api.manage';
-  if(path.startsWith('/platform/webhooks')||path.startsWith('/platform/webhook-deliveries'))return 'webhooks.manage';
-  if(path.startsWith('/platform/events'))return 'platform.read';
-  if(path.startsWith('/reporting')){if(path.includes('/export')||path.endsWith('/download'))return 'reports.export';return method==='GET'?'reports.read':'reports.manage';}
-  if(path.startsWith('/admin/users')||path.startsWith('/admin/teams'))return 'users.manage';
-  if(path.startsWith('/admin/roles'))return 'roles.manage';
-  if(path.startsWith('/admin/audit'))return 'audit.read';
-  if(path.startsWith('/settings')&&method!=='GET')return 'settings.manage';
-  if(path.startsWith('/backups')||path.startsWith('/operations-health')||path.startsWith('/operations-maintenance')||path.startsWith('/operations-reconcile'))return 'operations.manage';
+  const policyPath=normalizeApiPath(path);
+  if(policyPath.startsWith('/auth/'))return null;
+  if(policyPath.startsWith('/platform/api-tokens'))return 'api.manage';
+  if(policyPath.startsWith('/platform/webhooks')||policyPath.startsWith('/platform/webhook-deliveries'))return 'webhooks.manage';
+  if(policyPath.startsWith('/platform/events'))return 'platform.read';
+  if(policyPath.startsWith('/reporting')){if(policyPath.includes('/export')||policyPath.endsWith('/download'))return 'reports.export';return method==='GET'?'reports.read':'reports.manage';}
+  if(policyPath.startsWith('/admin/users')||policyPath.startsWith('/admin/teams'))return 'users.manage';
+  if(policyPath.startsWith('/admin/roles'))return 'roles.manage';
+  if(policyPath.startsWith('/admin/audit'))return 'audit.read';
+  if(policyPath.startsWith('/settings')&&method!=='GET')return 'settings.manage';
+  if(policyPath.startsWith('/backups')||policyPath.startsWith('/operations-health')||policyPath.startsWith('/operations-maintenance')||policyPath.startsWith('/operations-reconcile'))return 'operations.manage';
   if(method==='GET'||method==='HEAD')return 'crm.read';
-  if(method==='DELETE'||/archive|discard|cancel/.test(path))return 'crm.delete';
+  if(method==='DELETE'||/archive|discard|cancel/.test(policyPath))return 'crm.delete';
   return 'crm.write';
 }
 
@@ -84,9 +86,11 @@ export function auditSuccessfulRequests(repository=new SecurityRepository(),plat
     res.on('finish',()=>{
       if(res.statusCode>=400)return;
       try{
-        const identity=req.crm?.identity;const route=req.originalUrl.split('?')[0];const params=req.params as Record<string,string>;const body=(req.body??{}) as Record<string,unknown>;const query=req.query as Record<string,unknown>;const response=(responsePayload as Record<string,unknown>|undefined);const entityId=params.id||params.organisationId||String(response?.id||response?.record&&typeof response.record==='object'?(response.record as Record<string,unknown>).id||'':body.id||'')||null;const organisationId=params.organisationId||String(response?.organisationId||body.organisationId||query.organisationId||'')||null;
-        repository.recordAudit({actorUserId:identity?.id??null,action:isExport?'report.export':`${method.toLowerCase()}.${entityFromPath(route)||'api'}`,entityType:entityFromPath(route),entityId,organisationId,requestId:req.crm?.requestId||'unknown',route,method,after:redact(responsePayload),metadata:{query:redact(query),body:redact(body),statusCode:res.statusCode,localTrusted:identity?.localTrusted??false,apiTokenId:(identity as PlatformRequestIdentity|undefined)?.apiTokenId??null}});
-        const event=eventFor(method,route,res.statusCode);if(event)platform.recordEvent({eventType:event.eventType,aggregateType:event.aggregateType,aggregateId:entityId,actorUserId:identity?.id??null,apiTokenId:(identity as PlatformRequestIdentity|undefined)?.apiTokenId??null,requestId:req.crm?.requestId||'unknown',payload:{id:entityId,organisationId,status:response?.status??null}});
+        const current=req.crm?.identity;const route=req.originalUrl.split('?')[0];const params=req.params as Record<string,string>;const body=(req.body??{}) as Record<string,unknown>;const query=req.query as Record<string,unknown>;const response=responsePayload&&typeof responsePayload==='object'?responsePayload as Record<string,unknown>:undefined;const responseRecord=response?.record&&typeof response.record==='object'?response.record as Record<string,unknown>:undefined;
+        const rawEntityId=params.id??params.contactId??params.engagementId??params.activityId??response?.id??responseRecord?.id??body.id??null;const entityId=rawEntityId?String(rawEntityId):null;
+        const rawOrganisationId=params.organisationId??response?.organisationId??responseRecord?.organisationId??body.organisationId??query.organisationId??null;const organisationId=rawOrganisationId?String(rawOrganisationId):null;
+        repository.recordAudit({actorUserId:current?.id??null,action:isExport?'report.export':`${method.toLowerCase()}.${entityFromPath(route)||'api'}`,entityType:entityFromPath(route),entityId,organisationId,requestId:req.crm?.requestId||'unknown',route,method,after:redact(responsePayload),metadata:{query:redact(query),body:redact(body),statusCode:res.statusCode,localTrusted:current?.localTrusted??false,apiTokenId:(current as PlatformRequestIdentity|undefined)?.apiTokenId??null}});
+        const event=eventFor(method,route,res.statusCode);if(event)platform.recordEvent({eventType:event.eventType,aggregateType:event.aggregateType,aggregateId:entityId,actorUserId:current?.id??null,apiTokenId:(current as PlatformRequestIdentity|undefined)?.apiTokenId??null,requestId:req.crm?.requestId||'unknown',payload:{id:entityId,organisationId,status:response?.status??responseRecord?.status??null}});
       }catch(error){console.error('Audit/platform event write failed:',error);}
     });next();
   };
