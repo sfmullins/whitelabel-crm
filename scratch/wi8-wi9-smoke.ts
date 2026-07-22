@@ -19,7 +19,7 @@ async function main(){
     const viewer=security.createUser({email:'wi89-viewer@example.test',displayName:'WI89 Viewer',roleKeys:['viewer'],password:'wi89 viewer password'});const session=security.createSessionForPassword(viewer.email,'wi89 viewer password');
     if(!security.resolveSession(session.token)?.permissions.includes('reports.read'))throw new Error('WI8-WI9 session resolution failed');
     if(security.resolveSession(session.token)?.permissions.includes('reports.export'))throw new Error('WI8-WI9 viewer export permission leaked');
-    const executive=reporting.executive({from:'2020-01-01T00:00:00.000Z',to:'2035-12-31T23:59:59.999Z'});if(executive.kpis.activeClients<1)throw new Error('WI8 executive report returned no persisted clients');
+    const executive=reporting.executive({from:'2024-01-01T00:00:00.000Z',to:'2028-12-31T23:59:59.999Z'});if(executive.kpis.activeClients<1)throw new Error('WI8 executive report returned no persisted clients');
     const saved=reporting.createSavedReport(owner,{name:'WI89 smoke report',reportKey:'executive',visibility:'private'});if(!reporting.listSavedReports(owner).some((item)=>item.id===saved.id))throw new Error('WI8 saved report persistence failed');
     const dashboard=reporting.createDashboard(owner,{name:'WI89 smoke dashboard',visibility:'private',widgets:[{widgetKey:'executive_kpis'},{widgetKey:'revenue_trend'}]});if(dashboard.widgets.length!==2)throw new Error('WI8 dashboard widget persistence failed');
     const organisation=(sqlite.prepare(`SELECT id FROM organisations LIMIT 1`).get() as {id:string});new OwnershipRepository(sqlite).update('organisation',organisation.id,{ownerUserId:owner.id,ownerTeamId:owner.teams[0]?.id??null});
