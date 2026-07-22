@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { ReportingRepository,type ReportFilters,type ReportKey } from '../../infrastructure/database/ReportingRepository';
+import { ReportScheduleRepository } from '../../infrastructure/database/ReportScheduleRepository';
 import { ScheduledReportService } from '../../application/services/ScheduledReportService';
 import type { CrmRequest } from '../middleware/security';
 
 const router=Router();
 const reporting=new ReportingRepository();
+const reportSchedules=new ReportScheduleRepository();
 const scheduledReports=new ScheduledReportService();
 const reportKey=z.enum(['executive','revenue','pipeline','activity','workload','concentration','operations']);
 const uuid=z.string().uuid();
@@ -37,6 +39,7 @@ router.delete('/reporting/widgets/:id',(req:CrmRequest,res)=>{try{const {id}=par
 
 router.get('/reporting/schedules',(req:CrmRequest,res)=>res.json(reporting.listSchedules(identity(req))));
 router.post('/reporting/schedules',(req:CrmRequest,res)=>{try{const input=parse(z.object({savedReportId:uuid,cadence:z.enum(['daily','weekly','monthly']),nextRunAt:z.string().datetime({offset:true})}).strict(),req.body);res.status(201).json(reporting.createSchedule(identity(req),input));}catch(error){fail(res,error);}});
+router.patch('/reporting/schedules/:id',(req:CrmRequest,res)=>{try{const {id}=parse(z.object({id:uuid}).strict(),req.params);const input=parse(z.object({cadence:z.enum(['daily','weekly','monthly']).optional(),enabled:z.boolean().optional(),nextRunAt:z.string().datetime({offset:true}).optional()}).strict().refine((value)=>Object.keys(value).length>0),req.body);res.json(reportSchedules.update(identity(req),id,input));}catch(error){fail(res,error);}});
 router.post('/reporting/schedules/process',async (_req,res)=>{try{res.json(await scheduledReports.processDue());}catch(error){fail(res,error);}});
 router.get('/reporting/schedule-runs',(req:CrmRequest,res)=>{try{const {limit}=parse(z.object({limit:z.coerce.number().int().min(1).max(500).default(100)}).strict(),req.query);res.json(scheduledReports.listRuns(identity(req),limit));}catch(error){fail(res,error);}});
 router.get('/reporting/schedule-runs/:id/download',(req:CrmRequest,res)=>{try{const {id}=parse(z.object({id:uuid}).strict(),req.params);const file=scheduledReports.getDownload(identity(req),id);res.download(file.path,file.filename);}catch(error){fail(res,error);}});
