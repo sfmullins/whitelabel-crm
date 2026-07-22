@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3';
 import { sqlite } from './connection';
 import { SecurityRepository,type RequestIdentity } from './SecurityRepository';
 import { CredentialVault } from '../security/CredentialVault';
+import { validateWebhookEndpoint } from '../security/WebhookUrlPolicy';
 import { WI10_EVENT_TYPES,WI10_TOKEN_SCOPES } from './wi10PlatformSchema';
 
 export interface PlatformRequestIdentity extends RequestIdentity {
@@ -25,14 +26,6 @@ const now=()=>new Date().toISOString();
 const hash=(value:string)=>crypto.createHash('sha256').update(value).digest('hex');
 function parseArray(value:unknown):string[]{try{const parsed=JSON.parse(String(value));return Array.isArray(parsed)?parsed.filter((item):item is string=>typeof item==='string'):[];}catch{return [];}}
 function boundedLimit(value:number|undefined,maximum=500):number{return Math.max(1,Math.min(maximum,value??100));}
-
-function validateWebhookUrl(value:string):string {
-  const url=new URL(value.trim());
-  if(url.username||url.password||url.hash)throw new Error('Webhook URL must not contain credentials or a fragment');
-  const loopback=['localhost','127.0.0.1','::1','[::1]'].includes(url.hostname);
-  if(url.protocol!=='https:'&&!(loopback&&url.protocol==='http:'&&process.env.CRM_ALLOW_LOOPBACK_WEBHOOKS==='true'))throw new Error('Webhook URL must use HTTPS');
-  return url.toString();
-}
 
 export class PlatformRepository {
   private readonly security:SecurityRepository;
@@ -84,7 +77,7 @@ export class PlatformRepository {
 
   createWebhook(identity:PlatformRequestIdentity,input:{name:string;endpointUrl:string;eventTypes:string[]}):{secret:string;subscription:unknown}{
     if(identity.apiTokenId)throw new Error('API tokens cannot create webhook subscriptions');
-    const name=input.name.trim();if(!name)throw new Error('Webhook name is required');const endpointUrl=validateWebhookUrl(input.endpointUrl);const eventTypes=[...new Set(input.eventTypes)];if(!eventTypes.length)throw new Error('At least one webhook event type is required');
+    const name=input.name.trim();if(!name)throw new Error('Webhook name is required');const endpointUrl=validateWebhookEndpoint(input.endpointUrl);const eventTypes=[...new Set(input.eventTypes)];if(!eventTypes.length)throw new Error('At least one webhook event type is required');
     const supported=new Set<string>(WI10_EVENT_TYPES);for(const eventType of eventTypes)if(!supported.has(eventType))throw new Error(`Unsupported webhook event type: ${eventType}`);
     const id=crypto.randomUUID();const credentialKey=`webhook_${id}`;const secret=crypto.randomBytes(32).toString('base64url');const timestamp=now();const vault=this.vault();
     vault.store(credentialKey,{secret});
