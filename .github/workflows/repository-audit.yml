@@ -1,12 +1,12 @@
 name: Repository audit
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [docs/record-wi11-completion]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   dependency-audit:
@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: docs/record-wi11-completion
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
@@ -26,6 +28,18 @@ jobs:
 
       - name: Regenerate dependency lock
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Commit regenerated lock when changed
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "Dependency lock is current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "Regenerate audited dependency lock"
+          git push origin HEAD:docs/record-wi11-completion
 
       - name: Install regenerated dependency graph
         run: npm ci
@@ -39,12 +53,11 @@ jobs:
       - name: Capture outdated dependency report
         run: npm outdated --json > outdated.json || true
 
-      - name: Upload generated lock and audit reports
+      - name: Upload audit reports
         uses: actions/upload-artifact@v4
         with:
           name: repository-audit-reports
           path: |
-            package-lock.json
             production-audit.json
             complete-audit.json
             outdated.json
