@@ -10,6 +10,7 @@ const LEGACY_EXTENSION_ID='00000000-0000-4000-8110-000000000001';
 const LEGACY_RELEASE_ID='00000000-0000-4000-8110-000000000002';
 
 function tableExists(connection:Database.Database,name:string):boolean{return Boolean(connection.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name=?`).get(name));}
+function columnExists(connection:Database.Database,table:string,column:string):boolean{return (connection.prepare(`PRAGMA table_info(${table})`).all() as Array<{name:string}>).some((item)=>item.name===column);}
 function stableKey(parts:string[]):string{return parts.map((part)=>part.trim().toLowerCase().replace(/[^a-z0-9._-]+/g,'-').replace(/^-+|-+$/g,'')||'item').join(':');}
 
 function bridgeLegacyCustomisations(connection:Database.Database):void {
@@ -20,7 +21,7 @@ function bridgeLegacyCustomisations(connection:Database.Database):void {
   const timestamp=new Date().toISOString();const manifest={formatVersion:1,packageKey:'legacy-customisations',name:'Legacy customisations',description:'System-managed compatibility bridge for custom fields and custom objects created before WI11.',version:'1.0.0',application:{minVersion:'1.0.0'},capabilities:['custom_fields','custom_entities'],contributions:{customFields:fields.length,customEntities:entities.length}};const manifestJson=JSON.stringify(manifest);const checksum=crypto.createHash('sha256').update(manifestJson).digest('hex');
   connection.prepare(`INSERT OR IGNORE INTO extensions(id,package_key,name,description,current_version,status,system_managed,manifest_json,checksum_sha256,signature_status,capabilities_json,installed_at,updated_at,enabled_at) VALUES(?,?,?,?,?,'enabled',1,?,?,'unsigned',?,?,?,?)`).run(LEGACY_EXTENSION_ID,'legacy-customisations','Legacy customisations','Compatibility bridge for pre-WI11 customisations','1.0.0',manifestJson,checksum,JSON.stringify(['custom_fields','custom_entities']),timestamp,timestamp,timestamp);
   connection.prepare(`INSERT OR IGNORE INTO extension_releases(id,extension_id,version,checksum_sha256,manifest_json,signature_status,status,installed_at) VALUES(?,?,?,?,?,'unsigned','active',?)`).run(LEGACY_RELEASE_ID,LEGACY_EXTENSION_ID,'1.0.0',checksum,manifestJson,timestamp);
-  const contribution=connection.prepare(`INSERT OR IGNORE INTO extension_contributions(id,extension_id,release_id,contribution_type,contribution_key,definition_json,enabled,created_at) VALUES(?,?,?,?,?,?,1,?)`);const binding=connection.prepare(`INSERT OR IGNORE INTO extension_bindings(id,extension_id,contribution_type,contribution_key,resource_type,resource_id,created_at) VALUES(?,?,?,?,?,?,?)`);
+  const contribution=connection.prepare(`INSERT OR IGNORE INTO extension_contributions(id,extension_id,release_id,contribution_type,contribution_key,definition_json,enabled,created_at) VALUES(?,?,?,?,?,?,1,?)`);const binding=connection.prepare(`INSERT OR IGNORE INTO extension_bindings(id,extension_id,contribution_type,contribution_key,resource_type,resource_id,created_at,disabled_at,retired_at) VALUES(?,?,?,?,?,?,?,NULL,NULL)`);
   for(const row of entities){const key=stableKey(['entity',String(row.api_name)]);contribution.run(crypto.randomUUID(),LEGACY_EXTENSION_ID,LEGACY_RELEASE_ID,'custom_entity',key,JSON.stringify(row),timestamp);binding.run(crypto.randomUUID(),LEGACY_EXTENSION_ID,'custom_entity',key,'custom_entity',row.id,timestamp);}
   for(const row of fields){const key=stableKey(['field',String(row.entity_type),String(row.name)]);contribution.run(crypto.randomUUID(),LEGACY_EXTENSION_ID,LEGACY_RELEASE_ID,'custom_field',key,JSON.stringify(row),timestamp);binding.run(crypto.randomUUID(),LEGACY_EXTENSION_ID,'custom_field',key,'custom_field',row.id,timestamp);}
 }
@@ -83,6 +84,7 @@ export function ensureWi11ExtensionSchema(connection:Database.Database):void {
       resource_id TEXT NOT NULL,
       created_at TEXT NOT NULL,
       disabled_at TEXT,
+      retired_at TEXT,
       UNIQUE(extension_id,contribution_type,contribution_key),
       UNIQUE(resource_type,resource_id)
     );
@@ -117,9 +119,10 @@ export function ensureWi11ExtensionSchema(connection:Database.Database):void {
     CREATE INDEX IF NOT EXISTS extension_status_idx ON extensions(status,package_key);
     CREATE INDEX IF NOT EXISTS extension_release_idx ON extension_releases(extension_id,status,installed_at DESC);
     CREATE INDEX IF NOT EXISTS extension_contribution_idx ON extension_contributions(extension_id,release_id,contribution_type,enabled);
-    CREATE INDEX IF NOT EXISTS extension_binding_idx ON extension_bindings(extension_id,resource_type,disabled_at);
     CREATE INDEX IF NOT EXISTS extension_attempt_idx ON extension_install_attempts(package_key,started_at DESC);
   `);
+  if(!columnExists(connection,'extension_bindings','retired_at'))connection.exec(`ALTER TABLE extension_bindings ADD COLUMN retired_at TEXT`);
+  connection.exec(`CREATE INDEX IF NOT EXISTS extension_binding_idx ON extension_bindings(extension_id,resource_type,disabled_at,retired_at)`);
 
   const timestamp=new Date().toISOString();const permission=connection.prepare(`INSERT INTO permissions(key,category,description) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET category=excluded.category,description=excluded.description`);for(const row of WI11_PERMISSIONS)permission.run(...row);
   const roles=connection.prepare(`SELECT id,key FROM roles WHERE key IN ('owner','administrator','manager')`).all() as Array<{id:string;key:string}>;const assign=connection.prepare(`INSERT OR IGNORE INTO role_permissions(role_id,permission_key,created_at) VALUES(?,?,?)`);
