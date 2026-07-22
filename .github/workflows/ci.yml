@@ -73,6 +73,25 @@ jobs:
           tail -n 240 "$RUNNER_TEMP/npm-hygiene.log"
           exit 1
 
+      - name: Production dependency audit
+        id: production_audit
+        continue-on-error: true
+        run: npm run audit:production > "$RUNNER_TEMP/production-audit.log" 2>&1
+
+      - name: Upload production dependency diagnostics
+        if: steps.production_audit.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dependency-audit-failure
+          path: ${{ runner.temp }}/production-audit.log
+          retention-days: 3
+
+      - name: Enforce production dependency audit
+        if: steps.production_audit.outcome == 'failure'
+        run: |
+          tail -n 240 "$RUNNER_TEMP/production-audit.log"
+          exit 1
+
       - name: Backend and frontend tests
         id: workspace_tests
         continue-on-error: true
