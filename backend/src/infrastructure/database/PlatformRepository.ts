@@ -61,7 +61,8 @@ export class PlatformRepository {
   resolveApiToken(token:string):PlatformRequestIdentity|null {
     if(!/^wlc_[A-Za-z0-9_-]{8,}_[A-Za-z0-9_-]{30,}$/.test(token))return null;
     const row=this.connection.prepare(`SELECT id,owner_user_id,name,token_prefix,scopes_json,expires_at,revoked_at FROM api_tokens WHERE token_hash=?`).get(hash(token)) as {id:string;owner_user_id:string;name:string;token_prefix:string;scopes_json:string;expires_at:string|null;revoked_at:string|null}|undefined;
-    if(!row||row.revoked_at||(row.expires_at&&Date.parse(row.expires_at)<=Date.now()))return null;
+    if(!row||row.revoked_at)return null;
+    if(row.expires_at){const expiry=Date.parse(row.expires_at);if(!Number.isFinite(expiry)||expiry<=Date.now())return null;}
     const user=this.security.getUser(row.owner_user_id);if(!user||user.status!=='active')return null;
     const effective=parseArray(row.scopes_json).filter((scope)=>user.permissions.includes(scope));if(!effective.length)return null;
     this.connection.prepare(`UPDATE api_tokens SET last_used_at=? WHERE id=?`).run(now(),row.id);
@@ -85,7 +86,7 @@ export class PlatformRepository {
     if(identity.apiTokenId)throw new Error('API tokens cannot rotate API tokens');
     const row=this.connection.prepare(`SELECT owner_user_id,name,scopes_json,expires_at,revoked_at FROM api_tokens WHERE id=?`).get(id) as {owner_user_id:string;name:string;scopes_json:string;expires_at:string|null;revoked_at:string|null}|undefined;if(!row)throw new Error('API token not found');if(row.revoked_at)throw new Error('Revoked API token cannot be rotated');
     const owner=this.security.getUser(row.owner_user_id);if(!owner||owner.status!=='active')throw new Error('API token owner is not active');const scopes=parseArray(row.scopes_json);if(!scopes.length||scopes.some((scope)=>!owner.permissions.includes(scope)))throw new Error('API token owner no longer holds every token scope');
-    const expiry=input.expiresAt===undefined?(row.expires_at&&Date.parse(row.expires_at)>Date.now()?new Date(Date.parse(row.expires_at)).toISOString():null):validFutureExpiry(input.expiresAt);
+    const expiry=input.expiresAt===undefined?(row.expires_at&&Number.isFinite(Date.parse(row.expires_at))&&Date.parse(row.expires_at)>Date.now()?new Date(Date.parse(row.expires_at)).toISOString():null):validFutureExpiry(input.expiresAt);
     let replacement:{token:string;record:unknown}|null=null;this.connection.transaction(()=>{this.connection.prepare(`UPDATE api_tokens SET revoked_at=? WHERE id=?`).run(now(),id);replacement=this.issueApiToken(row.owner_user_id,row.name,scopes,expiry);})();return replacement!;
   }
 
