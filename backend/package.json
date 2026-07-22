@@ -24,7 +24,7 @@
     "db:seed": "tsx src/infrastructure/database/seed.ts"
   },
   "dependencies": {
-    "better-sqlite3": "12.11.2",
+    "better-sqlite3": "12.11.1",
     "cors": "^2.8.5",
     "csv-parser": "^3.0.0",
     "drizzle-orm": "^0.45.2",
