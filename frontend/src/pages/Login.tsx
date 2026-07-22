@@ -3,7 +3,7 @@ import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { LockKeyhole,ShieldCheck,UserRound } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { api } from '../lib/api';
-import { login,selectLocalUser,type CrmIdentity } from '../hooks/useIdentity';
+import { login,selectLocalUser } from '../hooks/useIdentity';
 
 interface LocalUser {id:string;email:string;displayName:string;roles:Array<{key:string;name:string}>;}
 
