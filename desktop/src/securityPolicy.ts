@@ -1,8 +1,14 @@
+import fs from 'node:fs';
 import path from 'node:path';
+
+function resolvedExistingPath(candidatePath:string):string {
+  const resolved=path.resolve(candidatePath);
+  try{return fs.realpathSync.native(resolved);}catch{return resolved;}
+}
 
 export function isPathWithinRoot(rootDirectory:string,candidatePath:string):boolean {
   if(typeof candidatePath!=='string'||candidatePath.length===0)return false;
-  const root=path.resolve(rootDirectory);const candidate=path.resolve(candidatePath);const relative=path.relative(root,candidate);
+  const root=resolvedExistingPath(rootDirectory);const candidate=resolvedExistingPath(candidatePath);const relative=path.relative(root,candidate);
   return relative===''||(!relative.startsWith('..')&&!path.isAbsolute(relative));
 }
 
