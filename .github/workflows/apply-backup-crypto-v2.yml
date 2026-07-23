@@ -23,7 +23,23 @@ jobs:
           ref: post-wi11-audit-pass-2
 
       - name: Apply backup cryptography patch
-        run: python3 scratch/apply-backup-crypto-v2.py
+        id: apply_patch
+        continue-on-error: true
+        run: python3 scratch/apply-backup-crypto-v2.py > "$RUNNER_TEMP/backup-crypto-patch.log" 2>&1
+
+      - name: Upload patch diagnostics
+        if: steps.apply_patch.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: backup-crypto-patch-failure
+          path: ${{ runner.temp }}/backup-crypto-patch.log
+          retention-days: 3
+
+      - name: Enforce patch application
+        if: steps.apply_patch.outcome == 'failure'
+        run: |
+          cat "$RUNNER_TEMP/backup-crypto-patch.log"
+          exit 1
 
       - name: Commit and push patch
         run: |
