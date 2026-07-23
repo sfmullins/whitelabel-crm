@@ -1,0 +1,48 @@
+name: WI13 source export
+
+on:
+  push:
+    branches:
+      - WI13-Enterprise-Release
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wi13-source-export-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+
+      - name: Archive source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude='**/node_modules' \
+            --exclude=dist \
+            --exclude='**/dist' \
+            --exclude=out \
+            --exclude='**/out' \
+            --exclude=.vite \
+            --exclude='**/.vite' \
+            -czf wi13-source-${GITHUB_SHA}.tgz .
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wi13-source-${{ github.sha }}
+          path: wi13-source-${{ github.sha }}.tgz
+          if-no-files-found: error
+          retention-days: 1
