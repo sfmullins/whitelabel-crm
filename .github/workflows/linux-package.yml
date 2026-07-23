@@ -33,7 +33,23 @@ jobs:
         run: npm ci
 
       - name: Build Linux packages
-        run: npm run desktop:make
+        id: linux_package
+        continue-on-error: true
+        run: npm run desktop:make > "$RUNNER_TEMP/linux-package.log" 2>&1
+
+      - name: Upload Linux packaging diagnostics
+        if: steps.linux_package.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-package-failure
+          path: ${{ runner.temp }}/linux-package.log
+          retention-days: 3
+
+      - name: Enforce Linux package build
+        if: steps.linux_package.outcome == 'failure'
+        run: |
+          tail -n 240 "$RUNNER_TEMP/linux-package.log"
+          exit 1
 
       - name: Verify Debian package exists
         shell: bash

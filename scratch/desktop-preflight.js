@@ -43,8 +43,23 @@ if (!fs.existsSync(frontendAssets) || fs.readdirSync(frontendAssets).length === 
   fail('Frontend production assets are missing from frontend/dist/assets');
 }
 
+const frontendIndex = fs.readFileSync(path.join(root, 'frontend/dist/index.html'), 'utf8');
+const remoteSubresource = /<(?:script|link|img|source)\b[^>]*(?:src|href)=["']https?:\/\//i;
+if (remoteSubresource.test(frontendIndex)) {
+  fail('Packaged frontend index must not load remote scripts, styles, fonts or images');
+}
+
 const rootPkg = readJson('package.json');
-for (const script of ['build', 'test', 'db:smoke', 'desktop:preflight', 'desktop:smoke']) {
+for (const script of [
+  'build',
+  'test',
+  'check:npm-hygiene',
+  'audit:production',
+  'db:smoke',
+  'desktop:preflight',
+  'desktop:smoke',
+  'wi11:smoke',
+]) {
   if (!rootPkg.scripts || !rootPkg.scripts[script]) {
     fail(`Missing root package script: ${script}`);
   }
