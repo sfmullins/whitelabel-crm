@@ -22,6 +22,18 @@ jobs:
         with:
           ref: post-wi11-audit-pass-2
 
+      - name: Correct restore transformation in temporary patch script
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('scratch/apply-backup-crypto-v2.py')
+          text=path.read_text()
+          old="replace_once('frontend/src/pages/Settings.tsx',\"        body: JSON.stringify({ filename, encryptionKeyHex: keyHex })\\n\",\"        body: JSON.stringify({ filename, encryptionPassword: backupPassword || undefined })\\n\")"
+          new='''replace_once(\n    'frontend/src/pages/Settings.tsx',\n    \"\"\"      let keyHex: string | undefined;\n      if (filename.endsWith('.crmbackup') && encryptionEnabled && backupPassword) {\n        const msgBuffer = new TextEncoder().encode(backupPassword);\n        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);\n        const hashArray = Array.from(new Uint8Array(hashBuffer));\n        keyHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');\n      }\n\n\"\"\",\n    \"\"\"      const encryptionPassword=filename.endsWith('.crmbackup')&&encryptionEnabled&&backupPassword?backupPassword:undefined;\n\n\"\"\",\n)\nreplace_once('frontend/src/pages/Settings.tsx',\"        body: JSON.stringify({ filename, encryptionKeyHex: keyHex }),\\n\",\"        body: JSON.stringify({ filename, encryptionPassword }),\\n\")'''
+          if old not in text: raise SystemExit('Expected restore replacement statement was not found')
+          path.write_text(text.replace(old,new,1))
+          PY
+
       - name: Apply backup cryptography patch
         id: apply_patch
         continue-on-error: true
@@ -43,6 +55,7 @@ jobs:
 
       - name: Commit and push patch
         run: |
+          git restore --source=HEAD --staged --worktree scratch/apply-backup-crypto-v2.py
           git add -A
           if git diff --cached --quiet; then
             echo "Backup cryptography patch already applied."
