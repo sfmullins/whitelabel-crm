@@ -1,0 +1,38 @@
+name: Apply second-pass audit patch
+
+on:
+  push:
+    branches: [post-wi11-audit-pass-2]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: audit-pass-2-patch
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out audit branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: post-wi11-audit-pass-2
+
+      - name: Apply deterministic patch
+        run: python3 scratch/apply-audit-pass-2.py
+
+      - name: Commit patch when changed
+        run: |
+          if git diff --quiet; then
+            echo "Audit patch already applied."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix second-pass audit findings"
+          git pull --rebase origin post-wi11-audit-pass-2
+          git push origin HEAD:post-wi11-audit-pass-2
