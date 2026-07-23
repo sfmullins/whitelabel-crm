@@ -33,12 +33,14 @@ import { getRuntimePaths } from '../config/runtimePaths';
 import { apiRateLimit,auditSuccessfulRequests,authenticateRequest,enforcePermissions,requestHardening } from './middleware/security';
 import { assignCreatedOwnership } from './middleware/ownership';
 import { enforcePublicApiContract } from './middleware/publicApi';
+import {isAllowedApiOrigin} from './originPolicy';
 
 const app=express();
 const allowedOrigins=new Set((process.env.CRM_ALLOWED_ORIGINS||'').split(',').map((value)=>value.trim()).filter(Boolean));
 app.use(requestHardening);
+app.use((req,res,next)=>{if(req.path.startsWith('/api')&&!isAllowedApiOrigin(req,allowedOrigins)){res.status(403).json({error:'ORIGIN_FORBIDDEN',message:'The request origin is not permitted'});return;}next();});
 app.use(apiRateLimit);
-app.use(cors({origin(origin,callback){if(!origin)return callback(null,true);let allowed=allowedOrigins.has(origin);try{const host=new URL(origin).hostname;allowed=allowed||host==='localhost'||host==='127.0.0.1'||host==='::1';}catch{/* invalid origins remain denied */}callback(null,allowed);}}));
+app.use(cors((req,callback)=>{const origin=req.header('origin');callback(null,{origin:Boolean(origin)&&isAllowedApiOrigin(req,allowedOrigins)});}));
 app.use(express.json({limit:'12mb'}));
 app.use(express.urlencoded({limit:'12mb',extended:true}));
 app.use((req,res,next)=>{console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} requestId=${res.getHeader('x-request-id')}`);next();});
