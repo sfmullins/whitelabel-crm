@@ -44,6 +44,30 @@ function packWorkspace(workspaceDirectory, expectedPackageName) {
   return filename;
 }
 
+function linkPackage(source, target) {
+  if (fs.existsSync(target)) return;
+  fs.symlinkSync(source, target, process.platform === 'win32' ? 'junction' : 'dir');
+}
+
+function exposeReviewedPackages(sourceNodeModules, targetNodeModules) {
+  if (!fs.existsSync(sourceNodeModules)) return;
+  for (const entry of fs.readdirSync(sourceNodeModules, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
+    const source = path.join(sourceNodeModules, entry.name);
+    if (entry.name.startsWith('@') && entry.isDirectory()) {
+      const targetScope = path.join(targetNodeModules, entry.name);
+      fs.mkdirSync(targetScope, { recursive: true });
+      for (const scopedEntry of fs.readdirSync(source, { withFileTypes: true })) {
+        if (!scopedEntry.isDirectory() && !scopedEntry.isSymbolicLink()) continue;
+        linkPackage(path.join(source, scopedEntry.name), path.join(targetScope, scopedEntry.name));
+      }
+      continue;
+    }
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+    linkPackage(source, path.join(targetNodeModules, entry.name));
+  }
+}
+
 console.log(`Starting staging build for Electron packaging. Action: ${action}`);
 
 if (fs.existsSync(stageDir)) {
@@ -106,10 +130,12 @@ try {
 } catch {
   throw new Error('Reviewed workspace Electron installation is unavailable');
 }
-const reviewedElectron = path.dirname(resolvedElectronPackage);
-const stagedElectron = path.join(stageDir, 'node_modules', 'electron');
-if (fs.existsSync(stagedElectron)) fs.rmSync(stagedElectron, { recursive: true, force: true });
-fs.symlinkSync(reviewedElectron, stagedElectron, process.platform === 'win32' ? 'junction' : 'dir');
+const resolvedElectronNodeModules = path.dirname(path.dirname(path.dirname(resolvedElectronPackage)));
+const stagedNodeModules = path.join(stageDir, 'node_modules');
+exposeReviewedPackages(resolvedElectronNodeModules, stagedNodeModules);
+exposeReviewedPackages(path.join(rootDir, 'node_modules'), stagedNodeModules);
+exposeReviewedPackages(path.join(desktopDir, 'node_modules'), stagedNodeModules);
+if (!fs.existsSync(path.join(stagedNodeModules, 'electron'))) throw new Error('Reviewed Electron package was not exposed to the stage');
 
 const forgeExecutable = path.join(rootDir, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-forge.cmd' : 'electron-forge');
 if (!fs.existsSync(forgeExecutable)) throw new Error('Reviewed Electron Forge executable is unavailable');
