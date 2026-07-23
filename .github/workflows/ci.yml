@@ -129,6 +129,9 @@ jobs:
       - name: WI11 extension smoke
         run: npm run wi11:smoke
 
+      - name: WI12 onboarding and managed-client smoke
+        run: npm run wi12:smoke
+
       - name: Desktop packaging and security preflight
         run: |
           npm run desktop:preflight
