@@ -154,19 +154,9 @@ export function ensureWi12OnboardingSchema(connection:Database.Database):void{
 
   const existing=connection.prepare(`SELECT id FROM crm_instances LIMIT 1`).get() as {id:string}|undefined;
   if(existing)return;
-  const legacy=legacyConfiguration(connection);
-  const initial=legacy??clone(DEFAULT_ONBOARDING_CONFIGURATION);
+  const initial=legacyConfiguration(connection)??clone(DEFAULT_ONBOARDING_CONFIGURATION);
   const instanceId=DEFAULT_INSTANCE_ID;
-  const slug=initial.deployment.instanceSlug;
-  connection.prepare(`INSERT INTO crm_instances(id,slug,status,deployment_mode,current_published_revision_id,signing_credential_key,created_at,updated_at) VALUES(?,?,?, ?,NULL,?,?,?)`).run(instanceId,slug,legacy?'active':'provisioning',initial.deployment.mode,`instance_signing_${instanceId.replace(/-/g,'')}`,timestamp,timestamp);
-  const insertRevision=connection.prepare(`INSERT INTO instance_configuration_revisions(id,instance_id,revision,state,configuration_json,checksum,created_by_user_id,created_at,updated_at,published_at) VALUES(?,?,?,?,?,?,?,?,?,?)`);
-  if(legacy){
-    const publishedId=crypto.randomUUID();const serialized=JSON.stringify(initial);
-    insertRevision.run(publishedId,instanceId,1,'published',serialized,checksum(serialized),LOCAL_OWNER_USER_ID,timestamp,timestamp,timestamp);
-    connection.prepare(`UPDATE crm_instances SET current_published_revision_id=? WHERE id=?`).run(publishedId,instanceId);
-    insertRevision.run(crypto.randomUUID(),instanceId,2,'draft',serialized,checksum(serialized),LOCAL_OWNER_USER_ID,timestamp,timestamp,null);
-  }else{
-    const serialized=JSON.stringify(initial);
-    insertRevision.run(crypto.randomUUID(),instanceId,1,'draft',serialized,checksum(serialized),LOCAL_OWNER_USER_ID,timestamp,timestamp,null);
-  }
+  const serialized=JSON.stringify(initial);
+  connection.prepare(`INSERT INTO crm_instances(id,slug,status,deployment_mode,current_published_revision_id,signing_credential_key,created_at,updated_at) VALUES(?,?, 'provisioning', ?,NULL,?,?,?)`).run(instanceId,initial.deployment.instanceSlug,initial.deployment.mode,`instance_signing_${instanceId.replace(/-/g,'')}`,timestamp,timestamp);
+  connection.prepare(`INSERT INTO instance_configuration_revisions(id,instance_id,revision,state,configuration_json,checksum,created_by_user_id,created_at,updated_at,published_at) VALUES(?,?,1,'draft',?,?,?,?,?,NULL)`).run(crypto.randomUUID(),instanceId,serialized,checksum(serialized),LOCAL_OWNER_USER_ID,timestamp,timestamp);
 }
