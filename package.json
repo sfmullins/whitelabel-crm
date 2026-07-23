@@ -40,6 +40,6 @@
     "desktop:dependency-policy": "node scratch/stage-policy-self-test.js"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^10.0.3"
   }
 }
