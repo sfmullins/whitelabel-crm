@@ -25,6 +25,7 @@ import Invoices from '../pages/Invoices';
 import Services from '../pages/Services';
 import SettingsPage from '../pages/Settings';
 import Onboarding from '../pages/Onboarding';
+import About from '../pages/About';
 
 export const router=createBrowserRouter([{
   path:'/',element:<MainLayout/>,children:[
@@ -53,5 +54,6 @@ export const router=createBrowserRouter([{
     {path:'invoices',element:<Invoices/>},
     {path:'services',element:<Services/>},
     {path:'settings',element:<SettingsPage/>},
+    {path:'about',element:<About/>},
   ],
 }]);

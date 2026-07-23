@@ -1,0 +1,9 @@
+{
+  "productName": "WhiteLabelCRM",
+  "minimumProfileVersion": 1,
+  "minimumDatabaseVersion": 3,
+  "supportedClientRange": ">=1.0.0 <2.0.0",
+  "supportedBackupFormatVersions": [1, 2],
+  "publicApiVersion": "v1",
+  "extensionApiVersion": 1
+}

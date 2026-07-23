@@ -2,6 +2,7 @@ import { startServer, StartServerOptions, RunningServer } from './server';
 import { configureRuntimePaths, getRuntimePaths, RuntimePaths } from './config/runtimePaths';
 import { openDatabase, closeDatabase, getDatabase } from './infrastructure/database/connection';
 import { runMigrations } from './infrastructure/database/migrate';
+import { getReleaseMetadata } from './application/release/ReleaseMetadata';
 
 export {
   startServer,
@@ -13,5 +14,6 @@ export {
   openDatabase,
   closeDatabase,
   getDatabase,
-  runMigrations
+  runMigrations,
+  getReleaseMetadata
 };

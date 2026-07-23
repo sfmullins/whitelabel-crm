@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { ReleaseMetadata } from 'shared/release';
 
-export interface ApplicationInfo {
+export interface ApplicationInfo extends ReleaseMetadata {
   version: string;
   userDataPath: string;
   deploymentMode:'managed'|'standalone';

@@ -17,6 +17,9 @@
       ],
       "onboarding-import": [
         "dist/onboardingImport.d.ts"
+      ],
+      "release": [
+        "dist/release.d.ts"
       ]
     }
   },
@@ -38,6 +41,12 @@
       "import": "./dist/onboardingImport.js",
       "require": "./dist/cjs/onboardingImport.js",
       "default": "./dist/onboardingImport.js"
+    },
+    "./release": {
+      "types": "./dist/release.d.ts",
+      "import": "./dist/release.js",
+      "require": "./dist/cjs/release.js",
+      "default": "./dist/release.js"
     }
   },
   "scripts": {

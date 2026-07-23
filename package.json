@@ -41,7 +41,9 @@
     "deployment:verify": "npm run managed-client:smoke",
     "wi12:smoke": "node scratch/wi12-structure.js && npm run onboarding:verify && npm run managed-client:smoke",
     "desktop:security": "node scratch/desktop-security-smoke.js",
-    "desktop:dependency-policy": "node scratch/stage-policy-self-test.js"
+    "desktop:dependency-policy": "node scratch/stage-policy-self-test.js",
+    "release:contract": "node scratch/release-contract.js",
+    "wi13:structure": "node scratch/wi13-structure.js && npm run release:contract"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

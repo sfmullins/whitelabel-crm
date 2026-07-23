@@ -4,6 +4,7 @@ import fs from 'fs';
 import type { RunningServer } from 'backend';
 import { isAllowedExternalUrl, isAllowedNavigation, isPathWithinRoot } from './securityPolicy';
 import { resolveDeploymentRuntime,type DeploymentRuntime } from './deploymentProfile';
+import { getReleaseMetadata } from 'backend';
 
 const logDirectory = path.join(app.getPath('userData'), 'logs');
 const logFile = path.join(logDirectory, 'startup-error.log');
@@ -83,7 +84,7 @@ ipcMain.handle('choose-backup-file', async () => {
   if(deploymentRuntime.mode==='managed')throw new Error('Restores are administered on the shared CRM instance, not on employee devices.');
   const result = await dialog.showOpenDialog(mainWindow!, {properties: ['openFile'],filters: [{ name: 'CRM Backups', extensions: ['db', 'crmbackup'] }]});return result.canceled ? null : result.filePaths[0];
 });
-ipcMain.handle('get-application-info', async () => ({version: app.getVersion(),userDataPath,deploymentMode:deploymentRuntime.mode,instanceId:deploymentRuntime.instanceId,configurationRevision:deploymentRuntime.configurationRevision}));
+ipcMain.handle('get-application-info', async () => ({...getReleaseMetadata({version:app.getVersion(),deploymentMode:deploymentRuntime.mode}),userDataPath,deploymentMode:deploymentRuntime.mode,instanceId:deploymentRuntime.instanceId,configurationRevision:deploymentRuntime.configurationRevision}));
 ipcMain.handle('open-path', async (_event, targetPath: unknown) => {if (typeof targetPath !== 'string' || !isPathWithinRoot(userDataPath, targetPath)) throw new Error('The requested path is outside the application data directory.');const errorMessage = await shell.openPath(path.resolve(targetPath));if (errorMessage) throw new Error(errorMessage);});
 ipcMain.handle('restart-application', () => {app.relaunch();app.exit(0);});
 
