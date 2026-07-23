@@ -85,7 +85,7 @@ export function ensureWi10PlatformSchema(connection:Database.Database):void {
       id TEXT PRIMARY KEY NOT NULL,
       subscription_id TEXT NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,
       event_id TEXT NOT NULL REFERENCES platform_events(id) ON DELETE CASCADE,
-      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','succeeded','failed','dead_letter')),
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','succeeded','failed','dead')),
       attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count>=0),
       next_attempt_at TEXT NOT NULL,
       response_status INTEGER,
