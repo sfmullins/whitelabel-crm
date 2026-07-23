@@ -1,6 +1,7 @@
 import {afterEach,beforeEach,describe,expect,it} from 'vitest';
 import {cleanupTempDatabase,setupTempDatabase} from './crm/helpers';
 import {runSeed} from '../infrastructure/database/seed';
+import {BackupManager} from '../infrastructure/backup/BackupManager';
 import {SecurityRepository} from '../infrastructure/database/SecurityRepository';
 import {LOCAL_OWNER_USER_ID} from '../infrastructure/database/wi8Wi9Schema';
 import {startServer,type RunningServer} from '../server';
@@ -16,9 +17,18 @@ describe('backup route security',()=>{
     const response=await fetch(`${server!.url}/api/backups`,{method:'POST',headers:headers(),body:JSON.stringify({encryptionKeyHex:'not-a-32-byte-key'})});
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({error:'VALIDATION_ERROR'});
+    expect(BackupManager.listBackups()).toHaveLength(0);
   });
 
-  it('never persists the backup encryption key in immutable audit metadata',async()=>{
+  it('validates retention and remote encryption before writing a backup',async()=>{
+    const invalidRetention=await fetch(`${server!.url}/api/backups`,{method:'POST',headers:headers(),body:JSON.stringify({dailyRetentionCount:0})});
+    expect(invalidRetention.status).toBe(400);expect(BackupManager.listBackups()).toHaveLength(0);
+
+    const unencryptedRemote=await fetch(`${server!.url}/api/backups`,{method:'POST',headers:headers(),body:JSON.stringify({s3Config:{endpoint:'https://example.test',region:'test',bucket:'test',accessKeyId:'access',secretAccessKey:'secret'}})});
+    expect(unencryptedRemote.status).toBe(400);expect(BackupManager.listBackups()).toHaveLength(0);
+  });
+
+  it('never persists the backup encryption password in immutable audit metadata',async()=>{
     const encryptionPassword='correct horse battery staple';
     const response=await fetch(`${server!.url}/api/backups`,{method:'POST',headers:headers(),body:JSON.stringify({encryptionPassword,dailyRetentionCount:1,weeklyRetentionCount:1,monthlyRetentionCount:1})});
     expect(response.status).toBe(201);
