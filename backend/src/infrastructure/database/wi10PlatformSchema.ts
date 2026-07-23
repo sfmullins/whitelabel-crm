@@ -97,13 +97,30 @@ export function ensureWi10PlatformSchema(connection:Database.Database):void {
     );
 
     CREATE INDEX IF NOT EXISTS api_token_owner_idx ON api_tokens(owner_user_id,revoked_at,expires_at);
-    CREATE INDEX IF NOT EXISTS webhook_enabled_idx ON webhook_subscriptions(enabled,archived_at);
-    CREATE INDEX IF NOT EXISTS platform_event_created_idx ON platform_events(created_at DESC,event_type);
+    CREATE INDEX IF NOT EXISTS webhook_subscription_owner_idx ON webhook_subscriptions(owner_user_id,archived_at,enabled);
+    CREATE INDEX IF NOT EXISTS platform_event_created_idx ON platform_events(created_at DESC,id DESC);
+    CREATE INDEX IF NOT EXISTS platform_event_aggregate_idx ON platform_events(aggregate_type,aggregate_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS webhook_delivery_due_idx ON webhook_deliveries(status,next_attempt_at);
+    CREATE INDEX IF NOT EXISTS webhook_delivery_subscription_idx ON webhook_deliveries(subscription_id,created_at DESC);
 
-    CREATE TRIGGER IF NOT EXISTS platform_events_immutable_update BEFORE UPDATE ON platform_events BEGIN SELECT RAISE(ABORT,'Platform events are immutable'); END;
-    CREATE TRIGGER IF NOT EXISTS platform_events_immutable_delete BEFORE DELETE ON platform_events BEGIN SELECT RAISE(ABORT,'Platform events are immutable'); END;
+    CREATE TRIGGER IF NOT EXISTS platform_events_immutable_update
+    BEFORE UPDATE ON platform_events BEGIN
+      SELECT RAISE(ABORT,'Platform events are immutable');
+    END;
+    CREATE TRIGGER IF NOT EXISTS platform_events_immutable_delete
+    BEFORE DELETE ON platform_events BEGIN
+      SELECT RAISE(ABORT,'Platform events are immutable');
+    END;
   `);
-  const timestamp=new Date().toISOString();const permissionStatement=connection.prepare(`INSERT INTO permissions(key,category,description) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET category=excluded.category,description=excluded.description`);for(const permission of WI10_PERMISSIONS)permissionStatement.run(...permission);
-  const roleRows=connection.prepare(`SELECT id,key FROM roles WHERE key IN ('owner','administrator')`).all() as Array<{id:string;key:string}>;const rolePermissionStatement=connection.prepare(`INSERT OR IGNORE INTO role_permissions(role_id,permission_key,created_at) VALUES(?,?,?)`);for(const role of roleRows)for(const permission of WI10_PERMISSIONS)rolePermissionStatement.run(role.id,permission[0],timestamp);
+
+  const timestamp=new Date().toISOString();
+  const permissionStatement=connection.prepare(`INSERT INTO permissions(key,category,description) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET category=excluded.category,description=excluded.description`);
+  for(const permission of WI10_PERMISSIONS)permissionStatement.run(...permission);
+
+  const roleRows=connection.prepare(`SELECT id,key FROM roles WHERE key IN ('owner','administrator','manager')`).all() as Array<{id:string;key:string}>;
+  const mappingStatement=connection.prepare(`INSERT OR IGNORE INTO role_permissions(role_id,permission_key,created_at) VALUES(?,?,?)`);
+  for(const role of roleRows){
+    if(role.key==='owner'||role.key==='administrator')for(const permission of WI10_PERMISSIONS)mappingStatement.run(role.id,permission[0],timestamp);
+    if(role.key==='manager')mappingStatement.run(role.id,'platform.read',timestamp);
+  }
 }
