@@ -18,6 +18,7 @@ import { ensureAuditHardeningSchema } from './auditHardeningSchema';
 import { ensureScheduledReportingSchema } from './scheduledReportingSchema';
 import { ensureWi10PlatformSchema } from './wi10PlatformSchema';
 import { ensureWi11ExtensionSchema } from './wi11ExtensionSchema';
+import { ensureWi12OnboardingSchema } from './wi12OnboardingSchema';
 
 function hasCoreCrmTables(connection:SqliteConnection):boolean{
   const count=(connection.prepare(`SELECT count(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('organisations','engagements','tasks','settings')`).get() as {count:number}).count;
@@ -41,6 +42,7 @@ export function runMigrations(
     ensureScheduledReportingSchema(sqliteConnection);
     ensureWi10PlatformSchema(sqliteConnection);
     ensureWi11ExtensionSchema(sqliteConnection);
+    ensureWi12OnboardingSchema(sqliteConnection);
     ensureOwnershipBootstrapSchema(sqliteConnection);
   }
   runWi3LegacyActivityBackfill(sqliteConnection);
