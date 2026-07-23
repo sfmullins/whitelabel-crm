@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { sqlite, openDatabase, closeDatabase } from '../database/connection';
 import { getRuntimePaths } from '../../config/runtimePaths';
 import { uploadToS3, S3BackupConfiguration } from './S3Client';
+import { resolveBackupManifestPath, resolveBackupPath } from './BackupPathPolicy';
 
 export interface BackupInfo {
   filename: string;
@@ -283,7 +284,7 @@ export class BackupManager {
   // Restore active database state from target file
   static async restoreBackup(filename: string, encryptionKey?: Buffer): Promise<void> {
     const paths = getRuntimePaths();
-    const sourcePath = path.join(paths.internalBackupDirectory, filename);
+    const sourcePath = resolveBackupPath(paths.internalBackupDirectory, filename);
     if (!fs.existsSync(sourcePath)) {
       throw new Error(`Backup file "${filename}" does not exist.`);
     }
@@ -401,12 +402,11 @@ export class BackupManager {
 
   static deleteBackup(filename: string): void {
     const paths = getRuntimePaths();
-    const targetPath = path.join(paths.internalBackupDirectory, filename);
+    const targetPath = resolveBackupPath(paths.internalBackupDirectory, filename);
     if (fs.existsSync(targetPath)) {
       fs.unlinkSync(targetPath);
     }
-    const baseName = filename.substring(0, filename.lastIndexOf('.'));
-    const manifestPath = path.join(paths.internalBackupDirectory, `${baseName}.manifest.json`);
+    const manifestPath = resolveBackupManifestPath(paths.internalBackupDirectory, filename);
     if (fs.existsSync(manifestPath)) {
       fs.unlinkSync(manifestPath);
     }

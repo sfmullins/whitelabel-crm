@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import type { RunningServer } from 'backend';
+import { isAllowedExternalUrl, isAllowedNavigation, isPathWithinRoot } from './securityPolicy';
 
 // 1. Establish Top-Level Uncaught Exception Logging & Diagnostics
 const logDirectory = path.join(app.getPath('userData'), 'logs');
@@ -136,18 +137,17 @@ function createWindow(serverUrl: string) {
   // Load backend URL
   mainWindow.loadURL(serverUrl);
 
-  // Prevent unexpected navigations outside the target loopback host
+  // Keep the privileged renderer on the exact embedded-server origin.
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const parsed = new URL(url);
-    if (parsed.hostname !== '127.0.0.1') {
+    if (!isAllowedNavigation(url, serverUrl)) {
       event.preventDefault();
-      shell.openExternal(url);
+      if (isAllowedExternalUrl(url)) void shell.openExternal(url);
     }
   });
 
-  // Deny unexpected window popups
+  // Deny popups and open only allow-listed external URL schemes in the system handler.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isAllowedExternalUrl(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
 
@@ -181,11 +181,12 @@ ipcMain.handle('get-application-info', async () => {
   };
 });
 
-ipcMain.handle('open-path', async (event, targetPath) => {
-  const resolved = path.resolve(targetPath);
-  if (resolved.startsWith(userDataPath) || resolved.startsWith('/')) {
-    await shell.openPath(targetPath);
+ipcMain.handle('open-path', async (_event, targetPath: unknown) => {
+  if (typeof targetPath !== 'string' || !isPathWithinRoot(userDataPath, targetPath)) {
+    throw new Error('The requested path is outside the application data directory.');
   }
+  const errorMessage = await shell.openPath(path.resolve(targetPath));
+  if (errorMessage) throw new Error(errorMessage);
 });
 
 ipcMain.handle('restart-application', () => {

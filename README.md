@@ -153,7 +153,8 @@ Completed and merged:
 
 - WI10 — Platform API, PR #13;
 - WI11 — Extension Platform, PR #14;
-- post-WI11 npm, package-boundary and staging hardening, PR #15.
+- post-WI11 npm, package-boundary and staging hardening, PR #15;
+- first full post-WI11 repository audit and release-baseline hardening, PR #16.
 
 The remaining programme is WI12 — Enterprise Release. Its scope is release certification rather than another broad domain expansion: end-to-end testing, accessibility, performance budgets, upgrade/restore rehearsal, Windows and container artifacts, release provenance, versioned operational documentation and support/security policy.
 

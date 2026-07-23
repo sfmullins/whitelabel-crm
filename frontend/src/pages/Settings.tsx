@@ -68,15 +68,15 @@ export default function SettingsPage() {
   const [externalEnabled, setExternalEnabled] = useState(localStorage.getItem('backup_external_enabled') === 'true');
   
   const [encryptionEnabled, setEncryptionEnabled] = useState(localStorage.getItem('backup_encryption_enabled') === 'true');
-  const [backupPassword, setBackupPassword] = useState(localStorage.getItem('backup_password') || '');
+  const [backupPassword, setBackupPassword] = useState('');
 
   const [s3Enabled, setS3Enabled] = useState(localStorage.getItem('backup_s3_enabled') === 'true');
   const [s3Endpoint, setS3Endpoint] = useState(localStorage.getItem('backup_s3_endpoint') || '');
   const [s3Region, setS3Region] = useState(localStorage.getItem('backup_s3_region') || '');
   const [s3Bucket, setS3Bucket] = useState(localStorage.getItem('backup_s3_bucket') || '');
   const [s3Prefix, setS3Prefix] = useState(localStorage.getItem('backup_s3_prefix') || '');
-  const [s3AccessKey, setS3AccessKey] = useState(localStorage.getItem('backup_s3_access_key') || '');
-  const [s3SecretKey, setS3SecretKey] = useState(localStorage.getItem('backup_s3_secret_key') || '');
+  const [s3AccessKey, setS3AccessKey] = useState('');
+  const [s3SecretKey, setS3SecretKey] = useState('');
 
   const [dailyCount, setDailyCount] = useState(Number(localStorage.getItem('backup_daily_count') || '7'));
   const [weeklyCount, setWeeklyCount] = useState(Number(localStorage.getItem('backup_weekly_count') || '4'));
@@ -91,21 +91,24 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    localStorage.removeItem('backup_password');
+    localStorage.removeItem('backup_s3_access_key');
+    localStorage.removeItem('backup_s3_secret_key');
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('backup_external_dir', externalDir);
     localStorage.setItem('backup_external_enabled', String(externalEnabled));
     localStorage.setItem('backup_encryption_enabled', String(encryptionEnabled));
-    localStorage.setItem('backup_password', backupPassword);
     localStorage.setItem('backup_s3_enabled', String(s3Enabled));
     localStorage.setItem('backup_s3_endpoint', s3Endpoint);
     localStorage.setItem('backup_s3_region', s3Region);
     localStorage.setItem('backup_s3_bucket', s3Bucket);
     localStorage.setItem('backup_s3_prefix', s3Prefix);
-    localStorage.setItem('backup_s3_access_key', s3AccessKey);
-    localStorage.setItem('backup_s3_secret_key', s3SecretKey);
     localStorage.setItem('backup_daily_count', String(dailyCount));
     localStorage.setItem('backup_weekly_count', String(weeklyCount));
     localStorage.setItem('backup_monthly_count', String(monthlyCount));
-  }, [externalDir, externalEnabled, encryptionEnabled, backupPassword, s3Enabled, s3Endpoint, s3Region, s3Bucket, s3Prefix, s3AccessKey, s3SecretKey, dailyCount, weeklyCount, monthlyCount]);
+  }, [externalDir, externalEnabled, encryptionEnabled, s3Enabled, s3Endpoint, s3Region, s3Bucket, s3Prefix, dailyCount, weeklyCount, monthlyCount]);
 
   // Backup mutations
   const createBackupMutation = useMutation({
@@ -144,6 +147,9 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       refetchBackups();
+      setBackupPassword('');
+      setS3AccessKey('');
+      setS3SecretKey('');
       alert('Database backup created successfully!');
     },
     onError: (err: any) => {

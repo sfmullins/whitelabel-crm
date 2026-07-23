@@ -6,7 +6,8 @@ The sequential platform programme has completed WI10 and WI11:
 
 - WI10 — Platform API was merged through PR #13 at `e10171356f582c8fc3c62771f804424adad7f028`;
 - WI11 — Extension Platform was merged through PR #14 at `b9c579298a5ea168a2947c820613676ef08fe6e8`;
-- post-WI11 npm/package-boundary and Electron staging hardening was merged through PR #15 at `e3175e8f8dd56372bc8af4eb4b2ed5e89620d28b`.
+- post-WI11 npm/package-boundary and Electron staging hardening was merged through PR #15 at `e3175e8f8dd56372bc8af4eb4b2ed5e89620d28b`;
+- the first full post-WI11 repository audit and release-baseline hardening was merged through PR #16 at `f6e66f3a1cde010aa8c360a682301b2ae970b173`.
 
 PR #15 is a baseline correction, not an additional work item. It retained and reran the WI11 tests while making package exports, staging and source-hygiene controls deterministic.
 
@@ -32,7 +33,7 @@ WIs 10–12 extend one coherent security, permission, audit, reporting, export, 
 ## 2. Programme corrections and standing constraints
 
 1. **Sequential delivery remains mandatory.** WI12 starts from the fully audited post-WI11 `main` baseline.
-2. **PR #15 is baseline hardening.** It does not alter the WI10–WI12 work-item numbering.
+2. **PRs #15 and #16 are baseline hardening and audit work.** They do not alter the WI10–WI12 work-item numbering.
 3. **OAuth authorization-server scope remains deferred.** WhiteLabelCRM uses scoped API tokens and is not a general OAuth/OIDC provider.
 4. **The public API never trusts loopback identity selection.** `/api/v1` requires a bearer session or scoped API token.
 5. **The stable API surface is allow-listed.** Internal route reuse does not create accidental public contracts.
@@ -52,7 +53,7 @@ WIs 10–12 extend one coherent security, permission, audit, reporting, export, 
 |---|---|---|---|
 | WI10 — Platform API | `WI10-Platform-API` | merged WI8–WI9 `main` | merged via PR #13 |
 | WI11 — Extension Platform | `WI11-Extension-Platform` | merged WI10 `main` | merged via PR #14; revalidated after PR #15 |
-| Post-WI11 audit/hardening | audit branch | merged WI11 + PR #15 `main` | dependency, documentation, test and packaging reconciliation |
+| Post-WI11 audit/hardening | audit branches | merged WI11 + PR #15 `main` | first full audit merged via PR #16; second independent pass in progress |
 | WI12 — Enterprise Release | `WI12-Enterprise-Release` | audited post-WI11 `main` | not started; release certification required |
 
 Feature work targets `main` directly through reviewable pull requests. WI12 must not be based on a stale pre-audit branch.
