@@ -27,20 +27,22 @@ jobs:
       - name: Apply deterministic patch
         run: python3 scratch/apply-audit-pass-2.py
 
-      - name: Commit and push patch
+      - name: Commit and push application patch
         id: commit_patch
         continue-on-error: true
         run: |
           set -x
+          # Workflow files are applied separately through the GitHub connector.
+          git restore --source=HEAD --staged --worktree .github/workflows
           git status --short
           git add -A
           if git diff --cached --quiet; then
-            echo "Audit patch already applied."
+            echo "Audit application patch already applied."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Fix second-pass audit findings"
+          git commit -m "Fix second-pass application audit findings"
           git push origin HEAD:post-wi11-audit-pass-2
         shell: bash
 
