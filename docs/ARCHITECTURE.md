@@ -2,166 +2,209 @@
 
 ## Current implemented architecture
 
-WhiteLabelCRM is a local-first TypeScript npm workspace monorepo:
+WhiteLabelCRM is a TypeScript npm workspace monorepo supporting two explicit runtime topologies:
 
-- `shared/` contains common runtime contracts and Zod validation schemas;
-- `backend/` contains the Express application, services, repositories, SQLite persistence, migrations, schedulers, integrations, backup management and PDF generation;
-- `frontend/` contains the React/Vite single-page application;
-- `desktop/` contains the Electron main/preload boundary and Forge packaging configuration;
-- `scratch/` contains deterministic smoke, migration and release-validation scripts.
+- a standalone local-first application with an embedded backend and local SQLite database;
+- a managed employee client connected to one centrally operated business instance.
+
+Workspace responsibilities:
+
+- `shared/` — runtime contracts and Zod validation, including WI12 onboarding and deployment-profile schemas;
+- `backend/` — Express APIs, application services, repositories, SQLite persistence, migrations, schedulers, integrations, backups, onboarding publication and extension lifecycle;
+- `frontend/` — React/Vite application, persistent onboarding workspace and extension runtime UI;
+- `desktop/` — Electron security boundary, standalone bootstrap, signed profile verification and managed-client binding;
+- `scratch/` — deterministic migration, work-item, packaging, dependency and security gates.
 
 ```mermaid
 flowchart LR
-  User[Desktop or browser user] --> React[React frontend]
+  Admin[Instance owner or administrator] --> Onboarding[WI12 onboarding workspace]
+  Onboarding --> Drafts[Versioned configuration revisions]
+  Drafts --> Ready[Readiness engine]
+  Ready --> Backup[Pre-publication backup]
+  Backup --> Publish[Atomic signed publication]
+  Publish --> Profile[Signed deployment profile]
+  Profile --> Managed[Managed employee client]
+  Profile --> WI13[WI13 packaging input]
+  Managed --> Internal[Business instance /api boundary]
+  Browser[Browser user] --> Internal
   Client[External API client] --> V1[Versioned /api/v1 boundary]
   Package[Declarative extension package] --> Validator[WI11 package validator]
-  React --> Internal[Internal /api boundary]
   Internal --> Security[Identity, RBAC, ownership and audit]
   V1 --> Security
   Validator --> Registry[Extension registry and lifecycle]
   Security --> Services[Application services]
   Registry --> Services
   Services --> Repositories[Repositories]
-  Repositories --> SQLite[(SQLite)]
-  Registry --> Assets[Verified local extension assets]
+  Repositories --> SQLite[(Authoritative SQLite)]
   Services --> Vault[Encrypted credential vault]
   SQLite --> Outbox[Platform events and webhook deliveries]
-  Scheduler[Reminder, report and webhook schedulers] --> SQLite
-  Scheduler --> External[IMAP / SMTP / CalDAV / HTTPS webhooks]
 ```
 
-## Runtime boundaries
+## Runtime topologies
 
-The backend owns persistence, migrations, backups, imports, PDF generation, credentials, extension package validation and external network operations. Business logic does not move into the Electron renderer. Electron embeds the built frontend and starts the backend through the desktop shell.
+### Managed business instance
 
-The default backend listener is loopback-only. Browser/server deployments may bind differently through explicit runtime configuration and must use authenticated sessions.
+Managed deployment is the recommended multi-employee topology:
 
-## Security boundary
+- one authoritative backend and database;
+- employees use branded desktop clients or a supported browser;
+- the Electron client validates a packaged Ed25519-signed profile;
+- the profile binds the client to one instance ID, signing key and exact HTTPS origin;
+- the client does not start the embedded backend or open a local authoritative CRM database;
+- backups, migrations and restore operations remain central server responsibilities.
 
-WI8–WI9 introduced one request-security boundary across internal APIs, reports and administration:
+The managed client may retrieve a newer profile from the bound instance. It rejects checksum failure, signature failure, signing-key replacement, instance-ID mismatch, URL replacement, revision downgrade and an unsupported minimum client version.
+
+### Standalone local instance
+
+Standalone mode retains the existing embedded backend and local SQLite deployment. It is intentionally isolated and is not represented as a shared multi-user topology.
+
+Copying a configured live SQLite database onto several employee machines is prohibited. It would create divergent sources of truth, conflicting audit histories and unsafe credential distribution.
+
+## Request and security boundary
+
+All internal and public API traffic passes through:
 
 1. request ID and security headers;
-2. bounded API rate limiting and origin policy;
-3. authenticated identity resolution;
-4. permission enforcement;
-5. ownership assignment;
-6. immutable redacted audit capture.
+2. exact origin policy;
+3. bounded rate limiting;
+4. identity resolution;
+5. explicit permission enforcement;
+6. ownership assignment;
+7. immutable recursively redacted audit capture.
 
-Users, teams, roles, permissions and expiring bearer sessions live in SQLite. Password credentials and session/API-token secrets are stored only as hashes. Loopback-trusted named profiles are an Electron convenience for internal routes; they are not accepted by `/api/v1` or `/api/platform`.
+Users, teams, roles, permissions and expiring sessions live in SQLite. Passwords, sessions, API tokens and enrolment tokens are hash-only at rest. Provider, webhook and signing secrets are stored in `CredentialVault` outside SQLite.
 
-WI11 extension administration uses explicit `extensions.read` and `extensions.manage` permissions. Ordinary CRM users may read only the active runtime registry and verified active assets. They cannot install, upgrade, export extension data, instantiate workflows, purge data or restore backups.
+Loopback-trusted named profiles are a standalone convenience for internal routes. They are not accepted by `/api/v1` or `/api/platform`.
+
+WI12 permissions are:
+
+- `onboarding.read`;
+- `onboarding.manage`;
+- `deployment.publish`;
+- `devices.manage`.
+
+Only signed public-profile discovery and one-time enrolment redemption are deliberately pre-authentication. Draft, validation, publication, rollback, enrolment issuance and device administration remain authenticated and permission checked.
+
+## Configuration and publication boundary
+
+WI12 replaces ad hoc business setup with one canonical configuration registry.
+
+`crm_instances` stores stable instance identity and the active publication pointer. `instance_configuration_revisions` stores editable drafts and immutable historical payloads. `instance_publications` stores the signed deployment envelope. Readiness, enrolment and device records have separate tables.
+
+Revision lifecycle:
+
+```text
+draft → published → superseded
+                  ↘ rollback produces a new publication
+```
+
+Publication:
+
+1. validates the complete configuration contract;
+2. records machine-readable readiness evidence;
+3. blocks required failures;
+4. creates a pre-publication backup;
+5. deterministically serializes the profile;
+6. computes a SHA-256 checksum;
+7. signs with the instance Ed25519 private key held in the vault;
+8. atomically activates the revision and mirrors compatible legacy settings;
+9. opens the next draft;
+10. emits immutable audit and platform events.
+
+A failed publication leaves the prior revision active.
+
+Existing installations migrate their current `settings` row into an initial published revision and receive a cloned editable draft. Existing branding and financial surfaces continue to read the canonical compatibility row until they are migrated directly to the registry.
+
+## Deployment-profile boundary
+
+A signed profile contains only safe runtime identity and presentation data:
+
+- schema and configuration revision;
+- instance ID;
+- deployment mode and approved managed origin;
+- business display identity;
+- bounded embedded branding assets;
+- locale and terminology;
+- capability identifiers;
+- minimum client version;
+- publication timestamp.
+
+It excludes passwords, sessions, API or OAuth tokens, employee enrolment tokens, backup passwords, cloud credentials, encryption keys, private signing keys, customer data and the live database.
+
+The packaged profile is the managed client's trust anchor. Remote refresh cannot silently replace it.
+
+## Employee provisioning
+
+Employee activation uses cryptographically random one-time enrolment tokens. Only a SHA-256 hash and non-secret prefix are stored. Tokens are user-bound, instance-bound, expiring, device-limited and revocable.
+
+Redemption registers a fingerprint hash and exchanges the token for a normal user-scoped session. The raw token is shown once and is redacted from request and response audit payloads. Device revocation conservatively revokes the user's active sessions.
 
 ## Internal and public HTTP APIs
 
-The React frontend continues to use the internal, unversioned `/api` routes. Those routes are not a compatibility commitment for external integrations.
+The React frontend uses internal unversioned `/api` routes. They are not external compatibility commitments.
 
-WI10 adds `/api/v1` with an explicit path/method allowlist. The initial stable surface contains organisations, contacts, engagements, activities, report reads and CSV exports, the authenticated principal and OpenAPI metadata.
+WI10 `/api/v1` remains explicitly allow-listed and accepts ordinary bearer sessions or scoped `wlc_` API tokens. Unsupported internal routes return public-API `404` responses rather than becoming accidental contracts.
 
-The public API accepts ordinary bearer sessions or scoped `wlc_` API tokens. Token scopes are intersected with the owner’s current permissions. Unsupported internal routes return a public-API `404` rather than becoming accidental v1 contracts.
-
-WI11 extension lifecycle and runtime routes remain internal APIs. Extension packages use WI10 events and webhooks for external integration rather than direct database access.
+WI11 extension lifecycle and WI12 onboarding lifecycle routes remain internal APIs. External integrations use WI10 events, webhooks and the stable API rather than direct database access.
 
 ## Application and persistence layering
 
-The principal dependency direction remains:
-
 ```text
 Express route
-  -> application service or bounded runtime service
-  -> repository interface
-  -> SQLite / filesystem / standards-based adapter
+  → application service or bounded runtime service
+  → repository
+  → SQLite / verified filesystem / standards-based adapter
 ```
 
-SQLite is the local source of truth. Drizzle migration files establish the original schema; later work-item bootstraps add idempotent tables, indexes, triggers and compatibility columns during migration startup. Tests and smoke checks open explicit temporary databases and never use the development or user database.
+SQLite remains the authoritative persistence layer. Drizzle migrations establish the original schema; later idempotent work-item bootstraps add tables, indexes, triggers and compatibility backfills. Tests and smoke checks use isolated temporary databases.
 
-Migration startup performs deterministic backfills and projection rebuilds. Audit events and WI10 platform events are immutable through SQLite triggers.
+Audit events, platform events and deployment publications are immutable through SQLite triggers.
 
 ## WI11 extension boundary
 
-WI11 is declarative. Packages can contribute:
+Extension packages remain declarative. They may contribute namespaced fields/entities, forms, views, navigation, bounded themes, supported reports, workflow templates, event metadata, localisation and verified static assets.
 
-- namespaced custom fields and custom entities;
-- form and view metadata;
-- navigation metadata;
-- bounded theme tokens;
-- report definitions over the existing report catalogue;
-- templates for the existing allow-listed workflow engine;
-- event-subscription metadata;
-- localisation dictionaries;
-- verified static assets.
+Packages cannot execute JavaScript, SQL, shell code or renderer bundles and receive no database or credential access. Extension reports use the existing reporting repository; workflow templates instantiate disabled allow-listed workflows.
 
-Packages cannot contain executable JavaScript, SQL, shell commands, renderer bundles or database credentials.
-
-The lifecycle is:
-
-1. strict schema and compatibility validation;
-2. explicit capability approval;
-3. canonical checksum and optional signature verification;
-4. exact asset catalogue, size and checksum validation;
-5. verified pre-migration backup when required;
-6. transactional registry/schema update;
-7. atomic asset-directory publication;
-8. activation of the new release and retirement of removed contributions.
-
-A failed install removes staged assets, records the failed attempt and preserves the prior active release. Disable hides active contributions without deleting definitions or values. Upgrade-retired resources remain distinguishable from temporarily disabled resources.
-
-Runtime form and view contributions are metadata interpreted by core frontend components. Extension reports call `ReportingRepository`; they cannot supply SQL. Workflow templates instantiate disabled `WorkflowRepository` definitions and never activate automatically. Assets are stored under the runtime data directory and revalidated before serving.
-
-Extension metadata export, extension-owned data export and data purge are separate operations. Purge requires disabled state, an exact confirmation phrase and a successful backup.
-
-Release recovery uses the existing `BackupManager` full-database restore boundary. It integrity-checks the selected snapshot, closes the active SQLite connection, creates a pre-restore safety copy, replaces the database and reopens the connection. Recovery is not a per-extension reverse migration and should be followed by an application restart.
+Disablement preserves definitions and values. Purge requires disabled state, exact confirmation and a successful backup. Recovery remains a full-database restore rather than an isolated reverse migration.
 
 ## Credentials and external operations
 
-`CredentialVault` stores provider and webhook secrets as AES-256-GCM envelopes outside SQLite under the active runtime data directory. SQLite retains only non-secret credential keys and operational metadata.
+`CredentialVault` uses AES-256-GCM envelopes under the runtime data directory. SQLite stores only non-secret credential references and operational metadata.
 
-External operations use durable local records before network transmission:
+IMAP and CalDAV keep cursors and reconciliation state. SMTP and remote calendar changes use outbound journals. Webhooks use immutable platform events and persistent delivery rows.
 
-- IMAP and CalDAV maintain cursors and reconciliation state;
-- SMTP and remote calendar mutations use outbound journals;
-- webhook events fan out into persistent delivery rows;
-- reminders, scheduled reports and webhooks are processed by restart-safe schedulers.
+Webhook destinations require HTTPS, reject credentials and fragments, block private/special-use destinations, re-check DNS and do not follow redirects. Loopback HTTP is available only through explicit test/development configuration.
 
-Webhook endpoints require HTTPS, reject credentials/fragments, block private and special-use destinations, re-check DNS before delivery and do not follow redirects. Explicit loopback HTTP is available only under a test/development environment flag.
+## Electron boundary
 
-## Search, work and communications
+`desktop/src/main.ts` owns the privileged process and `desktop/src/preload.ts` exposes a narrow IPC surface.
 
-WI3 normalised activities and retained a deterministic compatibility bridge from legacy customers. WI4 added organisation-first workspaces, SQLite FTS5 search, saved views, follow-up queues and unified timelines.
+Both modes retain context isolation, renderer sandboxing, exact-origin navigation, denied popups and filesystem containment. Managed mode additionally disables local backup/restore selection and does not load the backend native module.
 
-WIs 5–7 added documents, tasks, reminders, communications, connected email/calendar accounts, explicit outbound actions, workflow execution and operational reconciliation. External communication remains constrained by explicit-send and allow-listed workflow rules.
-
-## Identity, reporting and platform administration
-
-WIs 8–9 added multi-user identity, teams, roles, explicit permissions, ownership, immutable audit events, deterministic reports/dashboards, permission-checked CSV exports, scheduled report artifacts, readiness and security hardening.
-
-WI10 adds scoped API tokens, versioned platform events, signed webhook subscriptions, delivery diagnostics and OpenAPI metadata. Platform administration requires explicit `api.manage`, `webhooks.manage` or `platform.read` permissions.
-
-WI11 reuses those identity, audit, report, workflow, backup and platform-event systems. It does not create parallel security or execution engines.
-
-## Electron and packaging
-
-`desktop/src/main.ts` is the Electron main process and `desktop/src/preload.ts` is the preload boundary. Packaging stages compiled backend/shared files, the built frontend and migration assets before invoking Electron Forge.
-
-The current verified artifact set is Linux Debian and portable ZIP. Windows, optional macOS, container publication and release certification remain WI12 work.
+Final profile-driven Windows, Linux and container publication, release signing, SBOM publication and installed-artifact certification are WI13 concerns.
 
 ## Build and verification
 
-The root build compiles all workspaces and regenerates the third-party licence notice. `npm run ci:verify` runs:
+`npm run ci:verify` runs:
 
-- workspace builds and tests;
+- all workspace builds and tests;
+- parser, package, workflow and production-dependency governance;
 - isolated migration smoke;
-- permanent WI4–WI11 smoke suites;
-- desktop packaging preflight;
-- clean-repository verification in GitHub Actions.
+- permanent WI4–WI12 regression suites;
+- onboarding publication and enrolment tests;
+- signed managed-client profile tests;
+- Electron security and staged dependency checks.
 
-Platform-specific packaging remains a separate workflow.
+Linux packaging remains a separate produced-artifact workflow.
 
 ## Current limitations and deferred work
 
-- Legacy customers remain the parent of bookings, invoices, payments and custom-object records; financial foreign keys have not moved to organisations.
-- Invoice lifecycle, credit notes and some financial-calculation consolidation remain incomplete.
-- The public API is deliberately narrower than the internal UI API.
-- Extension forms and views are declarative metadata interpreted by generic core renderers; packages cannot ship custom React components.
-- Extension recovery is a full SQLite restore, not a per-extension reverse migration.
-- Full end-to-end, accessibility, performance, Windows/container and release certification are deferred to WI12.
-- SQLite remains a single-instance/local-first architecture. Horizontal multi-writer and active-active deployment are not supported.
+- Managed deployment remains one authoritative SQLite application instance, not an active-active cluster.
+- Managed clients do not provide offline writes or local conflict reconciliation.
+- Standalone installations do not synchronise with one another.
+- Legacy bookings, invoices, payments and some custom records remain customer-parented.
+- Credit notes and parts of the financial lifecycle remain incomplete.
+- The public API remains deliberately narrower than the internal UI API.
+- Full E2E, WCAG certification, performance budgets, Windows/container publication and release provenance are deferred to WI13.

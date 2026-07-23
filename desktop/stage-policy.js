@@ -43,7 +43,7 @@ function findUnexpectedPackages(lock, tree) {
 
 function verifyInstalledDependencyGraph(stageDirectory, rootLockPath) {
   const lock = JSON.parse(fs.readFileSync(rootLockPath, 'utf8'));
-  const tree = JSON.parse(execFileSync('npm', ['ls', '--all', '--json'], {
+  const tree = JSON.parse(execFileSync('npm', ['ls', '--all', '--omit=dev', '--json'], {
     cwd: stageDirectory,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
@@ -51,7 +51,7 @@ function verifyInstalledDependencyGraph(stageDirectory, rootLockPath) {
   const unexpected = findUnexpectedPackages(lock, tree);
   if (unexpected.length) {
     throw new Error(
-      `Staged package resolved versions outside the reviewed root lockfile:\n${unexpected.map((item) => `- ${item}`).join('\n')}`,
+      `Staged runtime resolved versions outside the reviewed root lockfile:\n${unexpected.map((item) => `- ${item}`).join('\n')}`,
     );
   }
 }

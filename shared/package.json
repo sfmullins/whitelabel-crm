@@ -10,12 +10,34 @@
   "main": "./dist/cjs/types.js",
   "module": "./dist/types.js",
   "types": "./dist/types.d.ts",
+  "typesVersions": {
+    "*": {
+      "onboarding": [
+        "dist/onboarding.d.ts"
+      ],
+      "onboarding-import": [
+        "dist/onboardingImport.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js",
       "require": "./dist/cjs/types.js",
       "default": "./dist/types.js"
+    },
+    "./onboarding": {
+      "types": "./dist/onboarding.d.ts",
+      "import": "./dist/onboarding.js",
+      "require": "./dist/cjs/onboarding.js",
+      "default": "./dist/onboarding.js"
+    },
+    "./onboarding-import": {
+      "types": "./dist/onboardingImport.d.ts",
+      "import": "./dist/onboardingImport.js",
+      "require": "./dist/cjs/onboardingImport.js",
+      "default": "./dist/onboardingImport.js"
     }
   },
   "scripts": {

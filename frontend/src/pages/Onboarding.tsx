@@ -1,345 +1,105 @@
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { SettingsSchema, Settings } from 'shared';
+import { useEffect,useMemo,useRef,useState,type ReactNode } from 'react';
+import {
+  AlertCircle,ArrowRight,Building2,Check,CheckCircle2,ChevronRight,Cloud,Download,Globe2,KeyRound,
+  Laptop,Loader2,Palette,RefreshCw,Save,ShieldCheck,Sparkles,Users,Workflow,XCircle,
+} from 'lucide-react';
+import type { OnboardingConfiguration,OnboardingWorkspace,ReadinessCheck,ReadinessResult,SignedDeploymentProfile } from 'shared/onboarding';
+import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Sparkles, Building2, Palette, Landmark, ArrowRight, ArrowLeft } from 'lucide-react';
 
-const COLOR_PRESETS = [
-  { name: 'Sleek Dark (Default)', primary: '#0f172a', secondary: '#3b82f6', accent: '#10b981' },
-  { name: 'Ocean Breeze', primary: '#0891b2', secondary: '#0ea5e9', accent: '#f43f5e' },
-  { name: 'Forest Tech', primary: '#064e3b', secondary: '#10b981', accent: '#f59e0b' },
-  { name: 'Royal Purple', primary: '#4c1d95', secondary: '#8b5cf6', accent: '#ec4899' },
+interface OnboardingProps {onSuccess?:()=>void;}
+type SaveState='loading'|'saved'|'saving'|'error';
+type AdminUser={id:string;displayName:string;email:string;status:string;roles:Array<{key:string;name:string}>};
+type SectionKey='overview'|'deployment'|'identity'|'branding'|'locale'|'terminology'|'operations'|'communications'|'security'|'employees'|'review';
+type ConfigSection=Exclude<keyof OnboardingConfiguration,'schemaVersion'>;
+
+const sections:Array<{key:SectionKey;label:string;description:string;icon:typeof Sparkles}>=[
+  {key:'overview',label:'Readiness',description:'Progress and blockers',icon:Sparkles},
+  {key:'deployment',label:'Deployment',description:'Shared or standalone topology',icon:Cloud},
+  {key:'identity',label:'Business identity',description:'Legal and public details',icon:Building2},
+  {key:'branding',label:'Brand studio',description:'Visual identity and preview',icon:Palette},
+  {key:'locale',label:'Locale',description:'Region, currency and dates',icon:Globe2},
+  {key:'terminology',label:'Terminology',description:'Business-facing CRM language',icon:Workflow},
+  {key:'operations',label:'Operating model',description:'Teams, stages and defaults',icon:Users},
+  {key:'communications',label:'Communications',description:'Email, calendar and documents',icon:ArrowRight},
+  {key:'security',label:'Security & recovery',description:'Sessions, backups and recovery',icon:ShieldCheck},
+  {key:'employees',label:'Employee rollout',description:'Roles, enrolment and devices',icon:KeyRound},
+  {key:'review',label:'Review & publish',description:'Approve the deployment profile',icon:CheckCircle2},
 ];
 
-interface OnboardingProps {
-  onSuccess: () => void;
-}
+export default function Onboarding({onSuccess}:OnboardingProps){
+  const [workspace,setWorkspace]=useState<OnboardingWorkspace|null>(null);const [draft,setDraft]=useState<OnboardingConfiguration|null>(null);const [section,setSection]=useState<SectionKey>('overview');
+  const [saveState,setSaveState]=useState<SaveState>('loading');const [message,setMessage]=useState<string>('');const [publishing,setPublishing]=useState(false);const [approval,setApproval]=useState(false);
+  const [users,setUsers]=useState<AdminUser[]>([]);const [selectedUser,setSelectedUser]=useState('');const [enrolmentToken,setEnrolmentToken]=useState('');const [profile,setProfile]=useState<SignedDeploymentProfile|null>(null);
+  const lastSaved=useRef('');const loaded=useRef(false);
 
-export default function Onboarding({ onSuccess }: OnboardingProps) {
-  const [step, setStep] = useState(1);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  useEffect(()=>{void loadWorkspace();},[]);
+  useEffect(()=>{
+    if(!draft||!loaded.current)return;const serialized=JSON.stringify(draft);if(serialized===lastSaved.current)return;
+    setSaveState('saving');const timer=window.setTimeout(async()=>{try{const result=await api.put<OnboardingWorkspace>('/api/onboarding/draft',draft);lastSaved.current=serialized;setWorkspace({...result,draft:{...result.draft,configuration:draft}});setSaveState('saved');setMessage('');}catch(error){setSaveState('error');setMessage(error instanceof Error?error.message:'Draft could not be saved');}},650);return()=>window.clearTimeout(timer);
+  },[draft]);
 
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<Settings>({
-    resolver: zodResolver(SettingsSchema),
-    defaultValues: {
-      businessName: '',
-      logoUrl: '',
-      primaryColor: '#0f172a',
-      secondaryColor: '#3b82f6',
-      accentColor: '#10b981',
-      address: '',
-      phone: '',
-      email: '',
-      website: '',
-      invoiceFooter: 'Thank you for your business!',
-      defaultTaxRate: 8.25,
-      currency: 'USD',
-      timezone: 'UTC',
-      dateFormat: 'YYYY-MM-DD',
-    }
-  });
+  async function loadWorkspace(){try{setSaveState('loading');const result=await api.get<OnboardingWorkspace>('/api/onboarding/workspace');setWorkspace(result);setDraft(result.draft.configuration);lastSaved.current=JSON.stringify(result.draft.configuration);loaded.current=true;setSaveState('saved');const adminUsers=await api.get<AdminUser[]>('/api/admin/users').catch(()=>[]);setUsers(adminUsers);setSelectedUser(adminUsers.find((user)=>user.status==='active'&&!user.roles.some((role)=>role.key==='owner'))?.id??adminUsers.find((user)=>user.status==='active')?.id??'');if(result.deploymentProfileAvailable)setProfile(await api.get<SignedDeploymentProfile>('/api/onboarding/deployment-profile').catch(()=>null));}catch(error){setSaveState('error');setMessage(error instanceof Error?error.message:'The onboarding workspace could not be opened');}}
+  const patch=<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>setDraft((current)=>current?{...current,[key]:{...current[key],...value}}:current);
+  const updateTerminology=(key:keyof OnboardingConfiguration['terminology'],field:'singular'|'plural',value:string)=>setDraft((current)=>current?{...current,terminology:{...current.terminology,[key]:{...current.terminology[key],[field]:value}}}:current);
+  const validate=async()=>{try{setMessage('Running the complete readiness assessment…');const readiness=await api.post<ReadinessResult>('/api/onboarding/validate',{});setWorkspace((current)=>current?{...current,readiness}:current);setMessage(readiness.publishable?'All mandatory publication gates pass.':`${readiness.failures} readiness check${readiness.failures===1?'':'s'} require attention.`);}catch(error){setMessage(error instanceof Error?error.message:'Validation failed');}};
+  const publish=async()=>{if(!approval)return;try{setPublishing(true);setMessage('Creating the pre-publication backup and signing the deployment profile…');const result=await api.post<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile}>('/api/onboarding/publish',{});setWorkspace(result.workspace);setDraft(result.workspace.draft.configuration);lastSaved.current=JSON.stringify(result.workspace.draft.configuration);setProfile(result.deploymentProfile);setApproval(false);setMessage(`Revision ${result.deploymentProfile.profile.configurationRevision} is published and ready for WI13 packaging.`);onSuccess?.();}catch(error){setMessage(error instanceof Error?error.message:'Publication failed');}finally{setPublishing(false);}};
+  const createEnrolment=async()=>{if(!selectedUser)return;try{const result=await api.post<{enrolmentToken:string}>('/api/onboarding/enrolments',{userId:selectedUser,deviceLimit:1});setEnrolmentToken(result.enrolmentToken);setMessage('A single-use employee enrolment token was created. It will not be shown again after you leave this screen.');}catch(error){setMessage(error instanceof Error?error.message:'Employee enrolment could not be created');}};
+  const downloadProfile=()=>{if(!profile)return;const blob=new Blob([JSON.stringify(profile,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`${profile.profile.businessIdentity.displayName.toLowerCase().replace(/[^a-z0-9]+/g,'-')||'crm'}.crmdeploy.json`;anchor.click();URL.revokeObjectURL(url);};
+  const handleLogo=async(file:File|undefined)=>{if(!file)return;if(!['image/png','image/jpeg','image/webp'].includes(file.type)){setMessage('Use a PNG, JPEG or WebP logo. SVG and remote executable content are not accepted.');return;}if(file.size>1_000_000){setMessage('The logo must be smaller than 1 MB.');return;}const encoded=await fileToDataUrl(file);patch('branding',{logoUrl:encoded});};
 
-  const selectedPrimary = watch('primaryColor');
-  const selectedSecondary = watch('secondaryColor');
-  const selectedAccent = watch('accentColor');
+  const activeSection=sections.find((item)=>item.key===section)!;const readiness=workspace?.readiness;const blocking=readiness?.checks.filter((check)=>check.severity==='required'&&check.status==='failed')??[];
+  if(saveState==='loading'||!draft||!workspace)return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300"><Loader2 className="mr-3 h-5 w-5 animate-spin"/>Opening the instance provisioning workspace…</div>;
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setLogoPreview(base64);
-        setValue('logoUrl', base64);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const applyPreset = (preset: typeof COLOR_PRESETS[0]) => {
-    setValue('primaryColor', preset.primary);
-    setValue('secondaryColor', preset.secondary);
-    setValue('accentColor', preset.accent);
-  };
-
-  const onSubmit = async (data: Settings) => {
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (res.ok) {
-        onSuccess();
-      } else {
-        const err = await res.json();
-        alert(`Error saving settings: ${err.error || 'Unknown error'}`);
-      }
-    } catch (error) {
-      console.error(error);
-      alert('Network error while saving settings.');
-    }
-  };
-
-  const nextStep = (e: React.MouseEvent) => {
-    e.preventDefault();
-    // Validate current step fields before proceeding
-    if (step === 1) {
-      const bizName = watch('businessName');
-      const email = watch('email');
-      const phone = watch('phone');
-      const address = watch('address');
-      
-      if (!bizName || !email || !phone || !address) {
-        alert('Please fill out all required fields on this step.');
-        return;
-      }
-    }
-    setStep((prev) => prev + 1);
-  };
-
-  const prevStep = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setStep((prev) => prev - 1);
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="max-w-2xl w-full bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden transition-all duration-300">
-        
-        {/* Header Branding */}
-        <div className="bg-slate-900 px-8 py-6 text-white flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-blue-400" />
-              CRM Onboarding
-            </h1>
-            <p className="text-slate-400 text-sm mt-1">Configure your workspace settings.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`w-3 h-3 rounded-full ${step >= 1 ? 'bg-blue-500' : 'bg-slate-700'}`}></span>
-            <span className={`w-3 h-3 rounded-full ${step >= 2 ? 'bg-blue-500' : 'bg-slate-700'}`}></span>
-            <span className={`w-3 h-3 rounded-full ${step >= 3 ? 'bg-blue-500' : 'bg-slate-700'}`}></span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="p-8">
-          
-          {/* STEP 1: BUSINESS PROFILE */}
-          {step === 1 && (
-            <div className="space-y-5 animate-fade-in">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                <Building2 className="w-5 h-5 text-slate-500" />
-                <h2 className="text-lg font-semibold text-slate-800">Business Profile</h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Business Name *</label>
-                  <Input {...register('businessName')} placeholder="e.g. Acme Corporation" />
-                  {errors.businessName && <span className="text-xs text-red-500">{errors.businessName.message}</span>}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Business Email *</label>
-                  <Input {...register('email')} type="email" placeholder="billing@acme.com" />
-                  {errors.email && <span className="text-xs text-red-500">{errors.email.message}</span>}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Phone Number *</label>
-                  <Input {...register('phone')} placeholder="+1 (555) 123-4567" />
-                  {errors.phone && <span className="text-xs text-red-500">{errors.phone.message}</span>}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Website URL (Optional)</label>
-                  <Input {...register('website')} placeholder="https://acme.com" />
-                  {errors.website && <span className="text-xs text-red-500">{errors.website.message}</span>}
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Business Address *</label>
-                <textarea 
-                  {...register('address')} 
-                  rows={2} 
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all"
-                  placeholder="Street name, Suite, City, Postcode"
-                />
-                {errors.address && <span className="text-xs text-red-500">{errors.address.message}</span>}
-              </div>
-            </div>
-          )}
-
-          {/* STEP 2: BRANDING */}
-          {step === 2 && (
-            <div className="space-y-5 animate-fade-in">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                <Palette className="w-5 h-5 text-slate-500" />
-                <h2 className="text-lg font-semibold text-slate-800">Dynamic White-Label Branding</h2>
-              </div>
-
-              {/* Logo Upload */}
-              <div className="flex items-center gap-6 p-4 bg-slate-50 rounded-lg">
-                <div className="w-20 h-20 bg-slate-200 rounded-lg flex items-center justify-center overflow-hidden border border-slate-200">
-                  {logoPreview ? (
-                    <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain" />
-                  ) : (
-                    <Building2 className="w-8 h-8 text-slate-400" />
-                  )}
-                </div>
-                <div className="space-y-1 flex-1">
-                  <label className="text-xs font-semibold text-slate-600 block">Company Logo (Optional)</label>
-                  <input type="file" accept="image/*" onChange={handleLogoChange} className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer" />
-                </div>
-              </div>
-
-              {/* Presets */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-600 block">Select Preset Palette</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {COLOR_PRESETS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => applyPreset(preset)}
-                      className="p-2 border border-slate-200 rounded-lg text-left hover:border-slate-400 transition"
-                    >
-                      <span className="text-[10px] font-semibold text-slate-600 block mb-1 truncate">{preset.name}</span>
-                      <div className="flex gap-1">
-                        <span className="w-4 h-4 rounded-full" style={{ backgroundColor: preset.primary }} />
-                        <span className="w-4 h-4 rounded-full" style={{ backgroundColor: preset.secondary }} />
-                        <span className="w-4 h-4 rounded-full" style={{ backgroundColor: preset.accent }} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Custom Color Pickers */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600 flex items-center justify-between">
-                    Primary Color
-                    <span className="text-[10px] text-slate-400">{selectedPrimary}</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <Input {...register('primaryColor')} type="text" className="font-mono text-center" />
-                    <input type="color" value={selectedPrimary} onChange={(e) => setValue('primaryColor', e.target.value)} className="w-10 h-10 border border-slate-200 rounded-md cursor-pointer" />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600 flex items-center justify-between">
-                    Secondary Color
-                    <span className="text-[10px] text-slate-400">{selectedSecondary}</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <Input {...register('secondaryColor')} type="text" className="font-mono text-center" />
-                    <input type="color" value={selectedSecondary} onChange={(e) => setValue('secondaryColor', e.target.value)} className="w-10 h-10 border border-slate-200 rounded-md cursor-pointer" />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600 flex items-center justify-between">
-                    Accent Color
-                    <span className="text-[10px] text-slate-400">{selectedAccent}</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <Input {...register('accentColor')} type="text" className="font-mono text-center" />
-                    <input type="color" value={selectedAccent} onChange={(e) => setValue('accentColor', e.target.value)} className="w-10 h-10 border border-slate-200 rounded-md cursor-pointer" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* STEP 3: FINANCIALS & LOCALIZATION */}
-          {step === 3 && (
-            <div className="space-y-5 animate-fade-in">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                <Landmark className="w-5 h-5 text-slate-500" />
-                <h2 className="text-lg font-semibold text-slate-800">Financials & Localization</h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Default Tax Rate (%)</label>
-                  <Input {...register('defaultTaxRate', { valueAsNumber: true })} type="number" step="0.01" />
-                  {errors.defaultTaxRate && <span className="text-xs text-red-500">{errors.defaultTaxRate.message}</span>}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Currency Symbol/Code</label>
-                  <select {...register('currency')} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="CAD">CAD ($)</option>
-                    <option value="AUD">AUD ($)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Date Format</label>
-                  <select {...register('dateFormat')} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                    <option value="YYYY-MM-DD">YYYY-MM-DD (e.g. 2026-06-26)</option>
-                    <option value="DD/MM/YYYY">DD/MM/YYYY (e.g. 26/06/2026)</option>
-                    <option value="MM/DD/YYYY">MM/DD/YYYY (e.g. 06/26/2026)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600">Timezone</label>
-                  <select {...register('timezone')} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                    <option value="America/New_York">Eastern Time (ET)</option>
-                    <option value="America/Chicago">Central Time (CT)</option>
-                    <option value="America/Denver">Mountain Time (MT)</option>
-                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
-                    <option value="UTC">Coordinated Universal Time (UTC)</option>
-                    <option value="Europe/London">London (GMT/BST)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Invoice Terms/Footer</label>
-                <textarea 
-                  {...register('invoiceFooter')} 
-                  rows={2} 
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  placeholder="Terms, conditions, bank details..."
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="mt-8 pt-6 border-t border-slate-100 flex justify-between gap-4">
-            {step > 1 ? (
-              <Button type="button" variant="outline" onClick={prevStep} className="flex items-center gap-2">
-                <ArrowLeft className="w-4 h-4" /> Back
-              </Button>
-            ) : (
-              <div /> // Spacer
-            )}
-
-            {step < 3 ? (
-              <Button type="button" onClick={nextStep} className="flex items-center gap-2">
-                Next <ArrowRight className="w-4 h-4" />
-              </Button>
-            ) : (
-              <Button type="submit" className="flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800">
-                Finish Setup
-              </Button>
-            )}
-          </div>
-
-        </form>
-      </div>
+  return <div className="min-h-screen bg-slate-100 text-slate-950">
+    <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950 text-white shadow-lg"><div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-5 py-4"><div className="flex min-w-0 items-center gap-3"><div className="rounded-xl bg-blue-500/15 p-2.5"><Sparkles className="h-5 w-5 text-blue-300"/></div><div className="min-w-0"><h1 className="truncate text-lg font-bold">Instance onboarding</h1><p className="truncate text-xs text-slate-400">{workspace.instance.slug} · draft revision {workspace.draft.revision}</p></div></div><div className="flex items-center gap-3"><SaveIndicator state={saveState}/><Button variant="outline" onClick={()=>void validate()} className="border-slate-700 bg-transparent text-white hover:bg-slate-800"><RefreshCw className="mr-2 h-4 w-4"/>Validate</Button></div></div></header>
+    <div className="mx-auto grid max-w-[1600px] grid-cols-1 lg:grid-cols-[290px_minmax(0,1fr)_330px]">
+      <aside className="border-r bg-white p-4 lg:min-h-[calc(100vh-73px)]"><div className="mb-4 rounded-xl border bg-slate-50 p-4"><div className="flex items-end justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Instance readiness</p><p className="mt-1 text-3xl font-black">{readiness?.score??0}%</p></div><StatusGlyph publishable={Boolean(readiness?.publishable)}/></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600 transition-all" style={{width:`${readiness?.score??0}%`}}/></div><p className="mt-2 text-xs text-slate-500">{blocking.length?`${blocking.length} mandatory gate${blocking.length===1?'':'s'} outstanding`:'Mandatory gates are clear'}</p></div><nav className="space-y-1" aria-label="Onboarding sections">{sections.map((item)=>{const Icon=item.icon;const issue=readiness?.checks.some((check)=>check.section===item.key&&check.status==='failed');return <button key={item.key} onClick={()=>setSection(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${section===item.key?'bg-slate-950 text-white shadow':'text-slate-700 hover:bg-slate-100'}`}><Icon className={`h-4 w-4 shrink-0 ${issue?'text-red-400':''}`}/><span className="min-w-0 flex-1"><span className="block text-sm font-bold">{item.label}</span><span className={`block truncate text-[11px] ${section===item.key?'text-slate-400':'text-slate-500'}`}>{item.description}</span></span><ChevronRight className="h-4 w-4 opacity-50"/></button>;})}</nav></aside>
+      <main className="min-w-0 p-4 md:p-8"><div className="mb-6"><p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">WI12 provisioning</p><h2 className="mt-1 text-3xl font-black tracking-tight">{activeSection.label}</h2><p className="mt-2 max-w-3xl text-sm text-slate-600">{activeSection.description}. Changes are retained as a draft and do not affect employees until publication.</p></div>{message&&<div className="mb-5 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0"/><span>{message}</span></div>}
+        {section==='overview'&&<Overview readiness={readiness} onOpen={(target)=>setSection(target as SectionKey)}/>} 
+        {section==='deployment'&&<DeploymentSection value={draft} patch={patch}/>} 
+        {section==='identity'&&<IdentitySection value={draft} patch={patch}/>} 
+        {section==='branding'&&<BrandingSection value={draft} patch={patch} onLogo={handleLogo}/>} 
+        {section==='locale'&&<LocaleSection value={draft} patch={patch}/>} 
+        {section==='terminology'&&<TerminologySection value={draft} update={updateTerminology}/>} 
+        {section==='operations'&&<OperationsSection value={draft} patch={patch}/>} 
+        {section==='communications'&&<CommunicationsSection value={draft} patch={patch}/>} 
+        {section==='security'&&<SecuritySection value={draft} patch={patch}/>} 
+        {section==='employees'&&<EmployeesSection value={draft} patch={patch} users={users} selectedUser={selectedUser} setSelectedUser={setSelectedUser} createEnrolment={createEnrolment} enrolmentToken={enrolmentToken}/>} 
+        {section==='review'&&<ReviewSection workspace={workspace} draft={draft} profile={profile} approval={approval} setApproval={setApproval} publishing={publishing} publish={publish} downloadProfile={downloadProfile}/>} 
+      </main>
+      <aside className="border-l bg-white p-5 lg:min-h-[calc(100vh-73px)]"><LivePreview value={draft}/><div className="mt-5"><h3 className="text-sm font-black">Current blockers</h3><div className="mt-3 space-y-2">{blocking.length?blocking.slice(0,6).map((check)=><button key={check.id} onClick={()=>setSection(check.section as SectionKey)} className="w-full rounded-lg border border-red-200 bg-red-50 p-3 text-left"><p className="text-xs font-bold text-red-900">{check.title}</p><p className="mt-1 text-[11px] leading-relaxed text-red-700">{check.remediation}</p></button>):<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><Check className="mb-2 h-5 w-5"/>No mandatory blocker is currently recorded.</div>}</div></div></aside>
     </div>
-  );
+  </div>;
 }
+
+function Panel({title,description,children}:{title:string;description?:string;children:ReactNode}){return <section className="rounded-2xl border bg-white p-5 shadow-sm md:p-6"><div className="mb-5"><h3 className="text-lg font-black">{title}</h3>{description&&<p className="mt-1 text-sm text-slate-500">{description}</p>}</div>{children}</section>;}
+function Field({label,hint,children}:{label:string;hint?:string;children:ReactNode}){return <label className="block space-y-1.5"><span className="text-xs font-bold text-slate-700">{label}</span>{children}{hint&&<span className="block text-[11px] leading-relaxed text-slate-500">{hint}</span>}</label>;}
+function Textarea(props:React.TextareaHTMLAttributes<HTMLTextAreaElement>){return <textarea {...props} className={`min-h-24 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 ${props.className??''}`}/>;}
+function Select(props:React.SelectHTMLAttributes<HTMLSelectElement>){return <select {...props} className={`h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 ${props.className??''}`}/>;}
+function Toggle({checked,onChange,label,description}:{checked:boolean;onChange:(checked:boolean)=>void;label:string;description:string}){return <label className="flex cursor-pointer items-start gap-3 rounded-xl border p-4 hover:bg-slate-50"><input type="checkbox" checked={checked} onChange={(event)=>onChange(event.target.checked)} className="mt-1 h-4 w-4 accent-blue-600"/><span><span className="block text-sm font-bold">{label}</span><span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{description}</span></span></label>;}
+function ListField({label,value,onChange,hint}:{label:string;value:string[];onChange:(value:string[])=>void;hint?:string}){return <Field label={label} hint={hint}><Textarea rows={3} value={value.join('\n')} onChange={(event)=>onChange(event.target.value.split('\n').map((item)=>item.trim()).filter(Boolean))}/></Field>;}
+function SaveIndicator({state}:{state:SaveState}){return <div className={`hidden items-center gap-2 text-xs font-bold sm:flex ${state==='error'?'text-red-300':'text-slate-300'}`}>{state==='saving'||state==='loading'?<Loader2 className="h-4 w-4 animate-spin"/>:state==='error'?<XCircle className="h-4 w-4"/>:<Save className="h-4 w-4"/>}{state==='saving'?'Saving draft…':state==='loading'?'Loading…':state==='error'?'Draft not saved':'Draft saved'}</div>;}
+function StatusGlyph({publishable}:{publishable:boolean}){return publishable?<CheckCircle2 className="h-8 w-8 text-emerald-600"/>:<AlertCircle className="h-8 w-8 text-amber-600"/>;}
+
+function Overview({readiness,onOpen}:{readiness?:ReadinessResult;onOpen:(section:string)=>void}){const groups=useMemo(()=>{const map=new Map<string,ReadinessCheck[]>();for(const check of readiness?.checks??[])map.set(check.category,[...(map.get(check.category)??[]),check]);return [...map.entries()];},[readiness]);return <div className="space-y-5"><Panel title="Publication readiness" description="Required failures block publication. Recommended warnings remain visible but do not masquerade as failures."><div className="grid gap-4 sm:grid-cols-4"><Metric label="Score" value={`${readiness?.score??0}%`}/><Metric label="Passed" value={String(readiness?.passed??0)}/><Metric label="Warnings" value={String(readiness?.warnings??0)}/><Metric label="Failures" value={String(readiness?.failures??0)}/></div></Panel><div className="grid gap-4 xl:grid-cols-2">{groups.map(([category,checks])=><Panel key={category} title={category.replace(/-/g,' ')}><div className="space-y-3">{checks.map((check)=><button key={check.id} onClick={()=>onOpen(check.section)} className="flex w-full items-start gap-3 rounded-xl border p-3 text-left hover:bg-slate-50"><CheckIcon status={check.status}/><span className="min-w-0"><span className="block text-sm font-bold">{check.title}</span><span className="mt-0.5 block text-xs leading-relaxed text-slate-500">{check.explanation}</span></span></button>)}</div></Panel>)}</div></div>;}
+function Metric({label,value}:{label:string;value:string}){return <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>;}
+function CheckIcon({status}:{status:ReadinessCheck['status']}){if(status==='passed')return <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600"/>;if(status==='failed')return <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600"/>;return <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600"/>;}
+
+function DeploymentSection({value,patch}:{value:OnboardingConfiguration;patch:<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>void}){const managed=value.deployment.mode==='managed';return <div className="space-y-5"><Panel title="Choose the authoritative data topology" description="This decision prevents employee machines from becoming divergent copies of the same CRM."><div className="grid gap-4 md:grid-cols-2"><Choice selected={managed} icon={<Cloud/>} title="Managed business instance" description="Recommended. One authoritative backend and database; employees connect through branded clients or browsers." onClick={()=>patch('deployment',{mode:'managed',distributionMethod:'managed-installer'})}/><Choice selected={!managed} icon={<Laptop/>} title="Standalone local instance" description="One deliberately isolated database on one machine. This is not a shared multi-user deployment." onClick={()=>patch('deployment',{mode:'standalone',distributionMethod:'standalone',instanceUrl:''})}/></div></Panel><Panel title="Deployment identity"><div className="grid gap-4 md:grid-cols-2"><Field label="Instance slug" hint="Stable human-readable deployment identifier."><Input value={value.deployment.instanceSlug} onChange={(event)=>patch('deployment',{instanceSlug:event.target.value.toLowerCase().replace(/[^a-z0-9-]/g,'')})}/></Field>{managed&&<Field label="Managed instance URL" hint="Employee clients are cryptographically bound to this origin."><Input value={value.deployment.instanceUrl} placeholder="https://crm.example.ie" onChange={(event)=>patch('deployment',{instanceUrl:event.target.value})}/></Field>}<Field label="Expected users"><Input type="number" min={1} max={100000} value={value.deployment.expectedUsers} onChange={(event)=>patch('deployment',{expectedUsers:Number(event.target.value)})}/></Field><Field label="Minimum client version"><Input value={value.deployment.minimumClientVersion} onChange={(event)=>patch('deployment',{minimumClientVersion:event.target.value})}/></Field><Field label="Employee distribution"><Select value={value.deployment.distributionMethod} onChange={(event)=>patch('deployment',{distributionMethod:event.target.value as OnboardingConfiguration['deployment']['distributionMethod']})}><option value="managed-installer">Managed installer</option><option value="portable">Portable client</option><option value="browser">Browser access</option><option value="standalone">Standalone package</option></Select></Field><ListField label="Business locations" value={value.deployment.locations} onChange={(locations)=>patch('deployment',{locations})} hint="One location per line."/></div></Panel></div>;}
+function Choice({selected,icon,title,description,onClick}:{selected:boolean;icon:ReactNode;title:string;description:string;onClick:()=>void}){return <button type="button" onClick={onClick} className={`rounded-2xl border-2 p-5 text-left transition ${selected?'border-blue-600 bg-blue-50 shadow-sm':'border-slate-200 hover:border-slate-400'}`}><span className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${selected?'bg-blue-600 text-white':'bg-slate-100 text-slate-600'}`}>{icon}</span><span className="block font-black">{title}</span><span className="mt-2 block text-sm leading-relaxed text-slate-600">{description}</span></button>;}
+
+function IdentitySection({value,patch}:{value:OnboardingConfiguration;patch:<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>void}){return <Panel title="Business identity" description="These details feed application branding, documents, reports and deployment metadata."><div className="grid gap-4 md:grid-cols-2"><Field label="Trading name"><Input value={value.identity.displayName} onChange={(event)=>patch('identity',{displayName:event.target.value})}/></Field><Field label="Legal name"><Input value={value.identity.legalName} onChange={(event)=>patch('identity',{legalName:event.target.value})}/></Field><Field label="Registration number"><Input value={value.identity.registrationNumber} onChange={(event)=>patch('identity',{registrationNumber:event.target.value})}/></Field><Field label="Tax identifier"><Input value={value.identity.taxIdentifier} onChange={(event)=>patch('identity',{taxIdentifier:event.target.value})}/></Field><Field label="Primary email"><Input type="email" value={value.identity.email} onChange={(event)=>patch('identity',{email:event.target.value})}/></Field><Field label="Phone"><Input value={value.identity.phone} onChange={(event)=>patch('identity',{phone:event.target.value})}/></Field><Field label="Website"><Input value={value.identity.website} placeholder="https://example.ie" onChange={(event)=>patch('identity',{website:event.target.value})}/></Field><Field label="Support email"><Input type="email" value={value.identity.supportEmail} onChange={(event)=>patch('identity',{supportEmail:event.target.value})}/></Field><Field label="Privacy contact"><Input type="email" value={value.identity.privacyEmail} onChange={(event)=>patch('identity',{privacyEmail:event.target.value})}/></Field><Field label="Address"><Textarea value={value.identity.address} onChange={(event)=>patch('identity',{address:event.target.value})}/></Field><div className="md:col-span-2"><Field label="Business description"><Textarea value={value.identity.description} onChange={(event)=>patch('identity',{description:event.target.value})}/></Field></div></div></Panel>;}
+function BrandingSection({value,patch,onLogo}:{value:OnboardingConfiguration;patch:<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>void;onLogo:(file:File|undefined)=>void}){return <div className="space-y-5"><Panel title="Brand assets" description="Assets are embedded, validated and later checksummed; remote runtime assets are not required."><div className="flex flex-col gap-5 sm:flex-row sm:items-center"><div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-slate-50">{value.branding.logoUrl?<img src={value.branding.logoUrl} alt="Business logo preview" className="max-h-full max-w-full object-contain"/>:<Building2 className="h-10 w-10 text-slate-300"/>}</div><div><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event)=>void onLogo(event.target.files?.[0])} className="block text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-slate-950 file:px-4 file:py-2.5 file:font-bold file:text-white"/><p className="mt-2 text-xs text-slate-500">PNG, JPEG or WebP. Maximum 1 MB. SVG and remote executable content are rejected.</p></div></div></Panel><Panel title="Design tokens"><div className="grid gap-4 md:grid-cols-3"><ColourField label="Primary" value={value.branding.primaryColor} onChange={(primaryColor)=>patch('branding',{primaryColor})}/><ColourField label="Secondary" value={value.branding.secondaryColor} onChange={(secondaryColor)=>patch('branding',{secondaryColor})}/><ColourField label="Accent" value={value.branding.accentColor} onChange={(accentColor)=>patch('branding',{accentColor})}/><ColourField label="Surface" value={value.branding.surfaceColor} onChange={(surfaceColor)=>patch('branding',{surfaceColor})}/><ColourField label="Background" value={value.branding.backgroundColor} onChange={(backgroundColor)=>patch('branding',{backgroundColor})}/><Field label="Density"><Select value={value.branding.density} onChange={(event)=>patch('branding',{density:event.target.value as 'comfortable'|'compact'})}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></Select></Field><Field label="Corner style"><Select value={value.branding.radius} onChange={(event)=>patch('branding',{radius:event.target.value as 'square'|'subtle'|'rounded'})}><option value="square">Square</option><option value="subtle">Subtle</option><option value="rounded">Rounded</option></Select></Field><Toggle checked={value.branding.darkModeEnabled} onChange={(darkModeEnabled)=>patch('branding',{darkModeEnabled})} label="Dark mode available" description="Employees may use the bounded dark theme variant."/></div></Panel></div>;}
+function ColourField({label,value,onChange}:{label:string;value:string;onChange:(value:string)=>void}){return <Field label={label}><div className="flex gap-2"><Input value={value} onChange={(event)=>onChange(event.target.value)}/><input type="color" value={value} onChange={(event)=>onChange(event.target.value)} className="h-10 w-12 cursor-pointer rounded-md border bg-white p-1" aria-label={`${label} colour picker`}/></div></Field>;}
+function LocaleSection({value,patch}:{value:OnboardingConfiguration;patch:<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>void}){return <Panel title="Locale and regional settings"><div className="grid gap-4 md:grid-cols-2"><Field label="Primary language"><Input value={value.locale.language} onChange={(event)=>patch('locale',{language:event.target.value})}/></Field><Field label="Timezone"><Input value={value.locale.timezone} onChange={(event)=>patch('locale',{timezone:event.target.value})}/></Field><Field label="Currency"><Input maxLength={3} value={value.locale.currency} onChange={(event)=>patch('locale',{currency:event.target.value.toUpperCase()})}/></Field><Field label="Date format"><Select value={value.locale.dateFormat} onChange={(event)=>patch('locale',{dateFormat:event.target.value as OnboardingConfiguration['locale']['dateFormat']})}><option>DD/MM/YYYY</option><option>MM/DD/YYYY</option><option>YYYY-MM-DD</option></Select></Field><Field label="Time format"><Select value={value.locale.timeFormat} onChange={(event)=>patch('locale',{timeFormat:event.target.value as '12h'|'24h'})}><option value="24h">24 hour</option><option value="12h">12 hour</option></Select></Field><Field label="Week begins"><Select value={value.locale.weekStartsOn} onChange={(event)=>patch('locale',{weekStartsOn:event.target.value as 'monday'|'sunday'})}><option value="monday">Monday</option><option value="sunday">Sunday</option></Select></Field><Field label="Financial year starts"><Select value={value.locale.financialYearStartMonth} onChange={(event)=>patch('locale',{financialYearStartMonth:Number(event.target.value)})}>{Array.from({length:12},(_,index)=><option key={index+1} value={index+1}>{new Date(2020,index,1).toLocaleString(value.locale.language||'en',{month:'long'})}</option>)}</Select></Field></div></Panel>;}
+function TerminologySection({value,update}:{value:OnboardingConfiguration;update:(key:keyof OnboardingConfiguration['terminology'],field:'singular'|'plural',value:string)=>void}){return <Panel title="Business terminology" description="Labels change in the interface while stable API and database semantics remain intact."><div className="overflow-hidden rounded-xl border"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500"><tr><th className="p-3">Core concept</th><th className="p-3">Singular</th><th className="p-3">Plural</th></tr></thead><tbody>{(Object.keys(value.terminology) as Array<keyof OnboardingConfiguration['terminology']>).map((key)=><tr key={key} className="border-t"><td className="p-3 font-bold capitalize">{key}</td><td className="p-3"><Input value={value.terminology[key].singular} onChange={(event)=>update(key,'singular',event.target.value)}/></td><td className="p-3"><Input value={value.terminology[key].plural} onChange={(event)=>update(key,'plural',event.target.value)}/></td></tr>)}</tbody></table></div></Panel>;}
+function OperationsSection({value,patch}:{value:OnboardingConfiguration;patch:<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>void}){return <div className="space-y-5"><Panel title="Organisation structure"><div className="grid gap-4 md:grid-cols-2"><ListField label="Teams" value={value.organisation.teams} onChange={(teams)=>patch('organisation',{teams})}/><ListField label="Departments" value={value.organisation.departments} onChange={(departments)=>patch('organisation',{departments})}/><ListField label="Shared queues" value={value.organisation.sharedQueues} onChange={(sharedQueues)=>patch('organisation',{sharedQueues})}/><Field label="Default ownership"><Select value={value.organisation.defaultOwnership} onChange={(event)=>patch('organisation',{defaultOwnership:event.target.value as OnboardingConfiguration['organisation']['defaultOwnership']})}><option value="creator">Record creator</option><option value="team">Default team</option><option value="unassigned">Unassigned queue</option></Select></Field></div></Panel><Panel title="CRM operating model"><div className="grid gap-4 md:grid-cols-2"><ListField label="Organisation statuses" value={value.crm.organisationStatuses} onChange={(organisationStatuses)=>patch('crm',{organisationStatuses})}/><ListField label="Engagement stages" value={value.crm.engagementStages} onChange={(engagementStages)=>patch('crm',{engagementStages})}/><ListField label="Activity types" value={value.crm.activityTypes} onChange={(activityTypes)=>patch('crm',{activityTypes})}/><ListField label="Task priorities" value={value.crm.taskPriorities} onChange={(taskPriorities)=>patch('crm',{taskPriorities})}/><Field label="Working day begins"><Input type="time" value={value.crm.workingHoursStart} onChange={(event)=>patch('crm',{workingHoursStart:event.target.value})}/></Field><Field label="Working day ends"><Input type="time" value={value.crm.workingHoursEnd} onChange={(event)=>patch('crm',{workingHoursEnd:event.target.value})}/></Field></div></Panel></div>;}
+function CommunicationsSection({value,patch}:{value:OnboardingConfiguration;patch:<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>void}){return <div className="space-y-5"><Panel title="Communication capabilities"><div className="grid gap-3 md:grid-cols-2"><Toggle checked={value.communications.emailEnabled} onChange={(emailEnabled)=>patch('communications',{emailEnabled,connectionTested:false})} label="Connected email" description="Enable standards-based email synchronisation and explicit outbound actions."/><Toggle checked={value.communications.calendarEnabled} onChange={(calendarEnabled)=>patch('communications',{calendarEnabled,connectionTested:false})} label="Connected calendar" description="Enable standards-based calendar synchronisation."/><Toggle checked={value.communications.connectionTested} onChange={(connectionTested)=>patch('communications',{connectionTested})} label="Connection tested" description="Confirm test email/calendar operations completed successfully."/></div><div className="mt-5 grid gap-4 md:grid-cols-2"><Field label="Sender name"><Input value={value.communications.senderName} onChange={(event)=>patch('communications',{senderName:event.target.value})}/></Field><Field label="Reply-to email"><Input type="email" value={value.communications.replyToEmail} onChange={(event)=>patch('communications',{replyToEmail:event.target.value})}/></Field><div className="md:col-span-2"><Field label="Default signature"><Textarea value={value.communications.defaultSignature} onChange={(event)=>patch('communications',{defaultSignature:event.target.value})}/></Field></div></div></Panel><Panel title="Documents and finance"><div className="grid gap-4 md:grid-cols-2"><Field label="Default tax rate"><Input type="number" min={0} max={100} step="0.01" value={value.financial.defaultTaxRate} onChange={(event)=>patch('financial',{defaultTaxRate:Number(event.target.value)})}/></Field><Field label="Invoice prefix"><Input value={value.financial.invoicePrefix} onChange={(event)=>patch('financial',{invoicePrefix:event.target.value.toUpperCase()})}/></Field><Field label="Payment terms (days)"><Input type="number" min={0} max={365} value={value.financial.paymentTermsDays} onChange={(event)=>patch('financial',{paymentTermsDays:Number(event.target.value)})}/></Field><Toggle checked={value.financial.creditNotesEnabled} onChange={(creditNotesEnabled)=>patch('financial',{creditNotesEnabled})} label="Credit-note workflow enabled" description="Only select this when the implemented financial lifecycle has been reviewed."/><div className="md:col-span-2"><Field label="Invoice footer"><Textarea value={value.financial.invoiceFooter} onChange={(event)=>patch('financial',{invoiceFooter:event.target.value})}/></Field></div></div></Panel></div>;}
+function SecuritySection({value,patch}:{value:OnboardingConfiguration;patch:<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>void}){return <div className="space-y-5"><Panel title="Authentication policy"><div className="grid gap-4 md:grid-cols-2"><Field label="Session duration (hours)"><Input type="number" min={1} max={720} value={value.security.sessionHours} onChange={(event)=>patch('security',{sessionHours:Number(event.target.value)})}/></Field><Toggle checked={value.security.requireHttps} onChange={(requireHttps)=>patch('security',{requireHttps})} label="Require HTTPS" description="Mandatory for normal managed deployments."/></div></Panel><Panel title="Recovery publication gate" description="These confirmations are operational controls, not storage locations for passwords or keys."><div className="grid gap-3"><Toggle checked={value.security.backupConfigured} onChange={(backupConfigured)=>patch('security',{backupConfigured})} label="Backup destination configured" description="A durable destination and retention policy have been selected."/><Toggle checked={value.security.backupEncryptionConfirmed} onChange={(backupEncryptionConfirmed)=>patch('security',{backupEncryptionConfirmed})} label="Backup encryption confirmed" description="The recovery password is held outside the CRM and has not been placed in this profile."/><Toggle checked={value.security.recoveryPlanConfirmed} onChange={(recoveryPlanConfirmed)=>patch('security',{recoveryPlanConfirmed})} label="Recovery plan confirmed" description="An authorised operator and documented recovery route exist."/><Toggle checked={value.security.restoreRehearsed} onChange={(restoreRehearsed)=>patch('security',{restoreRehearsed})} label="Restore rehearsal completed" description="A controlled restoration has been tested against a disposable environment."/><Toggle checked={value.security.retentionPolicyReviewed} onChange={(retentionPolicyReviewed)=>patch('security',{retentionPolicyReviewed})} label="Retention policy reviewed" description="Data and audit retention have been reviewed for this business."/></div></Panel></div>;}
+function EmployeesSection({value,patch,users,selectedUser,setSelectedUser,createEnrolment,enrolmentToken}:{value:OnboardingConfiguration;patch:<K extends ConfigSection>(key:K,value:Partial<OnboardingConfiguration[K]>)=>void;users:AdminUser[];selectedUser:string;setSelectedUser:(value:string)=>void;createEnrolment:()=>void;enrolmentToken:string}){return <div className="space-y-5"><Panel title="Employee client policy"><div className="grid gap-4 md:grid-cols-2"><Field label="Default role"><Select value={value.employees.defaultRoleKey} onChange={(event)=>patch('employees',{defaultRoleKey:event.target.value})}><option value="member">Member</option><option value="viewer">Viewer</option><option value="manager">Manager</option><option value="administrator">Administrator</option></Select></Field><Field label="Enrolment validity (hours)"><Input type="number" min={1} max={168} value={value.employees.enrolmentTtlHours} onChange={(event)=>patch('employees',{enrolmentTtlHours:Number(event.target.value)})}/></Field><Toggle checked={value.employees.requireOneTimeEnrolment} onChange={(requireOneTimeEnrolment)=>patch('employees',{requireOneTimeEnrolment})} label="Require one-time enrolment" description="Each employee receives a short-lived, single-use token."/><Toggle checked={value.employees.deviceRegistrationRequired} onChange={(deviceRegistrationRequired)=>patch('employees',{deviceRegistrationRequired})} label="Register employee devices" description="Bind the activation to an auditable device registration."/></div></Panel><Panel title="Issue employee enrolment" description="Available after the first deployment profile is published. Administrator credentials are never embedded in the employee client."><div className="flex flex-col gap-3 sm:flex-row"><Select value={selectedUser} onChange={(event)=>setSelectedUser(event.target.value)}><option value="">Select an active employee</option>{users.filter((user)=>user.status==='active').map((user)=><option key={user.id} value={user.id}>{user.displayName} · {user.email}</option>)}</Select><Button onClick={createEnrolment} disabled={!selectedUser}>Create token</Button></div>{enrolmentToken&&<div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4"><p className="text-xs font-black uppercase tracking-wider text-amber-900">Shown once</p><code className="mt-2 block break-all rounded bg-white p-3 text-xs text-slate-900">{enrolmentToken}</code><Button variant="outline" className="mt-3" onClick={()=>void navigator.clipboard.writeText(enrolmentToken)}>Copy token</Button></div>}</Panel></div>;}
+function ReviewSection({workspace,draft,profile,approval,setApproval,publishing,publish,downloadProfile}:{workspace:OnboardingWorkspace;draft:OnboardingConfiguration;profile:SignedDeploymentProfile|null;approval:boolean;setApproval:(value:boolean)=>void;publishing:boolean;publish:()=>void;downloadProfile:()=>void}){return <div className="space-y-5"><Panel title="Publication summary"><div className="grid gap-4 md:grid-cols-2"><Summary label="Business" value={draft.identity.displayName||'Not configured'}/><Summary label="Topology" value={draft.deployment.mode==='managed'?'Managed shared instance':'Standalone local instance'}/><Summary label="Instance URL" value={draft.deployment.instanceUrl||'Local embedded server'}/><Summary label="Draft revision" value={String(workspace.draft.revision)}/><Summary label="Readiness" value={`${workspace.readiness.score}% · ${workspace.readiness.failures} failures`}/><Summary label="Employee delivery" value={draft.deployment.distributionMethod}/></div></Panel><Panel title="Publish the instance" description="Publication creates a verified pre-publication backup, freezes the revision, signs the deployment profile and opens a fresh draft for later changes."><label className="flex items-start gap-3 rounded-xl border p-4"><input type="checkbox" checked={approval} onChange={(event)=>setApproval(event.target.checked)} className="mt-1 h-4 w-4 accent-blue-600"/><span><span className="block text-sm font-bold">I approve this configuration for employee deployment</span><span className="mt-1 block text-xs leading-relaxed text-slate-500">I understand that the deployment profile contains instance identity and branding, but not the live database or reusable credentials.</span></span></label><div className="mt-4 flex flex-wrap gap-3"><Button onClick={publish} disabled={!approval||!workspace.readiness.publishable||publishing}>{publishing?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<ShieldCheck className="mr-2 h-4 w-4"/>}Publish signed profile</Button>{profile&&<Button variant="outline" onClick={downloadProfile}><Download className="mr-2 h-4 w-4"/>Download deployment profile</Button>}</div></Panel>{profile&&<Panel title="Current published profile"><div className="grid gap-4 md:grid-cols-2"><Summary label="Instance ID" value={profile.profile.instanceId}/><Summary label="Published revision" value={String(profile.profile.configurationRevision)}/><Summary label="Algorithm" value={profile.algorithm}/><Summary label="Checksum" value={profile.checksum}/><Summary label="Published at" value={new Date(profile.profile.publishedAt).toLocaleString()}/><Summary label="Minimum client" value={profile.profile.minimumClientVersion}/></div></Panel>}</div>;}
+function Summary({label,value}:{label:string;value:string}){return <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p><p className="mt-1 break-all text-sm font-bold">{value}</p></div>;}
+function LivePreview({value}:{value:OnboardingConfiguration}){return <div><p className="text-xs font-black uppercase tracking-[0.15em] text-slate-400">Live employee preview</p><div className="mt-3 overflow-hidden rounded-2xl border shadow-lg" style={{background:value.branding.backgroundColor}}><div className="flex items-center gap-3 p-4 text-white" style={{background:value.branding.primaryColor}}>{value.branding.logoUrl?<img src={value.branding.logoUrl} alt="" className="h-9 w-9 rounded bg-white object-contain p-1"/>:<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 font-black">{value.identity.displayName?.[0]||'W'}</div>}<div className="min-w-0"><p className="truncate text-sm font-black">{value.identity.displayName||'Your business'}</p><p className="text-[10px] opacity-70">Managed CRM workspace</p></div></div><div className="grid grid-cols-[88px_1fr] gap-3 p-3"><div className="space-y-2">{['Dashboard',value.terminology.organisation.plural,value.terminology.contact.plural,value.terminology.task.plural].map((item,index)=><div key={item} className={`truncate rounded px-2 py-2 text-[9px] font-bold ${index===0?'text-white':'bg-white/80 text-slate-600'}`} style={index===0?{background:value.branding.secondaryColor}:{}}>{item}</div>)}</div><div className="space-y-3"><div className="rounded-xl bg-white p-3 shadow-sm"><p className="text-[9px] font-bold uppercase text-slate-400">Today</p><p className="mt-1 text-lg font-black text-slate-900">Everything in order</p><div className="mt-3 h-2 rounded-full" style={{background:value.branding.accentColor}}/></div><div className="grid grid-cols-2 gap-2"><div className="h-16 rounded-xl bg-white shadow-sm"/><div className="h-16 rounded-xl bg-white shadow-sm"/></div></div></div></div></div>;}
+async function fileToDataUrl(file:File):Promise<string>{return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(file);});}

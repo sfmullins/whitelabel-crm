@@ -24,12 +24,14 @@ import Bookings from '../pages/Bookings';
 import Invoices from '../pages/Invoices';
 import Services from '../pages/Services';
 import SettingsPage from '../pages/Settings';
+import Onboarding from '../pages/Onboarding';
 
 export const router=createBrowserRouter([{
   path:'/',element:<MainLayout/>,children:[
     {index:true,element:<Dashboard/>},
     {path:'reporting',element:<Reporting/>},
     {path:'administration',element:<Administration/>},
+    {path:'onboarding',element:<Onboarding/>},
     {path:'extensions',element:<Extensions/>},
     {path:'extensions/:packageKey/*',element:<ExtensionWorkspace/>},
     {path:'organisations',element:<Organisations/>},

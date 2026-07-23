@@ -44,42 +44,55 @@ function packWorkspace(workspaceDirectory, expectedPackageName) {
   return filename;
 }
 
+function linkPackage(source, target) {
+  if (fs.existsSync(target)) return;
+  fs.symlinkSync(source, target, process.platform === 'win32' ? 'junction' : 'dir');
+}
+
+function exposeReviewedPackages(sourceNodeModules, targetNodeModules) {
+  if (!fs.existsSync(sourceNodeModules)) return;
+  for (const entry of fs.readdirSync(sourceNodeModules, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
+    const source = path.join(sourceNodeModules, entry.name);
+    if (entry.name.startsWith('@') && entry.isDirectory()) {
+      const targetScope = path.join(targetNodeModules, entry.name);
+      fs.mkdirSync(targetScope, { recursive: true });
+      for (const scopedEntry of fs.readdirSync(source, { withFileTypes: true })) {
+        if (!scopedEntry.isDirectory() && !scopedEntry.isSymbolicLink()) continue;
+        linkPackage(path.join(source, scopedEntry.name), path.join(targetScope, scopedEntry.name));
+      }
+      continue;
+    }
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+    linkPackage(source, path.join(targetNodeModules, entry.name));
+  }
+}
+
 console.log(`Starting staging build for Electron packaging. Action: ${action}`);
 
-// 1. Clean staging and output directories.
 if (fs.existsSync(stageDir)) {
   console.log(`Cleaning old stage directory at ${stageDir}...`);
   fs.rmSync(stageDir, { recursive: true, force: true });
 }
 fs.mkdirSync(stageDir, { recursive: true });
 
-// 2. Build monorepo packages so package declarations point to current outputs.
 console.log('Building monorepo workspaces...');
 execSync('npm run build', { cwd: rootDir, stdio: 'inherit' });
 
-// 3. Pack the exact workspace tarballs returned by npm.
 console.log('Generating shared workspace tarball...');
 const sharedTarball = packWorkspace(path.join(rootDir, 'shared'), 'shared');
 
 console.log('Generating backend workspace tarball...');
 const backendTarball = packWorkspace(path.join(rootDir, 'backend'), 'backend');
 
-fs.renameSync(
-  path.join(rootDir, 'shared', sharedTarball),
-  path.join(stageDir, sharedTarball),
-);
-fs.renameSync(
-  path.join(rootDir, 'backend', backendTarball),
-  path.join(stageDir, backendTarball),
-);
+fs.renameSync(path.join(rootDir, 'shared', sharedTarball), path.join(stageDir, sharedTarball));
+fs.renameSync(path.join(rootDir, 'backend', backendTarball), path.join(stageDir, backendTarball));
 
-// 4. Copy compiled desktop process files.
 console.log('Copying compiled desktop process files...');
 fs.mkdirSync(path.join(stageDir, 'dist'), { recursive: true });
 fs.cpSync(path.join(desktopDir, 'dist'), path.join(stageDir, 'dist'), { recursive: true });
 fs.copyFileSync(path.join(desktopDir, 'forge.config.js'), path.join(stageDir, 'forge.config.js'));
 
-// 5. Generate the minimal staging package declaration used by Electron Forge.
 console.log('Generating staging package.json...');
 const desktopPackage = JSON.parse(fs.readFileSync(path.join(desktopDir, 'package.json'), 'utf8'));
 const stagingPackage = {
@@ -95,39 +108,43 @@ const stagingPackage = {
   },
   devDependencies: desktopPackage.devDependencies,
 };
+fs.writeFileSync(path.join(stageDir, 'package.json'), `${JSON.stringify(stagingPackage, null, 2)}\n`, 'utf8');
 
-fs.writeFileSync(
-  path.join(stageDir, 'package.json'),
-  `${JSON.stringify(stagingPackage, null, 2)}\n`,
-  'utf8',
-);
-
-// 6. Copy frontend assets and Drizzle migration resources.
 console.log('Copying frontend production assets...');
 fs.cpSync(path.join(rootDir, 'frontend', 'dist'), path.join(stageDir, 'frontend'), { recursive: true });
 
 console.log('Copying backend database migrations...');
 fs.cpSync(path.join(rootDir, 'backend', 'drizzle'), path.join(stageDir, 'drizzle'), { recursive: true });
 
-// 7. Install staging dependencies without creating a generated lockfile in the repository.
 console.log('Installing production staging dependencies...');
-execSync('npm install --no-audit --no-fund --package-lock=false', {
+execFileSync('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--package-lock=false'], {
   cwd: stageDir,
   stdio: 'inherit',
 });
-console.log('Verifying staged dependency versions against the reviewed root lockfile...');
+console.log('Verifying staged runtime dependency versions against the reviewed root lockfile...');
 verifyInstalledDependencyGraph(stageDir, path.join(rootDir, 'package-lock.json'));
 
-// 8. Run Electron Forge inside the isolated staging directory.
-console.log(`Running Electron Forge ${action} inside staging directory...`);
-execFileSync('npx', ['electron-forge', action], { cwd: stageDir, stdio: 'inherit' });
+let resolvedElectronPackage;
+try {
+  resolvedElectronPackage = require.resolve('electron/package.json', { paths: [desktopDir, rootDir] });
+} catch {
+  throw new Error('Reviewed workspace Electron installation is unavailable');
+}
+const resolvedElectronNodeModules = path.dirname(path.dirname(path.dirname(resolvedElectronPackage)));
+const stagedNodeModules = path.join(stageDir, 'node_modules');
+exposeReviewedPackages(resolvedElectronNodeModules, stagedNodeModules);
+exposeReviewedPackages(path.join(rootDir, 'node_modules'), stagedNodeModules);
+exposeReviewedPackages(path.join(desktopDir, 'node_modules'), stagedNodeModules);
+if (!fs.existsSync(path.join(stagedNodeModules, 'electron'))) throw new Error('Reviewed Electron package was not exposed to the stage');
 
-// 9. Re-materialize outputs to desktop/out/.
+const forgeExecutable = path.join(rootDir, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-forge.cmd' : 'electron-forge');
+if (!fs.existsSync(forgeExecutable)) throw new Error('Reviewed Electron Forge executable is unavailable');
+console.log(`Running Electron Forge ${action} inside staging directory...`);
+execFileSync(forgeExecutable, [action], { cwd: stageDir, stdio: 'inherit' });
+
 console.log('Copying packaged outputs to desktop/out/');
 const desktopOutDir = path.join(desktopDir, 'out');
-if (fs.existsSync(desktopOutDir)) {
-  fs.rmSync(desktopOutDir, { recursive: true, force: true });
-}
+if (fs.existsSync(desktopOutDir)) fs.rmSync(desktopOutDir, { recursive: true, force: true });
 fs.cpSync(path.join(stageDir, 'out'), desktopOutDir, { recursive: true });
 
 console.log('Staging build and packaging completed successfully!');

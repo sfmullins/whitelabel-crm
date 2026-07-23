@@ -31,6 +31,10 @@ export const WI10_EVENT_TYPES=[
   'extension.upgraded.v1',
   'extension.enabled.v1',
   'extension.disabled.v1',
+  'instance.published.v1',
+  'instance.rolled_back.v1',
+  'device.enrolled.v1',
+  'device.revoked.v1',
 ] as const;
 
 export function ensureWi10PlatformSchema(connection:Database.Database):void {
