@@ -9,6 +9,8 @@ const required=[
   'backend/src/presentation/routes/onboarding.ts',
   'backend/src/test/wi12-onboarding.spec.ts',
   'frontend/src/pages/Onboarding.tsx',
+  'frontend/src/pages/Login.tsx',
+  'frontend/src/hooks/useIdentity.ts',
   'desktop/src/deploymentProfile.ts',
   'scratch/managed-client-smoke.js',
   'docs/work-items/WI12.md',
@@ -29,6 +31,11 @@ if(!desktop.includes("deploymentRuntime.mode==='managed'"))throw new Error('Desk
 if(!desktop.includes('resolveDeploymentRuntime'))throw new Error('Desktop does not verify the deployment bootstrap profile');
 const onboarding=read('frontend/src/pages/Onboarding.tsx');
 for(const feature of ['Instance readiness','Managed business instance','Live employee preview','Publish signed profile','Create token'])if(!onboarding.includes(feature))throw new Error(`Onboarding experience is missing: ${feature}`);
+const login=read('frontend/src/pages/Login.tsx');
+for(const feature of ['Activate this device','First activation','One-time enrolment token','Activate and open workspace','/api/onboarding/public-profile'])if(!login.includes(feature))throw new Error(`Employee activation experience is missing: ${feature}`);
+const identity=read('frontend/src/hooks/useIdentity.ts');
+for(const control of ['redeemEmployeeEnrolment','crm.device.identifier','deviceFingerprint','crm.session.token'])if(!identity.includes(control))throw new Error(`Employee activation control is missing: ${control}`);
 const prohibited=[/CRM_DEPLOYMENT_PROFILE\s*=\s*['"][^'"]*(password|secret|token)/i,/privateKey\s*:/i];
-for(const relative of ['frontend/src/pages/Onboarding.tsx','desktop/src/main.ts'])for(const pattern of prohibited)if(pattern.test(read(relative)))throw new Error(`Secret-bearing deployment content detected in ${relative}`);
+for(const relative of ['frontend/src/pages/Onboarding.tsx','frontend/src/pages/Login.tsx','desktop/src/main.ts'])for(const pattern of prohibited)if(pattern.test(read(relative)))throw new Error(`Secret-bearing deployment content detected in ${relative}`);
+for(const temporaryWorkflow of ['.github/workflows/wi12-patch.yml','.github/workflows/wi12-one-shot-fix.yml'])if(fs.existsSync(path.join(root,temporaryWorkflow)))throw new Error(`Temporary WI12 workflow remains in source: ${temporaryWorkflow}`);
 console.log('WI12 repository structure gate passed');
