@@ -10,6 +10,13 @@
   "main": "./dist/cjs/types.js",
   "module": "./dist/types.js",
   "types": "./dist/types.d.ts",
+  "typesVersions": {
+    "*": {
+      "onboarding": [
+        "dist/onboarding.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/types.d.ts",
