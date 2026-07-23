@@ -20,11 +20,11 @@ import { BackupManager } from '../backup/BackupManager';
 import { CredentialVault } from '../security/CredentialVault';
 import { sqlite } from './connection';
 import { SecurityRepository } from './SecurityRepository';
-import { DEFAULT_INSTANCE_ID } from './wi12OnboardingSchema';
 
 interface InstanceRow {id:string;slug:string;status:'provisioning'|'active'|'suspended';deployment_mode:'managed'|'standalone';current_published_revision_id:string|null;signing_credential_key:string;created_at:string;updated_at:string;}
 interface RevisionRow {id:string;instance_id:string;revision:number;state:OnboardingRevision['state'];configuration_json:string;checksum:string;created_by_user_id:string|null;created_at:string;updated_at:string;published_at:string|null;}
 interface PublicationRow {profile_json:string;checksum:string;signature:string;public_key:string;}
+interface EnrolmentRow {id:string;instance_id:string;user_id:string;device_limit:number;redeemed_count:number;expires_at:string;revoked_at:string|null;}
 
 const now=()=>new Date().toISOString();
 const sha256=(value:string)=>crypto.createHash('sha256').update(value,'utf8').digest('hex');
@@ -68,6 +68,9 @@ export class OnboardingRepository {
     const instance=this.getInstance();const row=this.connection.prepare(`SELECT * FROM instance_configuration_revisions WHERE instance_id=? AND state='draft'`).get(instance.id) as RevisionRow|undefined;
     if(!row)throw new NotFoundError('No editable onboarding draft exists');return row;
   }
+  private assertExpectedChecksum(draft:RevisionRow,expectedChecksum?:string|null):void{
+    if(expectedChecksum&&draft.checksum!==expectedChecksum)throw new ConflictError('The onboarding draft changed. Reload the latest revision before continuing.');
+  }
   private mapRevision(row:RevisionRow,includeConfiguration=true):OnboardingRevision{
     return {
       id:row.id,revision:Number(row.revision),state:row.state,
@@ -83,26 +86,30 @@ export class OnboardingRepository {
     const historyRows=this.connection.prepare(`SELECT * FROM instance_configuration_revisions WHERE instance_id=? ORDER BY revision DESC`).all(instance.id) as RevisionRow[];
     const readiness=this.evaluate(this.configuration(draft));
     const history=historyRows.map((row)=>{const mapped=this.mapRevision(row);const {configuration:_configuration,...summary}=mapped;return summary;});
+    const deploymentProfileAvailable=Boolean(published&&this.connection.prepare(`SELECT 1 FROM instance_publications WHERE revision_id=?`).get(published.id));
     return {
       instance:{id:instance.id,slug:instance.slug,status:instance.status,currentPublishedRevisionId:instance.current_published_revision_id,createdAt:instance.created_at,updatedAt:instance.updated_at},
-      draft:this.mapRevision(draft),published:published?this.mapRevision(published):null,readiness,history,deploymentProfileAvailable:Boolean(instance.current_published_revision_id),
+      draft:this.mapRevision(draft),published:published?this.mapRevision(published):null,readiness,history,deploymentProfileAvailable,
     };
   }
 
-  saveDraft(value:unknown,actorUserId:string|null):OnboardingWorkspace{
+  saveDraft(value:unknown,actorUserId:string|null,expectedChecksum?:string|null):OnboardingWorkspace{
     const configuration=asObject(value);
     if(containsSecretKey(configuration))throw new ValidationError('Onboarding configuration cannot contain credentials, passwords, tokens or private keys');
     const serialized=canonicalJson(configuration);if(Buffer.byteLength(serialized,'utf8')>2_000_000)throw new ValidationError('Onboarding configuration exceeds the 2 MB limit');
-    const draft=this.getDraftRow();const timestamp=now();const parsed=OnboardingConfigurationSchema.safeParse(configuration);
+    const draft=this.getDraftRow();this.assertExpectedChecksum(draft,expectedChecksum);
+    const timestamp=now();const parsed=OnboardingConfigurationSchema.safeParse(configuration);const nextChecksum=sha256(serialized);
     this.connection.transaction(()=>{
-      this.connection.prepare(`UPDATE instance_configuration_revisions SET configuration_json=?,checksum=?,created_by_user_id=coalesce(?,created_by_user_id),updated_at=? WHERE id=? AND state='draft'`).run(serialized,sha256(serialized),actorUserId,timestamp,draft.id);
+      const changed=this.connection.prepare(`UPDATE instance_configuration_revisions SET configuration_json=?,checksum=?,created_by_user_id=coalesce(?,created_by_user_id),updated_at=? WHERE id=? AND state='draft' AND checksum=?`).run(serialized,nextChecksum,actorUserId,timestamp,draft.id,draft.checksum).changes;
+      if(changed!==1)throw new ConflictError('The onboarding draft changed while it was being saved. Reload and retry.');
       if(parsed.success)this.connection.prepare(`UPDATE crm_instances SET slug=?,deployment_mode=?,updated_at=? WHERE id=?`).run(parsed.data.deployment.instanceSlug,parsed.data.deployment.mode,timestamp,draft.instance_id);
     })();
     return this.getWorkspace();
   }
 
-  validateDraft(actorUserId:string|null):ReadinessResult{
-    const draft=this.getDraftRow();const result=this.evaluate(this.configuration(draft));
+  validateDraft(actorUserId:string|null,expectedChecksum?:string|null):ReadinessResult{
+    const draft=this.getDraftRow();this.assertExpectedChecksum(draft,expectedChecksum);const result=this.evaluate(this.configuration(draft));
+    const current=this.getDraftRow();if(current.id!==draft.id||current.checksum!==draft.checksum)throw new ConflictError('The onboarding draft changed during validation. Validate the latest draft again.');
     this.connection.prepare(`INSERT INTO instance_readiness_runs(id,instance_id,revision_id,result_json,score,publishable,created_by_user_id,validated_at) VALUES(?,?,?,?,?,?,?,?)`).run(crypto.randomUUID(),draft.instance_id,draft.id,canonicalJson(result),result.score,result.publishable?1:0,actorUserId,result.validatedAt);
     return result;
   }
@@ -137,14 +144,16 @@ export class OnboardingRepository {
     return ReadinessResultSchema.parse({score,publishable,passed,warnings,failures,checks,validatedAt:now()});
   }
 
-  async publish(actorUserId:string|null):Promise<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile;backupPath:string}> {
-    const draft=this.getDraftRow();const parsed=OnboardingConfigurationSchema.safeParse(this.configuration(draft));if(!parsed.success)throw new ValidationError('The onboarding draft is incomplete or invalid',parsed.error.format());
-    const readiness=this.validateDraft(actorUserId);if(!readiness.publishable)throw new ValidationError('The onboarding draft has release-blocking readiness failures',readiness);
+  async publish(actorUserId:string|null,expectedChecksum?:string|null):Promise<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile;backupPath:string}> {
+    const draft=this.getDraftRow();this.assertExpectedChecksum(draft,expectedChecksum);
+    const parsed=OnboardingConfigurationSchema.safeParse(this.configuration(draft));if(!parsed.success)throw new ValidationError('The onboarding draft is incomplete or invalid',parsed.error.format());
+    const readiness=this.validateDraft(actorUserId,draft.checksum);if(!readiness.publishable)throw new ValidationError('The onboarding draft has release-blocking readiness failures',readiness);
     const backupPath=await this.createPrePublicationBackup();const instance=this.getInstance();const timestamp=now();const signed=this.signProfile(this.buildProfile(instance,draft,parsed.data,timestamp));
     const nextRevision=draft.revision+1;const nextDraftId=crypto.randomUUID();const nextDraftSerialized=canonicalJson(parsed.data);
     this.connection.transaction(()=>{
       if(instance.current_published_revision_id)this.connection.prepare(`UPDATE instance_configuration_revisions SET state='superseded',updated_at=? WHERE id=? AND state='published'`).run(timestamp,instance.current_published_revision_id);
-      const changed=this.connection.prepare(`UPDATE instance_configuration_revisions SET state='published',published_at=?,updated_at=? WHERE id=? AND state='draft'`).run(timestamp,timestamp,draft.id).changes;if(changed!==1)throw new ConflictError('The onboarding draft changed before publication');
+      const changed=this.connection.prepare(`UPDATE instance_configuration_revisions SET state='published',published_at=?,updated_at=? WHERE id=? AND state='draft' AND checksum=?`).run(timestamp,timestamp,draft.id,draft.checksum).changes;
+      if(changed!==1)throw new ConflictError('The onboarding draft changed before publication. Validate and publish the latest saved draft.');
       this.connection.prepare(`INSERT INTO instance_publications(id,instance_id,revision_id,profile_json,checksum,signature,public_key,created_by_user_id,published_at) VALUES(?,?,?,?,?,?,?,?,?)`).run(crypto.randomUUID(),instance.id,draft.id,canonicalJson(signed.profile),signed.checksum,signed.signature,signed.publicKey,actorUserId,timestamp);
       this.connection.prepare(`UPDATE crm_instances SET slug=?,status='active',deployment_mode=?,current_published_revision_id=?,updated_at=? WHERE id=?`).run(parsed.data.deployment.instanceSlug,parsed.data.deployment.mode,draft.id,timestamp,instance.id);
       this.mirrorSettings(parsed.data,timestamp);
@@ -153,9 +162,9 @@ export class OnboardingRepository {
     return {workspace:this.getWorkspace(),deploymentProfile:signed,backupPath};
   }
 
-  async rollback(targetRevisionId:string,actorUserId:string|null):Promise<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile;backupPath:string}> {
+  async rollback(targetRevisionId:string,actorUserId:string|null,expectedChecksum?:string|null):Promise<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile;backupPath:string}> {
     const target=this.getRevisionRow(targetRevisionId);if(target.state==='draft')throw new ValidationError('A draft revision cannot be used as a rollback target');
-    this.saveDraft(JSON.parse(target.configuration_json),actorUserId);return this.publish(actorUserId);
+    const saved=this.saveDraft(JSON.parse(target.configuration_json),actorUserId,expectedChecksum);return this.publish(actorUserId,saved.draft.checksum);
   }
 
   getPublishedProfile():SignedDeploymentProfile{
@@ -176,16 +185,25 @@ export class OnboardingRepository {
   revokeEnrolment(id:string):void{const changed=this.connection.prepare(`UPDATE instance_enrolments SET revoked_at=coalesce(revoked_at,?) WHERE id=?`).run(now(),id).changes;if(!changed)throw new NotFoundError('Employee enrolment was not found');}
 
   redeemEnrolment(input:RedeemEnrolment,meta:{ipAddress?:string|null;userAgent?:string|null}={}):{sessionToken:string;expiresAt:string;user:ReturnType<SecurityRepository['getUser']>;deviceId:string;deploymentProfile:SignedDeploymentProfile}{
-    const hash=sha256(input.code);const row=this.connection.prepare(`SELECT * FROM instance_enrolments WHERE code_hash=?`).get(hash) as Record<string,unknown>|undefined;if(!row)throw new ValidationError('The enrolment code is invalid');
-    if(row.revoked_at)throw new ValidationError('The enrolment code has been revoked');if(String(row.expires_at)<=now())throw new ValidationError('The enrolment code has expired');if(Number(row.redeemed_count)>=Number(row.device_limit))throw new ValidationError('The enrolment code has reached its device limit');
-    const user=this.security.getUser(String(row.user_id));if(!user||user.status!=='active')throw new ValidationError('The invited employee is not active');const fingerprintHash=sha256(input.deviceFingerprint);const existing=this.connection.prepare(`SELECT id,revoked_at FROM instance_devices WHERE instance_id=? AND fingerprint_hash=?`).get(row.instance_id,fingerprintHash) as {id:string;revoked_at:string|null}|undefined;if(existing&&!existing.revoked_at)throw new ConflictError('This device is already registered');
-    const deviceId=crypto.randomUUID();const timestamp=now();this.connection.transaction(()=>{
+    const hash=sha256(input.code);const timestamp=now();const deviceId=crypto.randomUUID();const fingerprintHash=sha256(input.deviceFingerprint);const configuration=this.publishedConfiguration();
+    const redeem=this.connection.transaction(()=>{
+      const row=this.connection.prepare(`SELECT id,instance_id,user_id,device_limit,redeemed_count,expires_at,revoked_at FROM instance_enrolments WHERE code_hash=?`).get(hash) as EnrolmentRow|undefined;
+      if(!row)throw new ValidationError('The enrolment code is invalid');
+      if(row.revoked_at)throw new ValidationError('The enrolment code has been revoked');
+      if(row.expires_at<=timestamp)throw new ValidationError('The enrolment code has expired');
+      if(row.redeemed_count>=row.device_limit)throw new ValidationError('The enrolment code has reached its device limit');
+      const user=this.security.getUser(row.user_id);if(!user||user.status!=='active')throw new ValidationError('The invited employee is not active');
+      const existing=this.connection.prepare(`SELECT id,revoked_at FROM instance_devices WHERE instance_id=? AND fingerprint_hash=?`).get(row.instance_id,fingerprintHash) as {id:string;revoked_at:string|null}|undefined;
+      if(existing&&!existing.revoked_at)throw new ConflictError('This device is already registered');
       if(existing)this.connection.prepare(`DELETE FROM instance_devices WHERE id=?`).run(existing.id);
+      const claimed=this.connection.prepare(`UPDATE instance_enrolments SET redeemed_count=redeemed_count+1,last_redeemed_at=? WHERE id=? AND revoked_at IS NULL AND expires_at>? AND redeemed_count<device_limit`).run(timestamp,row.id,timestamp).changes;
+      if(claimed!==1)throw new ConflictError('The enrolment code changed while it was being redeemed. Request a new token if necessary.');
       this.connection.prepare(`INSERT INTO instance_devices(id,instance_id,user_id,enrolment_id,device_name,fingerprint_hash,registered_at,last_seen_at) VALUES(?,?,?,?,?,?,?,?)`).run(deviceId,row.instance_id,row.user_id,row.id,input.deviceName,fingerprintHash,timestamp,timestamp);
-      this.connection.prepare(`UPDATE instance_enrolments SET redeemed_count=redeemed_count+1,last_redeemed_at=? WHERE id=?`).run(timestamp,row.id);
-    })();
-    const configuration=this.publishedConfiguration();const session=this.security.createSession(user.id,{ipAddress:meta.ipAddress,userAgent:meta.userAgent,ttlHours:configuration.security.sessionHours});
-    return {sessionToken:session.token,expiresAt:session.expiresAt,user:this.security.getUser(user.id),deviceId,deploymentProfile:this.getPublishedProfile()};
+      const session=this.security.createSession(user.id,{ipAddress:meta.ipAddress,userAgent:meta.userAgent,ttlHours:configuration.security.sessionHours});
+      return {session,user};
+    });
+    const result=redeem.immediate();
+    return {sessionToken:result.session.token,expiresAt:result.session.expiresAt,user:this.security.getUser(result.user.id),deviceId,deploymentProfile:this.getPublishedProfile()};
   }
 
   listDevices():unknown[]{return (this.connection.prepare(`SELECT d.id,d.user_id,d.device_name,d.registered_at,d.last_seen_at,d.revoked_at,u.display_name,u.email FROM instance_devices d JOIN users u ON u.id=d.user_id ORDER BY d.registered_at DESC`).all() as Array<Record<string,unknown>>).map((row)=>({id:row.id,userId:row.user_id,userName:row.display_name,userEmail:row.email,deviceName:row.device_name,registeredAt:row.registered_at,lastSeenAt:row.last_seen_at,revokedAt:row.revoked_at}));}
