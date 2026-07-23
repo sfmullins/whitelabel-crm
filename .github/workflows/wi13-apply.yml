@@ -1,0 +1,47 @@
+name: WI13 implementation installer
+
+on:
+  push:
+    branches:
+      - WI13-Enterprise-Release
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wi13-implementation-installer
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: WI13-Enterprise-Release
+          fetch-depth: 0
+
+      - name: Apply consolidated WI13 implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/wi13-patch/00 \
+              .github/wi13-patch/01 \
+              .github/wi13-patch/02 \
+              .github/wi13-patch/03 \
+              .github/wi13-patch/04 \
+            | base64 --decode \
+            | gzip --decompress \
+            > "${RUNNER_TEMP}/wi13.patch"
+          git apply --check "${RUNNER_TEMP}/wi13.patch"
+          git apply --index "${RUNNER_TEMP}/wi13.patch"
+          rm -rf .github/wi13-patch
+          rm .github/workflows/wi13-apply.yml
+          git add -A
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "WI13: implement enterprise release certification"
+          git push origin HEAD:WI13-Enterprise-Release
