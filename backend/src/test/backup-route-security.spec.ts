@@ -19,13 +19,13 @@ describe('backup route security',()=>{
   });
 
   it('never persists the backup encryption key in immutable audit metadata',async()=>{
-    const encryptionKeyHex='ab'.repeat(32);
-    const response=await fetch(`${server!.url}/api/backups`,{method:'POST',headers:headers(),body:JSON.stringify({encryptionKeyHex,dailyRetentionCount:1,weeklyRetentionCount:1,monthlyRetentionCount:1})});
+    const encryptionPassword='correct horse battery staple';
+    const response=await fetch(`${server!.url}/api/backups`,{method:'POST',headers:headers(),body:JSON.stringify({encryptionPassword,dailyRetentionCount:1,weeklyRetentionCount:1,monthlyRetentionCount:1})});
     expect(response.status).toBe(201);
 
     const event=new SecurityRepository().listAudit({action:'post.backups'}).items[0];
     expect(event).toBeDefined();
-    expect(JSON.stringify(event.metadata)).not.toContain(encryptionKeyHex);
-    expect((event.metadata as {body:{encryptionKeyHex:string}}).body.encryptionKeyHex).toBe('[redacted]');
+    expect(JSON.stringify(event.metadata)).not.toContain(encryptionPassword);
+    expect((event.metadata as {body:{encryptionPassword:string}}).body.encryptionPassword).toBe('[redacted]');
   });
 });

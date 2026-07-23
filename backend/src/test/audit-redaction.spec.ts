@@ -6,6 +6,7 @@ describe('audit metadata redaction',()=>{
     const secret='sensitive-value-that-must-not-be-audited';
     const redacted=redactAuditValue({
       encryptionKeyHex:secret,
+      encryptionPassword:secret,
       s3Config:{accessKeyId:secret,secretAccessKey:secret},
       nested:[{privateKey:secret,publicKey:secret,password:secret}],
       safe:'retained',
@@ -14,6 +15,7 @@ describe('audit metadata redaction',()=>{
     expect(serialized).not.toContain(secret);
     expect(redacted).toEqual({
       encryptionKeyHex:'[redacted]',
+      encryptionPassword:'[redacted]',
       s3Config:{accessKeyId:'[redacted]',secretAccessKey:'[redacted]'},
       nested:[{privateKey:'[redacted]',publicKey:'[redacted]',password:'[redacted]'}],
       safe:'retained',

@@ -14,6 +14,12 @@ export interface BackupInfo {
   checksum: string;
 }
 
+export interface BackupKdfMetadata {
+  algorithm: 'pbkdf2-sha256';
+  saltHex: string;
+  iterations: number;
+}
+
 export interface BackupManifest {
   formatVersion: number;
   applicationVersion: string;
@@ -24,7 +30,11 @@ export interface BackupManifest {
   databaseSizeBytes: number;
   sha256: string;
   encrypted: boolean;
+  kdf?: BackupKdfMetadata;
 }
+
+const PBKDF2_SHA256_ITERATIONS=600_000;
+const MAX_ARCHIVE_MANIFEST_BYTES=1_000_000;
 
 export interface BackupSettings {
   internalBackupEnabled: boolean;
@@ -50,70 +60,69 @@ export class BackupManager {
     return hash.digest('hex');
   }
 
-  // Pure binary AES-256-GCM encryption archive generator
-  static encryptBackupFile(dbPath: string, manifest: BackupManifest, key: Buffer): Buffer {
-    const dbData = fs.readFileSync(dbPath);
-    const nonce = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, nonce);
-    
-    const ciphertext = Buffer.concat([cipher.update(dbData), cipher.final()]);
-    const authTag = cipher.getAuthTag();
-    
-    const manifestStr = JSON.stringify(manifest);
-    const manifestBuf = Buffer.from(manifestStr, 'utf8');
-    
-    const magic = Buffer.from('CRMB', 'utf8'); // 4 bytes
-    const version = Buffer.alloc(2);
-    version.writeUInt16BE(1, 0); // 2 bytes
-    
-    const manifestLen = Buffer.alloc(4);
-    manifestLen.writeUInt32BE(manifestBuf.length, 0); // 4 bytes
-    
-    return Buffer.concat([
-      magic,
-      version,
-      nonce,
-      authTag,
-      manifestLen,
-      manifestBuf,
-      ciphertext
-    ]);
+  static createPasswordKdf(password: string): { key: Buffer; kdf: BackupKdfMetadata } {
+    if (password.length < 12 || password.length > 1024) throw new Error('Backup encryption password must contain between 12 and 1024 characters.');
+    const kdf: BackupKdfMetadata = { algorithm: 'pbkdf2-sha256', saltHex: crypto.randomBytes(16).toString('hex'), iterations: PBKDF2_SHA256_ITERATIONS };
+    return { key: this.derivePasswordKey(password, kdf), kdf };
   }
 
-  // Pure binary AES-256-GCM decryption archive unpacker
-  static decryptBackupFile(archivePath: string, key: Buffer, destDbPath: string): BackupManifest {
-    const data = fs.readFileSync(archivePath);
-    
+  static derivePasswordKey(password: string, kdf: BackupKdfMetadata): Buffer {
+    if (kdf.algorithm !== 'pbkdf2-sha256') throw new Error(`Unsupported backup key derivation algorithm: ${String(kdf.algorithm)}`);
+    if (!/^[0-9a-f]{32}$/i.test(kdf.saltHex)) throw new Error('Backup key derivation salt is invalid.');
+    if (!Number.isInteger(kdf.iterations) || kdf.iterations < 100_000 || kdf.iterations > 2_000_000) throw new Error('Backup key derivation work factor is invalid.');
+    return crypto.pbkdf2Sync(password, Buffer.from(kdf.saltHex, 'hex'), kdf.iterations, 32, 'sha256');
+  }
+
+  static deriveLegacyPasswordKey(password: string): Buffer {
+    return crypto.createHash('sha256').update(password, 'utf8').digest();
+  }
+
+  private static parseEncryptedArchive(data: Buffer): { version: number; nonce: Buffer; authTag: Buffer; manifestBuffer: Buffer; manifest: BackupManifest; ciphertext: Buffer } {
+    if (data.length < 38) throw new Error('Invalid backup archive format (truncated header)');
     const magic = data.subarray(0, 4).toString('utf8');
-    if (magic !== 'CRMB') {
-      throw new Error('Invalid backup archive format (missing CRMB header)');
-    }
-    
+    if (magic !== 'CRMB') throw new Error('Invalid backup archive format (missing CRMB header)');
     const version = data.readUInt16BE(4);
-    if (version !== 1) {
-      throw new Error(`Unsupported backup archive version: ${version}`);
-    }
-    
-    const nonce = data.subarray(6, 18);
-    const authTag = data.subarray(18, 34);
-    
-    const manifestLen = data.readUInt32BE(34);
-    const manifestStr = data.subarray(38, 38 + manifestLen).toString('utf8');
-    const manifest = JSON.parse(manifestStr) as BackupManifest;
-    
-    const ciphertext = data.subarray(38 + manifestLen);
-    
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
-    decipher.setAuthTag(authTag);
-    
-    const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-    
-    const dir = path.dirname(destDbPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    if (version !== 1 && version !== 2) throw new Error(`Unsupported backup archive version: ${version}`);
+    const manifestLength = data.readUInt32BE(34);
+    if (manifestLength < 2 || manifestLength > MAX_ARCHIVE_MANIFEST_BYTES || 38 + manifestLength >= data.length) throw new Error('Invalid backup archive manifest length');
+    const manifestBuffer = data.subarray(38, 38 + manifestLength);
+    let manifest: BackupManifest;
+    try { manifest = JSON.parse(manifestBuffer.toString('utf8')) as BackupManifest; } catch { throw new Error('Invalid backup archive manifest'); }
+    return { version, nonce: data.subarray(6, 18), authTag: data.subarray(18, 34), manifestBuffer, manifest, ciphertext: data.subarray(38 + manifestLength) };
+  }
+
+  static readEncryptedBackupManifest(archivePath: string): BackupManifest {
+    return this.parseEncryptedArchive(fs.readFileSync(archivePath)).manifest;
+  }
+
+  // Archive version 2 authenticates the plaintext manifest as AES-GCM additional authenticated data.
+  static encryptBackupFile(dbPath: string, manifest: BackupManifest, key: Buffer): Buffer {
+    if (key.length !== 32) throw new Error('Backup encryption key must contain exactly 32 bytes.');
+    const dbData = fs.readFileSync(dbPath);
+    const manifestBuffer = Buffer.from(JSON.stringify(manifest), 'utf8');
+    if (manifestBuffer.length > MAX_ARCHIVE_MANIFEST_BYTES) throw new Error('Backup archive manifest is too large.');
+    const nonce = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, nonce);
+    cipher.setAAD(manifestBuffer);
+    const ciphertext = Buffer.concat([cipher.update(dbData), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+    const version = Buffer.alloc(2); version.writeUInt16BE(2, 0);
+    const manifestLength = Buffer.alloc(4); manifestLength.writeUInt32BE(manifestBuffer.length, 0);
+    return Buffer.concat([Buffer.from('CRMB', 'utf8'), version, nonce, authTag, manifestLength, manifestBuffer, ciphertext]);
+  }
+
+  // Version 1 remains readable for backups created before authenticated-manifest archives were introduced.
+  static decryptBackupFile(archivePath: string, key: Buffer, destDbPath: string): BackupManifest {
+    if (key.length !== 32) throw new Error('Backup encryption key must contain exactly 32 bytes.');
+    const parsed = this.parseEncryptedArchive(fs.readFileSync(archivePath));
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, parsed.nonce);
+    if (parsed.version >= 2) decipher.setAAD(parsed.manifestBuffer);
+    decipher.setAuthTag(parsed.authTag);
+    const decrypted = Buffer.concat([decipher.update(parsed.ciphertext), decipher.final()]);
+    const directory = path.dirname(destDbPath);
+    if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(destDbPath, decrypted);
-    return manifest;
+    return parsed.manifest;
   }
 
   // Run full integrity verification on an isolated connection
@@ -140,10 +149,14 @@ export class BackupManager {
   static async createBackup(options?: {
     externalDirectory?: string;
     encryptionKey?: Buffer;
+    encryptionPassword?: string;
     s3Config?: S3BackupConfiguration;
     isPreMigration?: boolean;
   }): Promise<string> {
     const paths = getRuntimePaths();
+    if (options?.encryptionKey && options?.encryptionPassword) throw new Error('Provide either an encryption key or an encryption password, not both.');
+    let encryptionKey=options?.encryptionKey; let kdf:BackupKdfMetadata|undefined;
+    if (options?.encryptionPassword) { const derived=this.createPasswordKdf(options.encryptionPassword); encryptionKey=derived.key; kdf=derived.kdf; }
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const prefix = options?.isPreMigration ? 'pre-migration-' : 'crm-backup-';
     
@@ -170,16 +183,17 @@ export class BackupManager {
         databaseFile: `${baseName}.db`,
         databaseSizeBytes: stats.size,
         sha256: checksum,
-        encrypted: !!options?.encryptionKey
+        encrypted: !!encryptionKey,
+        ...(kdf ? { kdf } : {})
       };
 
       // 4. Save to Internal Backups Folder
       const finalDbPath = path.join(paths.internalBackupDirectory, `${baseName}.db`);
       const finalManifestPath = path.join(paths.internalBackupDirectory, `${baseName}.manifest.json`);
       
-      if (options?.encryptionKey) {
+      if (encryptionKey) {
         // Encrypted Single Archive flow
-        const encryptedBytes = this.encryptBackupFile(localDbBackupPath, manifest, options.encryptionKey);
+        const encryptedBytes = this.encryptBackupFile(localDbBackupPath, manifest, encryptionKey);
         const finalEncryptedPath = path.join(paths.internalBackupDirectory, `${baseName}.crmbackup`);
         fs.writeFileSync(finalEncryptedPath, encryptedBytes);
       } else {
@@ -208,8 +222,8 @@ export class BackupManager {
         const extEncPath = path.join(extDir, `${baseName}.crmbackup`);
         const extManifestPath = path.join(extDir, `${baseName}.manifest.json`);
 
-        if (options?.encryptionKey) {
-          const encryptedBytes = this.encryptBackupFile(localDbBackupPath, manifest, options.encryptionKey);
+        if (encryptionKey) {
+          const encryptedBytes = this.encryptBackupFile(localDbBackupPath, manifest, encryptionKey);
           
           // Write safely using .partial pattern
           const partialPath = `${extEncPath}.partial`;
@@ -227,8 +241,8 @@ export class BackupManager {
       }
 
       // 6. Remote S3 Upload flow (Encrypted recovery only)
-      if (options?.s3Config && options?.encryptionKey) {
-        const encryptedBytes = this.encryptBackupFile(localDbBackupPath, manifest, options.encryptionKey);
+      if (options?.s3Config && encryptionKey) {
+        const encryptedBytes = this.encryptBackupFile(localDbBackupPath, manifest, encryptionKey);
         const remoteKey = `${baseName}.crmbackup`;
         await uploadToS3(options.s3Config, remoteKey, encryptedBytes);
       }
@@ -282,7 +296,7 @@ export class BackupManager {
   }
 
   // Restore active database state from target file
-  static async restoreBackup(filename: string, encryptionKey?: Buffer): Promise<void> {
+  static async restoreBackup(filename: string, encryptionKey?: Buffer, encryptionPassword?: string): Promise<void> {
     const paths = getRuntimePaths();
     const sourcePath = resolveBackupPath(paths.internalBackupDirectory, filename);
     if (!fs.existsSync(sourcePath)) {
@@ -294,10 +308,13 @@ export class BackupManager {
     try {
       // 1. Unpack or copy database snapshot to temporary location
       if (filename.endsWith('.crmbackup')) {
-        if (!encryptionKey) {
-          throw new Error('Encryption key is required to restore an encrypted backup archive.');
+        let restoreKey=encryptionKey;
+        if (encryptionPassword) {
+          const manifest=this.readEncryptedBackupManifest(sourcePath);
+          restoreKey=manifest.kdf?this.derivePasswordKey(encryptionPassword,manifest.kdf):this.deriveLegacyPasswordKey(encryptionPassword);
         }
-        this.decryptBackupFile(sourcePath, encryptionKey, tempRestoreDbPath);
+        if (!restoreKey) throw new Error('Encryption password or key is required to restore an encrypted backup archive.');
+        this.decryptBackupFile(sourcePath, restoreKey, tempRestoreDbPath);
       } else {
         fs.copyFileSync(sourcePath, tempRestoreDbPath);
       }

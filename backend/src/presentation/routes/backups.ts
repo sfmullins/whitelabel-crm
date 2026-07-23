@@ -10,6 +10,12 @@ function parseEncryptionKeyHex(value:unknown):Buffer|undefined {
   return Buffer.from(value,'hex');
 }
 
+function parseEncryptionPassword(value:unknown):string|undefined {
+  if(value===undefined||value===null||value==='')return undefined;
+  if(typeof value!=='string'||value.length<12||value.length>1024)throw new ValidationError('Backup encryption password must contain between 12 and 1024 characters');
+  return value;
+}
+
 function parseRetentionCount(value:unknown,fallback:number,maximum:number):number {
   if(value===undefined||value===null||value==='')return fallback;
   const parsed=Number(value);
@@ -30,14 +36,11 @@ router.get('/', (req, res, next) => {
 // Create manual backup (with optional S3, encryption, external path)
 router.post('/', async (req, res, next) => {
   try {
-    const { externalDirectory, encryptionKeyHex, s3Config } = req.body;
-    const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);
+    const { externalDirectory, encryptionKeyHex, encryptionPassword, s3Config } = req.body;
+    const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);const password=parseEncryptionPassword(encryptionPassword);
+    if(encryptionKey&&password)throw new ValidationError('Provide either an encryption password or a legacy encryption key, not both');
 
-    const filename = await BackupManager.createBackup({
-      externalDirectory,
-      encryptionKey,
-      s3Config
-    });
+    const filename = await BackupManager.createBackup({ externalDirectory, encryptionKey, encryptionPassword:password, s3Config });
 
     // Automatically trigger pruning on new backup creation
     const daily=parseRetentionCount(req.body.dailyRetentionCount,7,365);
@@ -54,13 +57,14 @@ router.post('/', async (req, res, next) => {
 // Restore database from backup (with optional decryption)
 router.post('/restore', async (req, res, next) => {
   try {
-    const { filename, encryptionKeyHex } = req.body;
+    const { filename, encryptionKeyHex, encryptionPassword } = req.body;
     if (!filename) {
       throw new ValidationError('Missing filename in body');
     }
 
-    const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);
-    await BackupManager.restoreBackup(filename, encryptionKey);
+    const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);const password=parseEncryptionPassword(encryptionPassword);
+    if(encryptionKey&&password)throw new ValidationError('Provide either an encryption password or a legacy encryption key, not both');
+    await BackupManager.restoreBackup(filename, encryptionKey, password);
     res.json({ message: 'Database state restored successfully.' });
   } catch (error) {
     next(error);

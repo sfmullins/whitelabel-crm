@@ -113,20 +113,14 @@ export default function SettingsPage() {
   // Backup mutations
   const createBackupMutation = useMutation({
     mutationFn: async () => {
-      let keyHex: string | undefined;
-      if (encryptionEnabled && backupPassword) {
-        const msgBuffer = new TextEncoder().encode(backupPassword);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        keyHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      }
+      const encryptionPassword=encryptionEnabled&&backupPassword?backupPassword:undefined;
 
       const res = await fetch('/api/backups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           externalDirectory: externalEnabled ? externalDir : undefined,
-          encryptionKeyHex: keyHex,
+          encryptionPassword,
           s3Config: s3Enabled ? {
             endpoint: s3Endpoint,
             region: s3Region,
@@ -167,18 +161,12 @@ export default function SettingsPage() {
 
   const restoreBackupMutation = useMutation({
     mutationFn: async (filename: string) => {
-      let keyHex: string | undefined;
-      if (filename.endsWith('.crmbackup') && encryptionEnabled && backupPassword) {
-        const msgBuffer = new TextEncoder().encode(backupPassword);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        keyHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      }
+      const encryptionPassword=filename.endsWith('.crmbackup')&&encryptionEnabled&&backupPassword?backupPassword:undefined;
 
       const res = await fetch('/api/backups/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename, encryptionKeyHex: keyHex }),
+        body: JSON.stringify({ filename, encryptionPassword }),
       });
       if (!res.ok) {
         throw new Error(await res.text());
