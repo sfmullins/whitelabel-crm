@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { CreateEnrolmentSchema,RedeemEnrolmentSchema } from 'shared/onboarding';
+import { ValidationError } from '../../application/errors';
 import { OnboardingImportService } from '../../application/services/OnboardingImportService';
 import { OnboardingRepository } from '../../infrastructure/database/OnboardingRepository';
 import { PlatformRepository } from '../../infrastructure/database/PlatformRepository';
@@ -13,20 +14,32 @@ const platform=new PlatformRepository();
 const actor=(req:CrmRequest)=>req.crm?.identity?.id??null;
 const requestId=(req:CrmRequest)=>req.crm?.requestId??'onboarding-request';
 const deploymentName=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]+/g,'-')||'crm';
+function checksum(value:unknown):string|undefined{
+  if(value===undefined||value===null||value==='')return undefined;
+  if(typeof value!=='string'||!/^[a-f0-9]{64}$/.test(value))throw new ValidationError('expectedChecksum must be a lowercase SHA-256 checksum');
+  return value;
+}
+function draftRequest(value:unknown):{configuration:unknown;expectedChecksum?:string}{
+  if(value&&typeof value==='object'&&!Array.isArray(value)&&'configuration' in value){
+    const input=value as {configuration:unknown;expectedChecksum?:unknown};
+    return {configuration:input.configuration,expectedChecksum:checksum(input.expectedChecksum)};
+  }
+  return {configuration:value};
+}
 
 router.get('/onboarding/workspace',(_req,res,next)=>{try{return res.json(onboarding.getWorkspace());}catch(error){next(error);}});
-router.put('/onboarding/draft',(req:CrmRequest,res,next)=>{try{return res.json(onboarding.saveDraft(req.body,actor(req)));}catch(error){next(error);}});
-router.post('/onboarding/validate',(req:CrmRequest,res,next)=>{try{return res.json(onboarding.validateDraft(actor(req)));}catch(error){next(error);}});
+router.put('/onboarding/draft',(req:CrmRequest,res,next)=>{try{const input=draftRequest(req.body);return res.json(onboarding.saveDraft(input.configuration,actor(req),input.expectedChecksum));}catch(error){next(error);}});
+router.post('/onboarding/validate',(req:CrmRequest,res,next)=>{try{return res.json(onboarding.validateDraft(actor(req),checksum(req.body?.expectedChecksum)));}catch(error){next(error);}});
 router.post('/onboarding/publish',async(req:CrmRequest,res,next)=>{
   try{
-    const result=await onboarding.publish(actor(req));
+    const result=await onboarding.publish(actor(req),checksum(req.body?.expectedChecksum));
     platform.recordEvent({eventType:'instance.published.v1',aggregateType:'instance',aggregateId:result.workspace.instance.id,actorUserId:actor(req),requestId:requestId(req),payload:{revision:result.deploymentProfile.profile.configurationRevision,deploymentMode:result.deploymentProfile.profile.deploymentMode}});
     return res.json({workspace:result.workspace,deploymentProfile:result.deploymentProfile,prePublicationBackupCreated:true});
   }catch(error){next(error);}
 });
 router.post('/onboarding/rollback/:revisionId',async(req:CrmRequest,res,next)=>{
   try{
-    const result=await onboarding.rollback(req.params.revisionId,actor(req));
+    const result=await onboarding.rollback(req.params.revisionId,actor(req),checksum(req.body?.expectedChecksum));
     platform.recordEvent({eventType:'instance.rolled_back.v1',aggregateType:'instance',aggregateId:result.workspace.instance.id,actorUserId:actor(req),requestId:requestId(req),payload:{sourceRevisionId:req.params.revisionId,newRevision:result.deploymentProfile.profile.configurationRevision}});
     return res.json({workspace:result.workspace,deploymentProfile:result.deploymentProfile,prePublicationBackupCreated:true});
   }catch(error){next(error);}
