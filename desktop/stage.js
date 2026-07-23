@@ -100,11 +100,16 @@ execFileSync('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--pack
 console.log('Verifying staged runtime dependency versions against the reviewed root lockfile...');
 verifyInstalledDependencyGraph(stageDir, path.join(rootDir, 'package-lock.json'));
 
-const rootElectron = path.join(rootDir, 'node_modules', 'electron');
+let resolvedElectronPackage;
+try {
+  resolvedElectronPackage = require.resolve('electron/package.json', { paths: [desktopDir, rootDir] });
+} catch {
+  throw new Error('Reviewed workspace Electron installation is unavailable');
+}
+const reviewedElectron = path.dirname(resolvedElectronPackage);
 const stagedElectron = path.join(stageDir, 'node_modules', 'electron');
-if (!fs.existsSync(rootElectron)) throw new Error('Reviewed root Electron installation is unavailable');
 if (fs.existsSync(stagedElectron)) fs.rmSync(stagedElectron, { recursive: true, force: true });
-fs.symlinkSync(rootElectron, stagedElectron, process.platform === 'win32' ? 'junction' : 'dir');
+fs.symlinkSync(reviewedElectron, stagedElectron, process.platform === 'win32' ? 'junction' : 'dir');
 
 const forgeExecutable = path.join(rootDir, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-forge.cmd' : 'electron-forge');
 if (!fs.existsSync(forgeExecutable)) throw new Error('Reviewed Electron Forge executable is unavailable');
