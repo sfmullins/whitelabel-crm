@@ -1,4 +1,4 @@
-import { FormEvent,useEffect,useMemo,useState } from 'react';
+import { FormEvent,useEffect,useMemo,useState,type ReactNode } from 'react';
 import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2,KeyRound,Laptop,LockKeyhole,ShieldCheck,UserRound } from 'lucide-react';
 import type { SignedDeploymentProfile } from 'shared/onboarding';
@@ -7,13 +7,14 @@ import { api } from '../lib/api';
 import { login,redeemEmployeeEnrolment,selectLocalUser } from '../hooks/useIdentity';
 
 interface LocalUser {id:string;email:string;displayName:string;roles:Array<{key:string;name:string}>;}
+interface NavigatorWithUserAgentData extends Navigator {userAgentData?:{platform?:string};}
 type LoginMode='account'|'enrolment';
 
 export default function Login(){
   const client=useQueryClient();const [mode,setMode]=useState<LoginMode>('account');const [email,setEmail]=useState('');const [password,setPassword]=useState('');const [enrolmentCode,setEnrolmentCode]=useState('');const [deviceName,setDeviceName]=useState('');const [error,setError]=useState('');const [working,setWorking]=useState(false);
   const locals=useQuery<LocalUser[]>({queryKey:['local-users'],queryFn:()=>api.get('/api/auth/local-users'),retry:false});
   const profile=useQuery<SignedDeploymentProfile|null>({queryKey:['public-deployment-profile'],queryFn:()=>api.get<SignedDeploymentProfile>('/api/onboarding/public-profile').catch(()=>null),retry:false,staleTime:60_000});
-  useEffect(()=>{const platform=navigator.userAgentData?.platform||navigator.platform||'Employee device';setDeviceName(`${platform} device`);},[]);
+  useEffect(()=>{const browserNavigator=navigator as NavigatorWithUserAgentData;const platform=browserNavigator.userAgentData?.platform||browserNavigator.platform||'Employee device';setDeviceName(`${platform} device`);},[]);
   const refresh=async()=>{await client.invalidateQueries({queryKey:['crm-identity']});};
   const submit=async(event:FormEvent)=>{event.preventDefault();setWorking(true);setError('');try{if(mode==='account')await login(email,password);else await redeemEmployeeEnrolment(enrolmentCode,deviceName);await refresh();}catch(value){setError(value instanceof Error?value.message:String(value));}finally{setWorking(false);}};
   const choose=async(userId:string)=>{setWorking(true);setError('');try{await selectLocalUser(userId);await refresh();}catch(value){setError(value instanceof Error?value.message:String(value));}finally{setWorking(false);}};
@@ -42,5 +43,5 @@ export default function Login(){
   </div>;
 }
 
-function ModeButton({active,onClick,icon,label}:{active:boolean;onClick:()=>void;icon:React.ReactNode;label:string}){return <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${active?'bg-slate-700 text-white shadow':'text-slate-500 hover:text-slate-200'}`}>{icon}{label}</button>;}
+function ModeButton({active,onClick,icon,label}:{active:boolean;onClick:()=>void;icon:ReactNode;label:string}){return <button type="button" role="tab" aria-selected={active} onClick={onClick} className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${active?'bg-slate-700 text-white shadow':'text-slate-500 hover:text-slate-200'}`}>{icon}{label}</button>;}
 function TrustLine({text}:{text:string}){return <div className="flex items-center gap-2 text-white/80"><CheckCircle2 className="h-4 w-4 shrink-0"/><span>{text}</span></div>;}
