@@ -1,7 +1,7 @@
 import { useMemo,useState,type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertCircle,ArrowRight,Building2,Check,CheckCircle2,ChevronRight,Cloud,Database,Download,FileSpreadsheet,
+  AlertCircle,Building2,Check,CheckCircle2,ChevronRight,Cloud,Database,Download,FileSpreadsheet,
   Globe2,KeyRound,Laptop,Layers3,Loader2,Mail,Palette,Plug,RefreshCw,Save,ShieldCheck,Sparkles,Users,Workflow,XCircle,
 } from 'lucide-react';
 import type { OnboardingConfiguration,ReadinessCheck } from 'shared/onboarding';
