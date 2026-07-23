@@ -1,0 +1,38 @@
+name: Apply backup cryptography v2 patch
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-backup-crypto-v2
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.head_ref == 'post-wi11-audit-pass-2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out audit branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: post-wi11-audit-pass-2
+
+      - name: Apply backup cryptography patch
+        run: python3 scratch/apply-backup-crypto-v2.py
+
+      - name: Commit and push patch
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Backup cryptography patch already applied."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Harden backup password derivation and archive authentication"
+          git push origin HEAD:post-wi11-audit-pass-2
