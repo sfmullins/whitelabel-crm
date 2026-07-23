@@ -8,7 +8,7 @@ import Onboarding from '../../pages/Onboarding';
 import Login from '../../pages/Login';
 import {
   BarChart3,BriefcaseBusiness,Building2,Calendar,CalendarClock,CheckSquare,FileText,FolderOpen,Inbox,LayoutDashboard,
-  Layers,Link2,LogOut,PackageOpen,Plus,Radio,Search,Settings,ShieldCheck,UserCog,UserRound,Users,Workflow,X,
+  Layers,Link2,LogOut,PackageOpen,Plus,Radio,Search,Settings,ShieldCheck,Sparkles,UserCog,UserRound,Users,Workflow,X,
 } from 'lucide-react';
 import type { SavedView,SearchResponse,SearchResult } from 'shared';
 import { Button } from '../ui/button';
@@ -28,6 +28,7 @@ const navGroups:Array<{label:string;items:NavItem[]}>= [
   ]},
   {label:'System',items:[
     {to:'/administration',label:'Administration',icon:UserCog,anyPermission:['users.manage','audit.read']},
+    {to:'/onboarding',label:'Instance onboarding',icon:Sparkles,permission:'onboarding.read'},
     {to:'/extensions',label:'Extensions',icon:PackageOpen,permission:'extensions.read'},
     {to:'/operations-health',label:'Operations health',icon:ShieldCheck,permission:'operations.manage'},
     {to:'/settings',label:'Settings',icon:Settings,permission:'settings.manage'},
