@@ -16,6 +16,12 @@
       "import": "./dist/types.js",
       "require": "./dist/cjs/types.js",
       "default": "./dist/types.js"
+    },
+    "./onboarding": {
+      "types": "./dist/onboarding.d.ts",
+      "import": "./dist/onboarding.js",
+      "require": "./dist/cjs/onboarding.js",
+      "default": "./dist/onboarding.js"
     }
   },
   "scripts": {
