@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { SecurityRepository } from '../../infrastructure/database/SecurityRepository';
 import type { CrmRequest } from '../middleware/security';
 import { isLoopback } from '../middleware/security';
+import {isTrustedLocalRequestOrigin} from '../originPolicy';
 
 const router=Router();
 const security=new SecurityRepository();
 const parse=<T>(schema:z.ZodType<T>,value:unknown):T=>{const result=schema.safeParse(value);if(!result.success)throw new Error(result.error.issues.map((issue)=>issue.message).join('; '));return result.data;};
 const message=(error:unknown)=>error instanceof Error?error.message:String(error);
+const localSessionAvailable=(req:Parameters<typeof isLoopback>[0])=>isLoopback(req)&&isTrustedLocalRequestOrigin(req)&&process.env.CRM_TRUST_LOCAL_USERS!=='false';
 
 router.post('/auth/login',(req,res)=>{
   try{
@@ -20,7 +22,7 @@ router.post('/auth/login',(req,res)=>{
 
 router.post('/auth/local-session',(req,res)=>{
   try{
-    if(!isLoopback(req)||process.env.CRM_TRUST_LOCAL_USERS==='false'){res.status(403).json({error:'LOCAL_SESSION_DISABLED',message:'Trusted local sessions are unavailable'});return;}
+    if(!localSessionAvailable(req)){res.status(403).json({error:'LOCAL_SESSION_DISABLED',message:'Trusted local sessions are unavailable'});return;}
     const input=parse(z.object({userId:z.string().uuid().optional()}).strict(),req.body??{});const identity=security.resolveLocalUser(input.userId);
     if(!identity){res.status(404).json({error:'USER_NOT_FOUND',message:'Local CRM user not found or disabled'});return;}
     security.recordAudit({actorUserId:identity.id,action:'auth.local_session',entityType:'user',entityId:identity.id,requestId:String(req.header('x-request-id')||'local-session'),route:'/api/auth/local-session',method:'POST',metadata:{ipAddress:req.ip}});
@@ -30,7 +32,7 @@ router.post('/auth/local-session',(req,res)=>{
 
 router.get('/auth/me',(req:CrmRequest,res)=>{res.json({user:req.crm?.identity??null});});
 router.get('/auth/local-users',(req,res)=>{
-  if(!isLoopback(req)||process.env.CRM_TRUST_LOCAL_USERS==='false'){res.status(403).json({error:'LOCAL_SESSION_DISABLED',message:'Trusted local users are unavailable'});return;}
+  if(!localSessionAvailable(req)){res.status(403).json({error:'LOCAL_SESSION_DISABLED',message:'Trusted local users are unavailable'});return;}
   res.json(security.listUsers().filter((user)=>user.status==='active').map((user)=>({id:user.id,email:user.email,displayName:user.displayName,roles:user.roles})));
 });
 router.post('/auth/logout',(req:CrmRequest,res)=>{if(req.crm?.identity?.sessionId)security.revokeSession(req.crm.identity.sessionId);res.json({loggedOut:true});});
