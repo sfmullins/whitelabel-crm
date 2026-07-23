@@ -2,7 +2,7 @@
   "name": "desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "White-label CRM local-first desktop application",
+  "description": "White-label CRM standalone and managed-client desktop application",
   "author": "sfmullins",
   "main": "dist/main.js",
   "scripts": {
@@ -12,7 +12,8 @@
     "make": "node stage.js make"
   },
   "dependencies": {
-    "backend": "*"
+    "backend": "*",
+    "shared": "*"
   },
   "devDependencies": {
     "electron": "42.7.1",
