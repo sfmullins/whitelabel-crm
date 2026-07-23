@@ -14,6 +14,9 @@
     "*": {
       "onboarding": [
         "dist/onboarding.d.ts"
+      ],
+      "onboarding-import": [
+        "dist/onboardingImport.d.ts"
       ]
     }
   },
@@ -29,6 +32,12 @@
       "import": "./dist/onboarding.js",
       "require": "./dist/cjs/onboarding.js",
       "default": "./dist/onboarding.js"
+    },
+    "./onboarding-import": {
+      "types": "./dist/onboardingImport.d.ts",
+      "import": "./dist/onboardingImport.js",
+      "require": "./dist/cjs/onboardingImport.js",
+      "default": "./dist/onboardingImport.js"
     }
   },
   "scripts": {
