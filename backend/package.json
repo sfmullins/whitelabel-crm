@@ -29,7 +29,7 @@
     "csv-parser": "^3.0.0",
     "drizzle-orm": "^0.45.2",
     "express": "^4.19.2",
-    "pdfkit": "^0.15.0",
+    "pdfkit": "^0.19.1",
     "shared": "*",
     "zod": "^3.23.8"
   },
