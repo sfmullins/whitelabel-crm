@@ -34,6 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          archive="${RUNNER_TEMP}/wi13-source-${GITHUB_SHA}.tgz"
           tar \
             --exclude=.git \
             --exclude=node_modules \
@@ -44,12 +45,13 @@ jobs:
             --exclude='**/out' \
             --exclude=.vite \
             --exclude='**/.vite' \
-            -czf wi13-source-${GITHUB_SHA}.tgz .
+            -czf "${archive}" .
+          echo "SOURCE_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
 
       - name: Upload source archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: wi13-source-${{ github.sha }}
-          path: wi13-source-${{ github.sha }}.tgz
+          path: ${{ env.SOURCE_ARCHIVE }}
           if-no-files-found: error
           retention-days: 1
