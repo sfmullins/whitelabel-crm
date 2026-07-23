@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync, execSync } = require('node:child_process');
+const { verifyInstalledDependencyGraph } = require('./stage-policy');
 
 const action = process.argv[2] || 'package';
 if (action !== 'package' && action !== 'make') {
@@ -114,6 +115,8 @@ execSync('npm install --no-audit --no-fund --package-lock=false', {
   cwd: stageDir,
   stdio: 'inherit',
 });
+console.log('Verifying staged dependency versions against the reviewed root lockfile...');
+verifyInstalledDependencyGraph(stageDir, path.join(rootDir, 'package-lock.json'));
 
 // 8. Run Electron Forge inside the isolated staging directory.
 console.log(`Running Electron Forge ${action} inside staging directory...`);

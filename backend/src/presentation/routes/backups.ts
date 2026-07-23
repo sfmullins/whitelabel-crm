@@ -1,7 +1,27 @@
 import { Router } from 'express';
+import { ValidationError } from '../../application/errors';
 import { BackupManager } from '../../infrastructure/backup/BackupManager';
 
 const router = Router();
+
+function parseEncryptionKeyHex(value:unknown):Buffer|undefined {
+  if(value===undefined||value===null||value==='')return undefined;
+  if(typeof value!=='string'||!/^[0-9a-f]{64}$/i.test(value))throw new ValidationError('Backup encryption key must be exactly 32 bytes encoded as hexadecimal');
+  return Buffer.from(value,'hex');
+}
+
+function parseEncryptionPassword(value:unknown):string|undefined {
+  if(value===undefined||value===null||value==='')return undefined;
+  if(typeof value!=='string'||value.length<12||value.length>1024)throw new ValidationError('Backup encryption password must contain between 12 and 1024 characters');
+  return value;
+}
+
+function parseRetentionCount(value:unknown,fallback:number,maximum:number):number {
+  if(value===undefined||value===null||value==='')return fallback;
+  const parsed=Number(value);
+  if(!Number.isInteger(parsed)||parsed<1||parsed>maximum)throw new ValidationError(`Backup retention count must be an integer between 1 and ${maximum}`);
+  return parsed;
+}
 
 // Get list of backups
 router.get('/', (req, res, next) => {
@@ -16,23 +36,15 @@ router.get('/', (req, res, next) => {
 // Create manual backup (with optional S3, encryption, external path)
 router.post('/', async (req, res, next) => {
   try {
-    const { externalDirectory, encryptionKeyHex, s3Config } = req.body;
-    
-    let encryptionKey: Buffer | undefined;
-    if (encryptionKeyHex) {
-      encryptionKey = Buffer.from(encryptionKeyHex, 'hex');
-    }
+    const { externalDirectory, encryptionKeyHex, encryptionPassword, s3Config } = req.body;
+    const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);const password=parseEncryptionPassword(encryptionPassword);
+    if(encryptionKey&&password)throw new ValidationError('Provide either an encryption password or a legacy encryption key, not both');
+    if(s3Config&&!encryptionKey&&!password)throw new ValidationError('Remote backups require an encryption password or key');
+    const daily=parseRetentionCount(req.body.dailyRetentionCount,7,365);
+    const weekly=parseRetentionCount(req.body.weeklyRetentionCount,4,260);
+    const monthly=parseRetentionCount(req.body.monthlyRetentionCount,12,120);
 
-    const filename = await BackupManager.createBackup({
-      externalDirectory,
-      encryptionKey,
-      s3Config
-    });
-
-    // Automatically trigger pruning on new backup creation
-    const daily = Number(req.body.dailyRetentionCount ?? 7);
-    const weekly = Number(req.body.weeklyRetentionCount ?? 4);
-    const monthly = Number(req.body.monthlyRetentionCount ?? 12);
+    const filename = await BackupManager.createBackup({ externalDirectory, encryptionKey, encryptionPassword:password, s3Config });
     BackupManager.pruneRetention({ daily, weekly, monthly });
 
     res.status(201).json({ message: 'Backup created successfully', filename });
@@ -44,17 +56,14 @@ router.post('/', async (req, res, next) => {
 // Restore database from backup (with optional decryption)
 router.post('/restore', async (req, res, next) => {
   try {
-    const { filename, encryptionKeyHex } = req.body;
+    const { filename, encryptionKeyHex, encryptionPassword } = req.body;
     if (!filename) {
-      return res.status(400).json({ error: 'Missing filename in body' });
+      throw new ValidationError('Missing filename in body');
     }
 
-    let encryptionKey: Buffer | undefined;
-    if (encryptionKeyHex) {
-      encryptionKey = Buffer.from(encryptionKeyHex, 'hex');
-    }
-
-    await BackupManager.restoreBackup(filename, encryptionKey);
+    const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);const password=parseEncryptionPassword(encryptionPassword);
+    if(encryptionKey&&password)throw new ValidationError('Provide either an encryption password or a legacy encryption key, not both');
+    await BackupManager.restoreBackup(filename, encryptionKey, password);
     res.json({ message: 'Database state restored successfully.' });
   } catch (error) {
     next(error);

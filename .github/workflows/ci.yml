@@ -24,10 +24,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -42,7 +42,7 @@ jobs:
 
       - name: Upload workspace build diagnostics
         if: steps.workspace_build.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: workspace-build-failure
           path: ${{ runner.temp }}/workspace-build.log
@@ -61,7 +61,7 @@ jobs:
 
       - name: Upload npm hygiene diagnostics
         if: steps.npm_hygiene.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: npm-hygiene-failure
           path: ${{ runner.temp }}/npm-hygiene.log
@@ -80,7 +80,7 @@ jobs:
 
       - name: Upload production dependency diagnostics
         if: steps.production_audit.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: production-dependency-audit-failure
           path: ${{ runner.temp }}/production-audit.log
@@ -99,7 +99,7 @@ jobs:
 
       - name: Upload test diagnostics
         if: steps.workspace_tests.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: workspace-test-failure
           path: ${{ runner.temp }}/workspace-tests.log
@@ -129,8 +129,11 @@ jobs:
       - name: WI11 extension smoke
         run: npm run wi11:smoke
 
-      - name: Desktop packaging preflight
-        run: npm run desktop:preflight
+      - name: Desktop packaging and security preflight
+        run: |
+          npm run desktop:preflight
+          npm run desktop:security
+          npm run desktop:dependency-policy
 
       - name: Clean repository verification
         id: clean_repository
@@ -157,7 +160,7 @@ jobs:
 
       - name: Upload clean repository diagnostics
         if: steps.clean_repository.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: repository-clean-failure
           path: |

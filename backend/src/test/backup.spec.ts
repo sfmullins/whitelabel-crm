@@ -95,6 +95,18 @@ describe('Backup and Recovery Suite', () => {
     expect(() => BackupManager.verifyIntegrity(decryptedDbPath)).not.toThrow();
   });
 
+  it('should reject restore and deletion paths outside the backup directory', async () => {
+    const outsidePath = path.resolve(testDataDir, '..', `outside-${crypto.randomUUID()}.db`);
+    fs.writeFileSync(outsidePath, 'do-not-delete');
+
+    expect(() => BackupManager.deleteBackup(`../${path.basename(outsidePath)}`)).toThrow(/Invalid backup filename/);
+    expect(fs.existsSync(outsidePath)).toBe(true);
+    await expect(BackupManager.restoreBackup(`../${path.basename(outsidePath)}`)).rejects.toThrow(/Invalid backup filename/);
+    expect(fs.existsSync(outsidePath)).toBe(true);
+
+    fs.unlinkSync(outsidePath);
+  });
+
   it('should prune old backups correctly according to GFS schedule', () => {
     const paths = getRuntimePaths();
     

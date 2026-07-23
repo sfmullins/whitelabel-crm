@@ -6,12 +6,13 @@ import { WI10_EVENT_TYPES } from '../../infrastructure/database/wi10PlatformSche
 
 export interface CrmRequest extends Request {crm?:{requestId:string;identity:RequestIdentity|null};}
 const buckets=new Map<string,{windowStarted:number;count:number}>();
-const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext|signature|publickey/i;
+const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext|signature|publickey|privatekey|encryptionkey|accesskey/i;
 
 export function isLoopback(req:Request):boolean{const address=req.socket.remoteAddress||'';return address==='127.0.0.1'||address==='::1'||address==='::ffff:127.0.0.1';}
 export function isTrustedLocalOrigin(req:Request):boolean{const origin=req.header('origin');if(!origin||origin==='null')return true;try{const hostname=new URL(origin).hostname;return hostname==='localhost'||hostname==='127.0.0.1'||hostname==='::1';}catch{return false;}}
 function trustLocalUsers():boolean{return process.env.CRM_TRUST_LOCAL_USERS!=='false';}
 function redact(value:unknown,depth=0):unknown{if(depth>5)return '[truncated]';if(Array.isArray(value))return value.slice(0,50).map((item)=>redact(item,depth+1));if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([key,item])=>[key,SENSITIVE.test(key)?'[redacted]':redact(item,depth+1)]));if(typeof value==='string'&&value.length>2000)return `${value.slice(0,2000)}…`;return value;}
+export function redactAuditValue(value:unknown):unknown{return redact(value);}
 function normalizeApiPath(path:string):string{return path.startsWith('/v1/')?path.slice(3):path==='/v1'?'/':path;}
 function entityFromPath(path:string):string|null{const normalized=path.replace(/^\/api\/v1/,'/api').split('?')[0];const parts=normalized.split('/').filter(Boolean);const value=parts[0]==='api'?parts[1]:parts[0];return value&&value!=='auth'?value.replace(/-/g,'_'):null;}
 function permissionFor(method:string,path:string):string|null{
