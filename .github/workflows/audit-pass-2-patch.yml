@@ -3,6 +3,8 @@ name: Apply second-pass audit patch
 on:
   push:
     branches: [post-wi11-audit-pass-2]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
@@ -13,6 +15,7 @@ concurrency:
 
 jobs:
   apply:
+    if: github.event_name != 'pull_request' || github.head_ref == 'post-wi11-audit-pass-2'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
