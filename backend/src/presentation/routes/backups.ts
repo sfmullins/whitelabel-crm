@@ -1,7 +1,21 @@
 import { Router } from 'express';
+import { ValidationError } from '../../application/errors';
 import { BackupManager } from '../../infrastructure/backup/BackupManager';
 
 const router = Router();
+
+function parseEncryptionKeyHex(value:unknown):Buffer|undefined {
+  if(value===undefined||value===null||value==='')return undefined;
+  if(typeof value!=='string'||!/^[0-9a-f]{64}$/i.test(value))throw new ValidationError('Backup encryption key must be exactly 32 bytes encoded as hexadecimal');
+  return Buffer.from(value,'hex');
+}
+
+function parseRetentionCount(value:unknown,fallback:number,maximum:number):number {
+  if(value===undefined||value===null||value==='')return fallback;
+  const parsed=Number(value);
+  if(!Number.isInteger(parsed)||parsed<1||parsed>maximum)throw new ValidationError(`Backup retention count must be an integer between 1 and ${maximum}`);
+  return parsed;
+}
 
 // Get list of backups
 router.get('/', (req, res, next) => {
@@ -17,11 +31,7 @@ router.get('/', (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { externalDirectory, encryptionKeyHex, s3Config } = req.body;
-    
-    let encryptionKey: Buffer | undefined;
-    if (encryptionKeyHex) {
-      encryptionKey = Buffer.from(encryptionKeyHex, 'hex');
-    }
+    const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);
 
     const filename = await BackupManager.createBackup({
       externalDirectory,
@@ -30,9 +40,9 @@ router.post('/', async (req, res, next) => {
     });
 
     // Automatically trigger pruning on new backup creation
-    const daily = Number(req.body.dailyRetentionCount ?? 7);
-    const weekly = Number(req.body.weeklyRetentionCount ?? 4);
-    const monthly = Number(req.body.monthlyRetentionCount ?? 12);
+    const daily=parseRetentionCount(req.body.dailyRetentionCount,7,365);
+    const weekly=parseRetentionCount(req.body.weeklyRetentionCount,4,260);
+    const monthly=parseRetentionCount(req.body.monthlyRetentionCount,12,120);
     BackupManager.pruneRetention({ daily, weekly, monthly });
 
     res.status(201).json({ message: 'Backup created successfully', filename });
@@ -46,14 +56,10 @@ router.post('/restore', async (req, res, next) => {
   try {
     const { filename, encryptionKeyHex } = req.body;
     if (!filename) {
-      return res.status(400).json({ error: 'Missing filename in body' });
+      throw new ValidationError('Missing filename in body');
     }
 
-    let encryptionKey: Buffer | undefined;
-    if (encryptionKeyHex) {
-      encryptionKey = Buffer.from(encryptionKeyHex, 'hex');
-    }
-
+    const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);
     await BackupManager.restoreBackup(filename, encryptionKey);
     res.json({ message: 'Database state restored successfully.' });
   } catch (error) {
