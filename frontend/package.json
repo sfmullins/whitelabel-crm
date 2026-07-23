@@ -27,7 +27,7 @@
     "recharts": "^2.12.7",
     "shared": "*",
     "tailwind-merge": "^2.3.0",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",
