@@ -39,13 +39,12 @@ router.post('/', async (req, res, next) => {
     const { externalDirectory, encryptionKeyHex, encryptionPassword, s3Config } = req.body;
     const encryptionKey=parseEncryptionKeyHex(encryptionKeyHex);const password=parseEncryptionPassword(encryptionPassword);
     if(encryptionKey&&password)throw new ValidationError('Provide either an encryption password or a legacy encryption key, not both');
-
-    const filename = await BackupManager.createBackup({ externalDirectory, encryptionKey, encryptionPassword:password, s3Config });
-
-    // Automatically trigger pruning on new backup creation
+    if(s3Config&&!encryptionKey&&!password)throw new ValidationError('Remote backups require an encryption password or key');
     const daily=parseRetentionCount(req.body.dailyRetentionCount,7,365);
     const weekly=parseRetentionCount(req.body.weeklyRetentionCount,4,260);
     const monthly=parseRetentionCount(req.body.monthlyRetentionCount,12,120);
+
+    const filename = await BackupManager.createBackup({ externalDirectory, encryptionKey, encryptionPassword:password, s3Config });
     BackupManager.pruneRetention({ daily, weekly, monthly });
 
     res.status(201).json({ message: 'Backup created successfully', filename });
