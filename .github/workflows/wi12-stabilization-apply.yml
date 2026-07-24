@@ -37,7 +37,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/wi12-stabilization-patch/00 .github/wi12-stabilization-patch/01 \
+          cat \
+            .github/wi12-stabilization-patch/00 \
+            .github/wi12-stabilization-patch/01 \
+            .github/wi12-stabilization-patch/02 \
+            .github/wi12-stabilization-patch/03 \
+            .github/wi12-stabilization-patch/04 \
+            .github/wi12-stabilization-patch/05 \
+            .github/wi12-stabilization-patch/06 \
             | base64 --decode \
             | gzip --decompress \
             > "${RUNNER_TEMP}/wi12-stabilization.patch"
