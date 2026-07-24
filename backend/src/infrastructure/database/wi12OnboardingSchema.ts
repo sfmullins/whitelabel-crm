@@ -160,7 +160,7 @@ export function ensureWi12OnboardingSchema(connection:Database.Database,options:
 
   const existing=connection.prepare(`SELECT id FROM crm_instances LIMIT 1`).get() as {id:string}|undefined;
   if(existing)return;
-  const initial=options.initialConfiguration?OnboardingConfigurationSchema.parse(clone(options.initialConfiguration)):(legacyConfiguration(connection)??clone(DEFAULT_ONBOARDING_CONFIGURATION));
+  const initial=options.initialConfiguration?clone(options.initialConfiguration):(legacyConfiguration(connection)??clone(DEFAULT_ONBOARDING_CONFIGURATION));
   const instanceId=DEFAULT_INSTANCE_ID;
   const serialized=JSON.stringify(initial);
   connection.prepare(`INSERT INTO crm_instances(id,slug,status,deployment_mode,current_published_revision_id,signing_credential_key,created_at,updated_at) VALUES(?,?, 'provisioning', ?,NULL,?,?,?)`).run(instanceId,initial.deployment.instanceSlug,initial.deployment.mode,`instance_signing_${instanceId.replace(/-/g,'')}`,timestamp,timestamp);
