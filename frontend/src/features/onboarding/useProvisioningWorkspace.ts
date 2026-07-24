@@ -6,7 +6,7 @@ import type {
   AdminRole,AdminTeam,AdminUser,CommunicationAccount,CustomFieldDefinition,CustomObjectDefinition,DeviceSummary,
   EnrolmentSummary,ExtensionSummary,ImportHistory,ImportWorkspace,ProvisioningState,SaveState,
 } from './models';
-import { normalizeOnboardingWorkspace,unwrapCollection } from './runtimeAdapters';
+import { normalizeOnboardingWorkspace,normalizeReadinessResult,unwrapCollection } from './runtimeAdapters';
 
 type ConfigSection=Exclude<keyof OnboardingConfiguration,'schemaVersion'>;
 const emptyImport:ImportWorkspace={fileName:'',csvData:'',preview:null,mapping:{},duplicateStrategy:'skip'};
@@ -120,7 +120,7 @@ export function useProvisioningWorkspace(onSuccess?:()=>void|Promise<void>){
     finally{workingRef.current=null;setWorking(null);}
   };
 
-  const validate=async()=>{const workspace=await flushDraft();if(!workspace)return;const readiness=await run('validate',()=>api.post<ReadinessResult>('/api/onboarding/validate',{expectedChecksum:workspace.draft.checksum}),'Readiness evidence refreshed.',false);if(readiness)updateState((current)=>({...current,workspace:{...current.workspace,readiness:normalizeOnboardingWorkspace({...current.workspace,readiness}).readiness}}));};
+  const validate=async()=>{const workspace=await flushDraft();if(!workspace)return;const readiness=await run('validate',()=>api.post<ReadinessResult>('/api/onboarding/validate',{expectedChecksum:workspace.draft.checksum}),'Readiness evidence refreshed.',false);if(readiness)updateState((current)=>({...current,workspace:{...current.workspace,readiness:normalizeReadinessResult(readiness)}}));};
   const publish=async()=>{const workspace=await flushDraft();if(!workspace)return;const result=await run('publish',()=>api.post<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile}>('/api/onboarding/publish',{expectedChecksum:workspace.draft.checksum}),'The signed instance profile is published and the workspace is active.',false);if(result){const normalized=normalizeOnboardingWorkspace(result.workspace);lastSaved.current=JSON.stringify(normalized.draft.configuration);replaceState(stateRef.current?{...stateRef.current,workspace:normalized,draft:normalized.draft.configuration,profile:result.deploymentProfile}:stateRef.current);await onSuccess?.();}};
   const rollback=async(revisionId:string)=>{const workspace=await flushDraft();if(!workspace)return;const result=await run('rollback',()=>api.post<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile}>(`/api/onboarding/rollback/${revisionId}`,{expectedChecksum:workspace.draft.checksum}),'The selected configuration was restored as a new signed publication.',false);if(result){const normalized=normalizeOnboardingWorkspace(result.workspace);lastSaved.current=JSON.stringify(normalized.draft.configuration);replaceState(stateRef.current?{...stateRef.current,workspace:normalized,draft:normalized.draft.configuration,profile:result.deploymentProfile}:stateRef.current);}};
 
