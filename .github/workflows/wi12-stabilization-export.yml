@@ -4,20 +4,21 @@ on:
   push:
     branches:
       - WI12-Stabilization
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
   export:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Check out branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: WI12-Stabilization
           fetch-depth: 0
 
       - name: Build source archive
