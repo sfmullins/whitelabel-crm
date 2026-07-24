@@ -53,12 +53,14 @@ jobs:
 
       - name: Materialize final Git tree and commit
         id: materialize
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
+          set -o pipefail
+          python3 - <<'PY' 2>&1 | tee "${RUNNER_TEMP}/wi12-materialize.log"
+          import base64
           import json
           import os
           import pathlib
@@ -67,32 +69,35 @@ jobs:
           repository = os.environ['GITHUB_REPOSITORY']
           base_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 
-          def gh_api(endpoint: str, payload: dict | None = None) -> dict:
+          def gh_api(endpoint, payload=None):
               command = ['gh', 'api', endpoint]
+              encoded = None
               if payload is not None:
                   command += ['--method', 'POST', '--input', '-']
                   encoded = json.dumps(payload, separators=(',', ':')).encode()
-              else:
-                  encoded = None
-              result = subprocess.run(command, input=encoded, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+              result = subprocess.run(command, input=encoded, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              if result.returncode != 0:
+                  raise RuntimeError(f"gh api {endpoint} failed ({result.returncode}): {result.stderr.decode(errors='replace')}\n{result.stdout.decode(errors='replace')}")
               return json.loads(result.stdout)
 
           base_tree = gh_api(f'repos/{repository}/git/commits/{base_commit}')['tree']['sha']
           raw_paths = subprocess.check_output(['git', 'diff', '--cached', '--name-only', '-z'])
           paths = [item.decode() for item in raw_paths.split(b'\0') if item]
-          entries: list[dict] = []
+          entries = []
+          print(f'Base commit {base_commit}; materializing {len(paths)} changed paths')
 
-          for path in paths:
+          for index, path in enumerate(paths, start=1):
               exists = subprocess.run(['git', 'cat-file', '-e', f':{path}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
               if not exists:
                   entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'sha': None})
+                  print(f'[{index}/{len(paths)}] delete {path}')
                   continue
               index_row = subprocess.check_output(['git', 'ls-files', '-s', '--', path], text=True).strip()
               mode = index_row.split()[0]
               content = subprocess.check_output(['git', 'show', f':{path}'])
-              import base64
               blob = gh_api(f'repos/{repository}/git/blobs', {'content': base64.b64encode(content).decode(), 'encoding': 'base64'})
               entries.append({'path': path, 'mode': mode, 'type': 'blob', 'sha': blob['sha']})
+              print(f'[{index}/{len(paths)}] blob {path} -> {blob["sha"]}')
 
           tree = gh_api(f'repos/{repository}/git/trees', {'base_tree': base_tree, 'tree': entries})
           commit = gh_api(f'repos/{repository}/git/commits', {
@@ -104,9 +109,18 @@ jobs:
           print(f"Materialized WI12 stabilization commit: {commit['sha']}")
           PY
 
-      - name: Upload final commit reference
+      - name: Upload materialization evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: wi12-stabilization-final-commit
-          path: ${{ runner.temp }}/wi12-final-commit.txt
+          name: wi12-stabilization-materialization
+          path: |
+            ${{ runner.temp }}/wi12-materialize.log
+            ${{ runner.temp }}/wi12-final-commit.txt
+          if-no-files-found: warn
           retention-days: 1
+
+      - name: Enforce successful materialization
+        if: steps.materialize.outcome != 'success'
+        shell: bash
+        run: exit 1
