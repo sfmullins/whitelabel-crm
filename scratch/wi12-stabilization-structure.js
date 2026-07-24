@@ -8,6 +8,7 @@ const required=[
   'backend/src/infrastructure/storage/BrandAssetStore.ts',
   'backend/src/test/wi12-stabilization.spec.ts',
   'frontend/src/features/onboarding/draftConflictRecovery.ts',
+  'frontend/src/features/onboarding/ProvisioningWorkspace.journey.test.tsx',
   'frontend/src/features/onboarding/useProvisioningWorkspace.ts',
   'scratch/wi12-proxy-smoke.mjs',
   'docs/work-items/WI12-STABILIZATION.md',
