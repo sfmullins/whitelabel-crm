@@ -1,4 +1,4 @@
-import type { OnboardingWorkspace,ReadinessCheck } from 'shared/onboarding';
+import type { OnboardingWorkspace,ReadinessCheck,ReadinessResult } from 'shared/onboarding';
 
 const readinessSectionMap:Record<string,string>={
   branding:'brand',
@@ -18,15 +18,16 @@ export function unwrapCollection<T>(value:unknown,...keys:string[]):T[]{
   return [];
 }
 
-export function normalizeOnboardingWorkspace(workspace:OnboardingWorkspace):OnboardingWorkspace{
+export function normalizeReadinessResult(readiness:ReadinessResult):ReadinessResult{
   return {
-    ...workspace,
-    readiness:{
-      ...workspace.readiness,
-      checks:workspace.readiness.checks.map((check):ReadinessCheck=>({
-        ...check,
-        section:check.section?readinessSectionMap[check.section]??check.section:check.section,
-      })),
-    },
+    ...readiness,
+    checks:readiness.checks.map((check):ReadinessCheck=>({
+      ...check,
+      section:check.section?readinessSectionMap[check.section]??check.section:check.section,
+    })),
   };
+}
+
+export function normalizeOnboardingWorkspace(workspace:OnboardingWorkspace):OnboardingWorkspace{
+  return {...workspace,readiness:normalizeReadinessResult(workspace.readiness)};
 }
