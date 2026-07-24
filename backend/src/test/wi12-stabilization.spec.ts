@@ -15,8 +15,8 @@ const ONE_PIXEL_PNG='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN
 
 describe('WI12 stabilization',()=>{
   let server:RunningServer|null=null;
-  beforeEach(()=>{setupTempDatabase();delete process.env.CRM_TRUST_LOCAL_USERS;});
-  afterEach(async()=>{await server?.close();server=null;cleanupTempDatabase();delete process.env.CRM_TRUST_LOCAL_USERS;vi.restoreAllMocks();});
+  beforeEach(()=>{process.env.CRM_ENFORCE_INSTANCE_LIFECYCLE='true';setupTempDatabase();delete process.env.CRM_TRUST_LOCAL_USERS;});
+  afterEach(async()=>{await server?.close();server=null;cleanupTempDatabase();delete process.env.CRM_TRUST_LOCAL_USERS;delete process.env.CRM_ENFORCE_INSTANCE_LIFECYCLE;vi.restoreAllMocks();});
 
   it('uses the instance lifecycle as the authoritative workspace gate',async()=>{
     await runSeed('demo');
