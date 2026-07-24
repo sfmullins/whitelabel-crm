@@ -1,6 +1,12 @@
 name: WI12 stabilization patch installer
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/wi12-stabilization-patch/**
+      - .github/workflows/wi12-stabilization-apply.yml
   push:
     branches:
       - WI12-Stabilization
@@ -17,7 +23,7 @@ concurrency:
 
 jobs:
   apply:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && (github.event_name != 'pull_request' || github.head_ref == 'WI12-Stabilization')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
