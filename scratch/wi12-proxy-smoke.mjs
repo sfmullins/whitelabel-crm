@@ -19,27 +19,60 @@ configureRuntimePaths({dataDirectory:temp,databasePath:path.join(temp,'crm.sqlit
 const database=openDatabase(path.join(temp,'crm.sqlite'));
 runMigrations(database,path.join(root,'backend','drizzle'),getSqliteConnection());
 await runSeed('demo');
-const backend=await startServer({host:'127.0.0.1',port:0});
+let backend=await startServer({host:'127.0.0.1',port:0});
 process.env.CRM_BACKEND_URL=backend.url;
 
 const {createServer}=await import('vite');
 
-async function runProxyMutation(port){
+async function createProxy(port,logLevel='error'){
   process.env.CRM_FRONTEND_PORT=String(port);
-  const vite=await createServer({root:frontendRoot,configFile:path.join(frontendRoot,'vite.config.ts'),logLevel:'error'});
+  const vite=await createServer({root:frontendRoot,configFile:path.join(frontendRoot,'vite.config.ts'),logLevel});
   await vite.listen();
-  const origin=`http://127.0.0.1:${port}`;
+  return {vite,origin:`http://127.0.0.1:${port}`};
+}
+
+async function expectStatus(response,expected,label){
+  if(response.status!==expected)throw new Error(`${label} returned ${response.status} instead of ${expected}: ${await response.text()}`);
+  return response;
+}
+
+async function runProxyMutation(port){
+  const {vite,origin}=await createProxy(port);
   try{
-    const workspaceResponse=await fetch(`${origin}/api/onboarding/workspace`,{headers:{origin}});
-    if(workspaceResponse.status!==200)throw new Error(`Workspace proxy request failed on ${port}: ${workspaceResponse.status} ${await workspaceResponse.text()}`);
+    const workspaceResponse=await expectStatus(await fetch(`${origin}/api/onboarding/workspace`,{headers:{origin}}),200,`Workspace proxy request on ${port}`);
     const workspace=await workspaceResponse.json();
-    const mutation=await fetch(`${origin}/api/onboarding/draft`,{method:'PUT',headers:{origin,'content-type':'application/json'},body:JSON.stringify({configuration:workspace.draft.configuration,expectedChecksum:workspace.draft.checksum})});
-    if(mutation.status!==200)throw new Error(`Draft proxy mutation failed on ${port}: ${mutation.status} ${await mutation.text()}`);
-    const workspaceBlocked=await fetch(`${origin}/api/workspace/dashboard`,{headers:{origin}});
-    if(workspaceBlocked.status!==409)throw new Error(`Provisioning lifecycle gate returned ${workspaceBlocked.status} instead of 409`);
-    const hostile=await fetch(`${origin}/api/onboarding/draft`,{method:'PUT',headers:{origin:'https://attacker.example','content-type':'application/json'},body:'{}'});
-    if(hostile.status!==403)throw new Error(`Hostile origin returned ${hostile.status} instead of 403`);
+    await expectStatus(await fetch(`${origin}/api/onboarding/draft`,{method:'PUT',headers:{origin,'content-type':'application/json'},body:JSON.stringify({configuration:workspace.draft.configuration,expectedChecksum:workspace.draft.checksum})}),200,`Draft proxy mutation on ${port}`);
+    await expectStatus(await fetch(`${origin}/api/workspace/dashboard`,{headers:{origin}}),409,'Provisioning lifecycle gate');
+    await expectStatus(await fetch(`${origin}/api/onboarding/draft`,{method:'PUT',headers:{origin:'https://attacker.example','content-type':'application/json'},body:'{}'}),403,'Hostile origin');
   }finally{await vite.close();}
+}
+
+async function publishAndVerifyRestart(port){
+  let proxy=await createProxy(port);
+  try{
+    const workspaceResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/workspace`,{headers:{origin:proxy.origin}}),200,'Pre-publication onboarding workspace');
+    const workspace=await workspaceResponse.json();
+    const validationResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/validate`,{method:'POST',headers:{origin:proxy.origin,'content-type':'application/json'},body:JSON.stringify({expectedChecksum:workspace.draft.checksum})}),200,'Onboarding validation');
+    const validation=await validationResponse.json();
+    if(!validation.publishable)throw new Error(`Demo onboarding fixture is not publishable: ${JSON.stringify(validation.checks?.filter((check)=>check.status==='failed')??[])}`);
+    await expectStatus(await fetch(`${proxy.origin}/api/onboarding/publish`,{method:'POST',headers:{origin:proxy.origin,'content-type':'application/json'},body:JSON.stringify({expectedChecksum:workspace.draft.checksum})}),200,'Onboarding publication');
+    const activeStatusResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/status`,{headers:{origin:proxy.origin}}),200,'Active lifecycle status');
+    const activeStatus=await activeStatusResponse.json();
+    if(!activeStatus.canAccessWorkspace||activeStatus.status!=='active'||!activeStatus.hasPublishedRevision)throw new Error(`Published lifecycle is inconsistent: ${JSON.stringify(activeStatus)}`);
+    await expectStatus(await fetch(`${proxy.origin}/api/workspace/dashboard`,{headers:{origin:proxy.origin}}),200,'Published workspace');
+    await expectStatus(await fetch(`${proxy.origin}/api/settings`,{headers:{origin:proxy.origin}}),200,'Published settings projection');
+  }finally{await proxy.vite.close();}
+
+  await backend.close();
+  backend=await startServer({host:'127.0.0.1',port:0});
+  process.env.CRM_BACKEND_URL=backend.url;
+  proxy=await createProxy(port);
+  try{
+    const statusResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/status`,{headers:{origin:proxy.origin}}),200,'Restarted lifecycle status');
+    const status=await statusResponse.json();
+    if(status.status!=='active'||!status.canAccessWorkspace||!status.hasPublishedRevision)throw new Error(`Published lifecycle did not survive restart: ${JSON.stringify(status)}`);
+    await expectStatus(await fetch(`${proxy.origin}/api/workspace/dashboard`,{headers:{origin:proxy.origin}}),200,'Restarted active workspace');
+  }finally{await proxy.vite.close();}
 }
 
 async function assertStrictPort(){
@@ -56,8 +89,9 @@ try{
   await runProxyMutation(3000);
   await runProxyMutation(3017);
   await assertStrictPort();
-  console.log('WI12 Vite proxy mutation smoke passed on canonical and explicit alternate ports.');
+  await publishAndVerifyRestart(3000);
+  console.log('WI12 Vite proxy, publication and restart smoke passed on canonical and explicit alternate ports.');
 }finally{
-  await backend.close();closeDatabase();fs.rmSync(temp,{recursive:true,force:true});
+  await backend.close().catch(()=>{});closeDatabase();fs.rmSync(temp,{recursive:true,force:true});
   delete process.env.CRM_BACKEND_URL;delete process.env.CRM_FRONTEND_PORT;
 }
