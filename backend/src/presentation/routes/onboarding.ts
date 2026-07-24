@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
-import { CreateEnrolmentSchema,RedeemEnrolmentSchema } from 'shared/onboarding';
+import { BrandAssetUploadSchema,CreateEnrolmentSchema,RedeemEnrolmentSchema } from 'shared/onboarding';
 import { ValidationError } from '../../application/errors';
 import { OnboardingImportService } from '../../application/services/OnboardingImportService';
 import { OnboardingRepository } from '../../infrastructure/database/OnboardingRepository';
 import { PlatformRepository } from '../../infrastructure/database/PlatformRepository';
+import { BrandAssetStore } from '../../infrastructure/storage/BrandAssetStore';
 import type { CrmRequest } from '../middleware/security';
 
 const router=Router();
@@ -27,7 +28,9 @@ function draftRequest(value:unknown):{configuration:unknown;expectedChecksum?:st
   return {configuration:value};
 }
 
+router.get('/onboarding/status',(_req,res,next)=>{try{res.setHeader('cache-control','no-store');return res.json(onboarding.getStatus());}catch(error){next(error);}});
 router.get('/onboarding/workspace',(_req,res,next)=>{try{return res.json(onboarding.getWorkspace());}catch(error){next(error);}});
+router.post('/onboarding/assets',(req,res,next)=>{try{const input=BrandAssetUploadSchema.parse(req.body);return res.status(201).json(new BrandAssetStore().store(input));}catch(error){next(error);}});
 router.put('/onboarding/draft',(req:CrmRequest,res,next)=>{try{const input=draftRequest(req.body);return res.json(onboarding.saveDraft(input.configuration,actor(req),input.expectedChecksum));}catch(error){next(error);}});
 router.post('/onboarding/validate',(req:CrmRequest,res,next)=>{try{return res.json(onboarding.validateDraft(actor(req),checksum(req.body?.expectedChecksum)));}catch(error){next(error);}});
 router.post('/onboarding/publish',async(req:CrmRequest,res,next)=>{

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { DEFAULT_ONBOARDING_CONFIGURATION,OnboardingConfigurationSchema,type OnboardingConfiguration } from 'shared/onboarding';
 import { LOCAL_OWNER_USER_ID } from './wi8Wi9Schema';
+import { CredentialVault } from '../security/CredentialVault';
 
 export const DEFAULT_INSTANCE_ID='00000000-0000-4000-8000-000000001200';
 export const WI12_PERMISSIONS=[
@@ -42,12 +43,17 @@ function legacyConfiguration(connection:Database.Database):OnboardingConfigurati
   configuration.deployment.instanceSlug=slugify(configuration.identity.displayName);
   configuration.deployment.mode='standalone';
   configuration.deployment.distributionMethod='standalone';
-  configuration.security.backupConfigured=true;
-  configuration.security.recoveryPlanConfirmed=true;
+  configuration.security.backupConfigured=false;
+  configuration.security.backupEncryptionConfirmed=false;
+  configuration.security.restoreRehearsed=false;
+  configuration.security.recoveryPlanConfirmed=false;
+  configuration.security.retentionPolicyReviewed=false;
   return OnboardingConfigurationSchema.parse(configuration);
 }
 
-export function ensureWi12OnboardingSchema(connection:Database.Database):void{
+export interface Wi12OnboardingBootstrapOptions { initialConfiguration?:OnboardingConfiguration; }
+
+export function ensureWi12OnboardingSchema(connection:Database.Database,options:Wi12OnboardingBootstrapOptions={}):void{
   connection.exec(`
     CREATE TABLE IF NOT EXISTS crm_instances (
       id TEXT PRIMARY KEY NOT NULL,
@@ -154,9 +160,30 @@ export function ensureWi12OnboardingSchema(connection:Database.Database):void{
 
   const existing=connection.prepare(`SELECT id FROM crm_instances LIMIT 1`).get() as {id:string}|undefined;
   if(existing)return;
-  const initial=legacyConfiguration(connection)??clone(DEFAULT_ONBOARDING_CONFIGURATION);
+  const initial=options.initialConfiguration?clone(options.initialConfiguration):(legacyConfiguration(connection)??clone(DEFAULT_ONBOARDING_CONFIGURATION));
   const instanceId=DEFAULT_INSTANCE_ID;
   const serialized=JSON.stringify(initial);
   connection.prepare(`INSERT INTO crm_instances(id,slug,status,deployment_mode,current_published_revision_id,signing_credential_key,created_at,updated_at) VALUES(?,?, 'provisioning', ?,NULL,?,?,?)`).run(instanceId,initial.deployment.instanceSlug,initial.deployment.mode,`instance_signing_${instanceId.replace(/-/g,'')}`,timestamp,timestamp);
   connection.prepare(`INSERT INTO instance_configuration_revisions(id,instance_id,revision,state,configuration_json,checksum,created_by_user_id,created_at,updated_at,published_at) VALUES(?,?,1,'draft',?,?,?,?,?,NULL)`).run(crypto.randomUUID(),instanceId,serialized,checksum(serialized),LOCAL_OWNER_USER_ID,timestamp,timestamp);
+}
+
+
+export function resetWi12OnboardingState(connection:Database.Database,initialConfiguration?:OnboardingConfiguration):void{
+  const existing=connection.prepare(`SELECT signing_credential_key FROM crm_instances LIMIT 1`).get() as {signing_credential_key:string}|undefined;
+  connection.exec(`
+    DROP TRIGGER IF EXISTS instance_publications_immutable_delete;
+    DROP TRIGGER IF EXISTS instance_publications_immutable_update;
+    DROP TRIGGER IF EXISTS published_revision_payload_immutable;
+    DELETE FROM instance_import_runs;
+    DELETE FROM instance_devices;
+    DELETE FROM instance_enrolments;
+    DELETE FROM instance_readiness_runs;
+    DELETE FROM instance_publications;
+    DELETE FROM instance_configuration_revisions;
+    DELETE FROM crm_instances;
+  `);
+  if(existing){
+    try{new CredentialVault().remove(existing.signing_credential_key);}catch{/* Development reset may run before a vault exists. */}
+  }
+  ensureWi12OnboardingSchema(connection,{initialConfiguration});
 }

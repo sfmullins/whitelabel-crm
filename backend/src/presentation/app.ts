@@ -31,21 +31,30 @@ import onboardingRouter from './routes/onboarding';
 import { AppError } from '../application/errors';
 import { getSqliteConnection } from '../infrastructure/database/connection';
 import { getRuntimePaths } from '../config/runtimePaths';
-import { apiRateLimit,auditSuccessfulRequests,authenticateRequest,enforcePermissions,requestHardening } from './middleware/security';
+import { apiRateLimit,auditSuccessfulRequests,authenticateRequest,enforcePermissions,logCompletedRequest,requestHardening,type CrmRequest } from './middleware/security';
 import { assignCreatedOwnership } from './middleware/ownership';
 import { enforcePublicApiContract } from './middleware/publicApi';
-import {isAllowedApiOrigin} from './originPolicy';
+import {assessApiOrigin} from './originPolicy';
+import { BrandAssetStore } from '../infrastructure/storage/BrandAssetStore';
+import { enforceInstanceLifecycle } from './middleware/instanceLifecycle';
 
 const app=express();
-const allowedOrigins=new Set((process.env.CRM_ALLOWED_ORIGINS||'').split(',').map((value)=>value.trim()).filter(Boolean));
+function configuredOrigins():Set<string>{
+  const values=(process.env.CRM_ALLOWED_ORIGINS||'').split(',').map((value)=>value.trim()).filter(Boolean);const normalized=new Set<string>();
+  for(const value of values){let parsed:URL;try{parsed=new URL(value);}catch{throw new Error(`CRM_ALLOWED_ORIGINS contains an invalid origin: ${value}`);}if(parsed.origin!==value||!['http:','https:'].includes(parsed.protocol))throw new Error(`CRM_ALLOWED_ORIGINS entries must be exact HTTP(S) origins: ${value}`);normalized.add(parsed.origin);}
+  return normalized;
+}
+const allowedOrigins=configuredOrigins();
 app.use(requestHardening);
-app.use((req,res,next)=>{if(req.path.startsWith('/api')&&!isAllowedApiOrigin(req,allowedOrigins)){res.status(403).json({error:'ORIGIN_FORBIDDEN',message:'The request origin is not permitted'});return;}next();});
+app.use(logCompletedRequest);
+app.get('/branding-assets/:assetId',(req,res,next)=>{try{const asset=new BrandAssetStore().read(req.params.assetId);res.setHeader('cache-control','public, max-age=31536000, immutable');res.setHeader('cross-origin-resource-policy','same-origin');res.type(asset.mimeType);return res.sendFile(asset.absolutePath);}catch(error){next(error);}});
+app.use((request,res,next)=>{const req=request as CrmRequest;if(!req.path.startsWith('/api'))return next();const assessment=assessApiOrigin(req,allowedOrigins);if(req.crm)req.crm.originClassification=assessment.classification;if(!assessment.allowed){if(req.crm)req.crm.rejectionReason='origin-forbidden';res.status(403).json({error:'ORIGIN_FORBIDDEN',message:'The request origin is not permitted',requestId:req.crm?.requestId});return;}next();});
 app.use(apiRateLimit);
-app.use(cors((req,callback)=>{const origin=req.header('origin');callback(null,{origin:Boolean(origin)&&isAllowedApiOrigin(req,allowedOrigins)});}));
+app.use(cors((req,callback)=>{const assessment=assessApiOrigin(req,allowedOrigins);callback(null,{origin:Boolean(req.header('origin'))&&assessment.allowed});}));
 app.use(express.json({limit:'12mb'}));
 app.use(express.urlencoded({limit:'12mb',extended:true}));
-app.use((req,res,next)=>{console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} requestId=${res.getHeader('x-request-id')}`);next();});
 app.use(authenticateRequest());
+app.use(enforceInstanceLifecycle());
 app.use('/api/v1',enforcePublicApiContract);
 app.use(enforcePermissions());
 app.use(assignCreatedOwnership());
@@ -96,10 +105,11 @@ app.get('/ready',(_req,res)=>{
   }catch(error){res.status(503).json({status:'NOT_READY',message:error instanceof Error?error.message:'Readiness check failed',time:new Date().toISOString()});}
 });
 
-app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
-  if(err instanceof AppError)return res.status(err.statusCode).json({error:err.code,message:err.message,...(err.details===undefined?{}:{details:err.details})});
-  if(err&&typeof err==='object'&&'name' in err&&String((err as {name:unknown}).name)==='ZodError')return res.status(400).json({error:'VALIDATION_ERROR',message:'Request validation failed',details:(err as {issues?:unknown}).issues??null});
-  console.error('Unhandled Server Error:',err);return res.status(500).json({error:'INTERNAL_SERVER_ERROR',message:'An unexpected error occurred'});
+app.use((err:unknown,request:express.Request,res:express.Response,_next:express.NextFunction)=>{
+  const req=request as CrmRequest;const requestId=req.crm?.requestId??String(res.getHeader('x-request-id')??'unknown');
+  if(err instanceof AppError)return res.status(err.statusCode).json({error:err.code,message:err.message,requestId,...(err.details===undefined?{}:{details:err.details})});
+  if(err&&typeof err==='object'&&'name' in err&&String((err as {name:unknown}).name)==='ZodError')return res.status(400).json({error:'VALIDATION_ERROR',message:'Request validation failed',requestId,details:(err as {issues?:unknown}).issues??null});
+  console.error('Unhandled Server Error:',{requestId,error:err});return res.status(500).json({error:'INTERNAL_SERVER_ERROR',message:'An unexpected error occurred',requestId});
 });
 
 export default app;

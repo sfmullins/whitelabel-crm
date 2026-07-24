@@ -1,10 +1,11 @@
 'use strict';
 const assert=require('node:assert/strict');
 const crypto=require('node:crypto');
+const {DeploymentProfileSchema}=require('shared/onboarding');
 const {verifyDeploymentProfile}=require('../desktop/dist/deploymentProfile.js');
 
 function canonicalize(value){if(Array.isArray(value))return value.map(canonicalize);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map((key)=>[key,canonicalize(value[key])]));return value;}
-const profile={
+const profile=DeploymentProfileSchema.parse({
   schemaVersion:1,
   instanceId:'00000000-0000-4000-8000-000000001200',
   configurationRevision:7,
@@ -17,7 +18,7 @@ const profile={
   capabilities:['onboarding-v1','signed-deployment-profile'],
   minimumClientVersion:'1.0.0',
   publishedAt:'2026-07-23T12:00:00.000Z',
-};
+});
 const serialized=JSON.stringify(canonicalize(profile));
 const checksum=crypto.createHash('sha256').update(serialized).digest('hex');
 const pair=crypto.generateKeyPairSync('ed25519');
@@ -29,9 +30,9 @@ assert.equal(verified.profile.instanceId,profile.instanceId);
 assert.throws(()=>verifyDeploymentProfile({...envelope,checksum:'0'.repeat(64)},options),/checksum/);
 assert.throws(()=>verifyDeploymentProfile({...envelope,profile:{...profile,instanceUrl:'http://crm.example.test'}},options),/checksum|HTTPS/);
 assert.throws(()=>verifyDeploymentProfile(envelope,{...options,currentClientVersion:'0.9.9'}),/older than required/);
-const attacker=crypto.generateKeyPairSync('ed25519');const attackerPublicKey=attacker.publicKey.export({format:'der',type:'spki'}).toString('base64');const attackerProfile={...profile,businessIdentity:{...profile.businessIdentity,displayName:'Attacker CRM'}};const attackerJson=JSON.stringify(canonicalize(attackerProfile));const resigned={profile:attackerProfile,checksum:crypto.createHash('sha256').update(attackerJson).digest('hex'),signature:crypto.sign(null,Buffer.from(attackerJson),attacker.privateKey).toString('base64'),publicKey:attackerPublicKey,algorithm:'Ed25519'};
+const attacker=crypto.generateKeyPairSync('ed25519');const attackerPublicKey=attacker.publicKey.export({format:'der',type:'spki'}).toString('base64');const attackerProfile=DeploymentProfileSchema.parse({...profile,businessIdentity:{...profile.businessIdentity,displayName:'Attacker CRM'}});const attackerJson=JSON.stringify(canonicalize(attackerProfile));const resigned={profile:attackerProfile,checksum:crypto.createHash('sha256').update(attackerJson).digest('hex'),signature:crypto.sign(null,Buffer.from(attackerJson),attacker.privateKey).toString('base64'),publicKey:attackerPublicKey,algorithm:'Ed25519'};
 assert.throws(()=>verifyDeploymentProfile(resigned,options),/detached trust anchor/);
-const loopbackProfile={...profile,instanceUrl:'http://127.0.0.1:5000'};const loopbackJson=JSON.stringify(canonicalize(loopbackProfile));const loopback={profile:loopbackProfile,checksum:crypto.createHash('sha256').update(loopbackJson).digest('hex'),signature:crypto.sign(null,Buffer.from(loopbackJson),pair.privateKey).toString('base64'),publicKey:trustedPublicKey,algorithm:'Ed25519'};
+const loopbackProfile=DeploymentProfileSchema.parse({...profile,instanceUrl:'http://127.0.0.1:5000'});const loopbackJson=JSON.stringify(canonicalize(loopbackProfile));const loopback={profile:loopbackProfile,checksum:crypto.createHash('sha256').update(loopbackJson).digest('hex'),signature:crypto.sign(null,Buffer.from(loopbackJson),pair.privateKey).toString('base64'),publicKey:trustedPublicKey,algorithm:'Ed25519'};
 assert.throws(()=>verifyDeploymentProfile(loopback,options),/HTTPS/);
 assert.equal(verifyDeploymentProfile(loopback,{...options,allowInsecureManaged:true}).profile.instanceUrl,'http://127.0.0.1:5000');
 console.log('WI12 managed-client detached trust-anchor smoke passed');

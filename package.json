@@ -21,14 +21,14 @@
     "test": "npm run test -w backend && npm run test -w frontend",
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend",
-    "db:seed": "npm run db:seed -w backend",
+    "db:seed": "npm run db:seed:demo",
     "desktop:start": "npm run build && npm run start -w desktop",
     "desktop:package": "npm run package -w desktop",
     "desktop:make": "npm run make -w desktop",
     "desktop:smoke": "node scratch/desktop-smoke.js",
     "db:smoke": "npm exec -w backend -- tsx ../scratch/db-smoke.ts",
     "desktop:preflight": "node scratch/desktop-preflight.js",
-    "ci:verify": "npm run build && npm run check:npm-hygiene && npm run audit:production && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run wi6:smoke && npm run wi7:smoke && npm run wi8-wi9:smoke && npm run wi10:smoke && npm run wi11:smoke && npm run wi12:smoke && npm run desktop:preflight && npm run desktop:security && npm run desktop:dependency-policy",
+    "ci:verify": "npm run build && npm run check:npm-hygiene && npm run audit:production && npm test && npm run db:smoke && npm run wi4:smoke && npm run wi5:smoke && npm run wi6:smoke && npm run wi7:smoke && npm run wi8-wi9:smoke && npm run wi10:smoke && npm run wi11:smoke && npm run wi12:smoke && npm run wi12:stabilization && npm run desktop:preflight && npm run desktop:security && npm run desktop:dependency-policy",
     "wi4:smoke": "npm exec -w backend -- tsx ../scratch/wi4-smoke.ts",
     "wi5:smoke": "npm exec -w backend -- tsx ../scratch/wi5-smoke.ts",
     "wi6:smoke": "npm exec -w backend -- tsx ../scratch/wi6-smoke.ts",
@@ -41,7 +41,11 @@
     "deployment:verify": "npm run managed-client:smoke",
     "wi12:smoke": "node scratch/wi12-structure.js && npm run onboarding:verify && npm run managed-client:smoke",
     "desktop:security": "node scratch/desktop-security-smoke.js",
-    "desktop:dependency-policy": "node scratch/stage-policy-self-test.js"
+    "desktop:dependency-policy": "node scratch/stage-policy-self-test.js",
+    "db:seed:fresh": "npm run db:seed:fresh -w backend",
+    "db:seed:demo": "npm run db:seed:demo -w backend",
+    "db:seed:published-fixture": "npm run db:seed:published-fixture -w backend",
+    "wi12:stabilization": "node scratch/wi12-stabilization-structure.js && npm run build -w shared && npm run build -w backend && npm run test -w backend -- src/test/wi12-stabilization.spec.ts src/test/local-origin-security.spec.ts src/test/loopback-origin-hardening.spec.ts && node scratch/wi12-proxy-smoke.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

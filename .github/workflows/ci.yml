@@ -132,6 +132,9 @@ jobs:
       - name: WI12 onboarding and managed-client smoke
         run: npm run wi12:smoke
 
+      - name: WI12 lifecycle and development proxy stabilization
+        run: npm run wi12:stabilization
+
       - name: Desktop packaging and security preflight
         run: |
           npm run desktop:preflight
