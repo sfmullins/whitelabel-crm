@@ -16,9 +16,10 @@ function applyIdentity(headers:Headers):void{
   else if(localUserId)headers.set('x-crm-user-id',localUserId);
 }
 
+interface ApiErrorBody {error?:string;message?:string;details?:unknown;requestId?:string;}
 async function responseError(response:Response):Promise<ApiError>{
-  let body:{error?:string;message?:string;details?:unknown;requestId?:string}|null=null;
-  try{body=await response.json() as typeof body;}catch{body=null;}
+  let body:ApiErrorBody|undefined;
+  try{body=await response.json() as ApiErrorBody;}catch{body=undefined;}
   const requestId=body?.requestId??response.headers.get('x-request-id');
   return new ApiError({status:response.status,code:body?.error??`HTTP_${response.status}`,message:body?.message??response.statusText??'Request failed',details:body?.details,requestId});
 }
