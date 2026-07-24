@@ -208,7 +208,7 @@ export class OnboardingRepository {
       if(existing)this.connection.prepare(`DELETE FROM instance_devices WHERE id=?`).run(existing.id);
       const claimed=this.connection.prepare(`UPDATE instance_enrolments SET redeemed_count=redeemed_count+1,last_redeemed_at=? WHERE id=? AND revoked_at IS NULL AND expires_at>? AND redeemed_count<device_limit`).run(timestamp,row.id,timestamp).changes;
       if(claimed!==1)throw new ConflictError('The enrolment code changed while it was being redeemed. Request a new token if necessary.');
-      this.connection.prepare(`INSERT INTO instance_devices(id,instance_id,user_id,enrolment_id,device_name,fingerprint_hash,registered_at,last_seen_at) VALUES(?,?,?,?,?,?,?,?)`).run(deviceId,row.instance_id,row.user_id,input.code, input.deviceName,fingerprintHash,timestamp,timestamp);
+      this.connection.prepare(`INSERT INTO instance_devices(id,instance_id,user_id,enrolment_id,device_name,fingerprint_hash,registered_at,last_seen_at) VALUES(?,?,?,?,?,?,?,?)`).run(deviceId,row.instance_id,row.user_id,row.id,input.deviceName,fingerprintHash,timestamp,timestamp);
       const session=this.security.createSession(user.id,{ipAddress:meta.ipAddress,userAgent:meta.userAgent,ttlHours:configuration.security.sessionHours});
       return {session,user};
     });
