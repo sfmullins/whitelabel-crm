@@ -120,7 +120,8 @@ That gate covers:
 - backend and frontend tests;
 - isolated database migration smoke;
 - permanent WI4–WI12 regression smoke suites;
-- onboarding publication, enrolment and managed-client profile verification;
+- onboarding publication, restart persistence, enrolment and managed-client profile verification;
+- canonical and alternate-port Vite proxy mutation checks with strict occupied-port failure;
 - desktop packaging and security preflight.
 
 Check production dependencies for high or critical advisories:
@@ -153,6 +154,7 @@ npm run onboarding:verify
 npm run managed-client:smoke
 npm run deployment:verify
 npm run wi12:smoke
+npm run wi12:stabilization
 ```
 
 A configured live SQLite database must not be copied onto multiple employee machines. Shared employee access uses a managed deployment with one authoritative backend. The employee package contains a signed instance profile, not a live database or reusable administrator credential.
@@ -192,6 +194,7 @@ See:
 - `docs/work-items/WI10.md`
 - `docs/work-items/WI11.md`
 - `docs/work-items/WI12.md`
+- `docs/work-items/WI12-STABILIZATION.md`
 - `docs/onboarding/INSTANCE-ONBOARDING.md`
 - `docs/onboarding/DEPLOYMENT-PROFILES.md`
 - `docs/onboarding/MANAGED-CLIENTS.md`
@@ -204,16 +207,13 @@ Completed and merged:
 - WI11 — Extension Platform, PR #14;
 - post-WI11 npm, package-boundary and staging hardening, PR #15;
 - first full post-WI11 repository audit, PR #16;
-- independent second audit and trust-boundary correction, PR #18.
-
-Current:
-
+- independent second audit and trust-boundary correction, PR #18;
 - WI12 — Instance Onboarding, Provisioning and Deployment Profiles, PR #28;
-- WI12 stabilization — authoritative first-run lifecycle and development mutation reliability, PR #30 (in progress).
+- WI12 stabilization — authoritative first-run lifecycle and development mutation reliability, PR #30.
 
 Next:
 
-- WI13 — Enterprise Packaging, Distribution and Release Certification, paused until WI12 stabilization is merged and verified.
+- WI13 — Enterprise Packaging, Distribution and Release Certification.
 
 The authoritative plan and current gates are maintained in `docs/WI10-WI12-IMPLEMENTATION-PLAN.md`, whose title now covers WI10–WI13.
 
