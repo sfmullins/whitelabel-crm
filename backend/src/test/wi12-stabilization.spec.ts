@@ -81,6 +81,16 @@ describe('WI12 stabilization',()=>{
     expect((getSqliteConnection().prepare('SELECT count(*) AS count FROM customers').get() as {count:number}).count).toBe(0);
   });
 
+  it('evaluates selected extensions using the WI11 status contract',async()=>{
+    await runSeed('demo');
+    const repository=new OnboardingRepository();
+    const workspace=repository.getWorkspace();
+    const configuration={...workspace.draft.configuration,extensions:[...workspace.draft.configuration.extensions,{packageKey:'legacy-customisations',enabled:true,approvedCapabilities:['custom_fields','custom_entities']}]};
+    const saved=repository.saveDraft(configuration,null,workspace.draft.checksum);
+    expect(saved.readiness.checks.find((check)=>check.id==='extensions.compatible')).toMatchObject({status:'passed',evidence:{unavailable:[]}});
+    expect(repository.getWorkspace().draft.checksum).toBe(saved.draft.checksum);
+  });
+
   it('stores verified logos outside the onboarding configuration payload',async()=>{
     await runSeed('demo');
     server=await startServer({host:'127.0.0.1',port:0});
