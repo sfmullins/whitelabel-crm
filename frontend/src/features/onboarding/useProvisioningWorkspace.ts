@@ -6,6 +6,7 @@ import type {
   AdminRole,AdminTeam,AdminUser,CommunicationAccount,CustomFieldDefinition,CustomObjectDefinition,DeviceSummary,
   EnrolmentSummary,ExtensionSummary,ImportHistory,ImportWorkspace,ProvisioningState,SaveState,
 } from './models';
+import { normalizeOnboardingWorkspace,normalizeReadinessResult,unwrapCollection } from './runtimeAdapters';
 
 type ConfigSection=Exclude<keyof OnboardingConfiguration,'schemaVersion'>;
 const emptyImport:ImportWorkspace={fileName:'',csvData:'',preview:null,mapping:{},duplicateStrategy:'skip'};
@@ -31,7 +32,7 @@ export function useProvisioningWorkspace(onSuccess?:()=>void|Promise<void>){
   const loaded=useRef(false);
   const stateRef=useRef<ProvisioningState|null>(null);
   const saveTimer=useRef<number|null>(null);
-  const savePromise=useRef<Promise<OnboardingWorkspace>|null>(null);
+  const savePromise=useRef<Promise<OnboardingWorkspace|null>|null>(null);
   const loadPromise=useRef<Promise<void>|null>(null);
   const workingRef=useRef<string|null>(null);
 
@@ -57,14 +58,16 @@ export function useProvisioningWorkspace(onSuccess?:()=>void|Promise<void>){
     const request=(async()=>{
       setSaveState('loading');
       try{
-        const workspace=await api.get<OnboardingWorkspace>('/api/onboarding/workspace');
-        const [profile,roles,teams,users,customerFields,bookingFields,serviceFields,invoiceFields,objects,extensions,accounts,enrolments,devices,imports]=await Promise.all([
+        const workspace=normalizeOnboardingWorkspace(await api.get<OnboardingWorkspace>('/api/onboarding/workspace'));
+        const [profile,rolesResponse,teams,users,customerFields,bookingFields,serviceFields,invoiceFields,objects,extensionsResponse,accounts,enrolments,devices,imports]=await Promise.all([
           workspace.deploymentProfileAvailable?api.get<SignedDeploymentProfile>('/api/onboarding/deployment-profile').catch(()=>null):Promise.resolve(null),
-          api.get<AdminRole[]>('/api/admin/roles').catch(()=>[]),api.get<AdminTeam[]>('/api/admin/teams').catch(()=>[]),api.get<AdminUser[]>('/api/admin/users').catch(()=>[]),
+          api.get<unknown>('/api/admin/roles').catch(()=>[]),api.get<AdminTeam[]>('/api/admin/teams').catch(()=>[]),api.get<AdminUser[]>('/api/admin/users').catch(()=>[]),
           api.get<CustomFieldDefinition[]>('/api/custom-fields/definitions?entityType=customer').catch(()=>[]),api.get<CustomFieldDefinition[]>('/api/custom-fields/definitions?entityType=booking').catch(()=>[]),api.get<CustomFieldDefinition[]>('/api/custom-fields/definitions?entityType=service').catch(()=>[]),api.get<CustomFieldDefinition[]>('/api/custom-fields/definitions?entityType=invoice').catch(()=>[]),
-          api.get<CustomObjectDefinition[]>('/api/custom-objects/definitions').catch(()=>[]),api.get<ExtensionSummary[]>('/api/extensions').catch(()=>[]),api.get<CommunicationAccount[]>('/api/communication-accounts').catch(()=>[]),
+          api.get<CustomObjectDefinition[]>('/api/custom-objects/definitions').catch(()=>[]),api.get<unknown>('/api/extensions').catch(()=>[]),api.get<CommunicationAccount[]>('/api/communication-accounts').catch(()=>[]),
           api.get<EnrolmentSummary[]>('/api/onboarding/enrolments').catch(()=>[]),api.get<DeviceSummary[]>('/api/onboarding/devices').catch(()=>[]),api.get<ImportHistory[]>('/api/onboarding/import/history').catch(()=>[]),
         ]);
+        const roles=unwrapCollection<AdminRole>(rolesResponse,'roles','items');
+        const extensions=unwrapCollection<ExtensionSummary>(extensionsResponse,'items','extensions');
         const draft=workspace.draft.configuration;lastSaved.current=JSON.stringify(draft);loaded.current=true;
         replaceState({workspace,draft,profile,roles,teams,users,fields:[...customerFields,...bookingFields,...serviceFields,...invoiceFields],objects,extensions,accounts,enrolments,devices,imports});setSaveState('saved');
       }catch(error){setSaveState('error');setMessage(errorMessage(error,'The onboarding workspace could not be opened.'));}
@@ -73,29 +76,34 @@ export function useProvisioningWorkspace(onSuccess?:()=>void|Promise<void>){
     try{await request;}finally{if(loadPromise.current===request)loadPromise.current=null;}
   }
 
+  async function runSaveLoop():Promise<OnboardingWorkspace|null>{
+    let latestWorkspace:OnboardingWorkspace|null=null;
+    while(true){
+      const current=stateRef.current;if(!current)return latestWorkspace;
+      const configuration=structuredClone(current.draft);const serialized=JSON.stringify(configuration);
+      if(serialized===lastSaved.current){setSaveState('saved');return latestWorkspace??current.workspace;}
+      setSaveState('saving');
+      try{
+        const workspace=normalizeOnboardingWorkspace(await api.put<OnboardingWorkspace>('/api/onboarding/draft',{configuration,expectedChecksum:current.workspace.draft.checksum}));
+        latestWorkspace=workspace;lastSaved.current=JSON.stringify(workspace.draft.configuration);
+        updateState((latest)=>{
+          const hasNewerEdits=JSON.stringify(latest.draft)!==serialized;const draft=hasNewerEdits?latest.draft:workspace.draft.configuration;
+          return {...latest,workspace:{...workspace,draft:{...workspace.draft,configuration:draft}},draft};
+        });
+        setMessage('');
+        if(!stateRef.current||JSON.stringify(stateRef.current.draft)===lastSaved.current){setSaveState('saved');return workspace;}
+      }catch(error){
+        if(error instanceof ApiError&&error.status===409){setSaveState('conflict');setMessage(`${errorMessage(error,'The onboarding draft changed elsewhere.')} Reload the latest revision before continuing.`);}
+        else{setSaveState('error');setMessage(errorMessage(error,'The onboarding draft could not be saved.'));}
+        return null;
+      }
+    }
+  }
+
   async function persistLatestDraft():Promise<OnboardingWorkspace|null>{
-    if(savePromise.current){try{await savePromise.current;}catch{/* The active request already set the visible error state. */}}
-    const current=stateRef.current;if(!current)return null;
-    const configuration=structuredClone(current.draft);const serialized=JSON.stringify(configuration);
-    if(serialized===lastSaved.current){if(saveState!=='conflict')setSaveState('saved');return current.workspace;}
-    setSaveState('saving');
-    const request=api.put<OnboardingWorkspace>('/api/onboarding/draft',{configuration,expectedChecksum:current.workspace.draft.checksum});
-    savePromise.current=request;
-    try{
-      const workspace=await request;lastSaved.current=serialized;
-      updateState((latest)=>{
-        const hasNewerEdits=JSON.stringify(latest.draft)!==serialized;const draft=hasNewerEdits?latest.draft:workspace.draft.configuration;
-        return {...latest,workspace:{...workspace,draft:{...workspace.draft,configuration:draft}},draft};
-      });
-      if(savePromise.current===request)savePromise.current=null;
-      const latest=stateRef.current;
-      if(latest&&JSON.stringify(latest.draft)!==lastSaved.current){setSaveState('unsaved');return persistLatestDraft();}
-      setSaveState('saved');setMessage('');return workspace;
-    }catch(error){
-      if(error instanceof ApiError&&error.status===409){setSaveState('conflict');setMessage(`${errorMessage(error,'The onboarding draft changed elsewhere.')} Reload the latest revision before continuing.`);}
-      else{setSaveState('error');setMessage(errorMessage(error,'The onboarding draft could not be saved.'));}
-      return null;
-    }finally{if(savePromise.current===request)savePromise.current=null;}
+    if(savePromise.current)return savePromise.current;
+    const request=runSaveLoop();savePromise.current=request;
+    try{return await request;}finally{if(savePromise.current===request)savePromise.current=null;}
   }
 
   async function flushDraft():Promise<OnboardingWorkspace|null>{
@@ -112,9 +120,9 @@ export function useProvisioningWorkspace(onSuccess?:()=>void|Promise<void>){
     finally{workingRef.current=null;setWorking(null);}
   };
 
-  const validate=async()=>{const workspace=await flushDraft();if(!workspace)return;const readiness=await run('validate',()=>api.post<ReadinessResult>('/api/onboarding/validate',{expectedChecksum:workspace.draft.checksum}),'Readiness evidence refreshed.',false);if(readiness)updateState((current)=>({...current,workspace:{...current.workspace,readiness}}));};
-  const publish=async()=>{const workspace=await flushDraft();if(!workspace)return;const result=await run('publish',()=>api.post<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile}>('/api/onboarding/publish',{expectedChecksum:workspace.draft.checksum}),'The signed instance profile is published and the workspace is active.',false);if(result){lastSaved.current=JSON.stringify(result.workspace.draft.configuration);replaceState(stateRef.current?{...stateRef.current,workspace:result.workspace,draft:result.workspace.draft.configuration,profile:result.deploymentProfile}:stateRef.current);await onSuccess?.();}};
-  const rollback=async(revisionId:string)=>{const workspace=await flushDraft();if(!workspace)return;const result=await run('rollback',()=>api.post<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile}>(`/api/onboarding/rollback/${revisionId}`,{expectedChecksum:workspace.draft.checksum}),'The selected configuration was restored as a new signed publication.',false);if(result){lastSaved.current=JSON.stringify(result.workspace.draft.configuration);replaceState(stateRef.current?{...stateRef.current,workspace:result.workspace,draft:result.workspace.draft.configuration,profile:result.deploymentProfile}:stateRef.current);}};
+  const validate=async()=>{const workspace=await flushDraft();if(!workspace)return;const readiness=await run('validate',()=>api.post<ReadinessResult>('/api/onboarding/validate',{expectedChecksum:workspace.draft.checksum}),'Readiness evidence refreshed.',false);if(readiness)updateState((current)=>({...current,workspace:{...current.workspace,readiness:normalizeReadinessResult(readiness)}}));};
+  const publish=async()=>{const workspace=await flushDraft();if(!workspace)return;const result=await run('publish',()=>api.post<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile}>('/api/onboarding/publish',{expectedChecksum:workspace.draft.checksum}),'The signed instance profile is published and the workspace is active.',false);if(result){const normalized=normalizeOnboardingWorkspace(result.workspace);lastSaved.current=JSON.stringify(normalized.draft.configuration);replaceState(stateRef.current?{...stateRef.current,workspace:normalized,draft:normalized.draft.configuration,profile:result.deploymentProfile}:stateRef.current);await onSuccess?.();}};
+  const rollback=async(revisionId:string)=>{const workspace=await flushDraft();if(!workspace)return;const result=await run('rollback',()=>api.post<{workspace:OnboardingWorkspace;deploymentProfile:SignedDeploymentProfile}>(`/api/onboarding/rollback/${revisionId}`,{expectedChecksum:workspace.draft.checksum}),'The selected configuration was restored as a new signed publication.',false);if(result){const normalized=normalizeOnboardingWorkspace(result.workspace);lastSaved.current=JSON.stringify(normalized.draft.configuration);replaceState(stateRef.current?{...stateRef.current,workspace:normalized,draft:normalized.draft.configuration,profile:result.deploymentProfile}:stateRef.current);}};
 
   const uploadBrandAsset=async(file:File):Promise<BrandAssetReference|null>=>{
     if(!['image/png','image/jpeg','image/webp'].includes(file.type)){setMessage('Use PNG, JPEG or WebP. Executable SVG content is not accepted.');return null;}
