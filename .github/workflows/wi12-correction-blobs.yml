@@ -1,0 +1,69 @@
+name: WI12 correction blob materializer
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/wi12-correction-blobs.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: github.actor != 'github-actions[bot]' && github.head_ref == 'WI12-Stabilization'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out stabilization branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: WI12-Stabilization
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Apply reviewed build corrections and create blobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workspace=Path('frontend/src/features/onboarding/ProvisioningWorkspace.tsx')
+          text=workspace.read_text()
+          needle="function Select(props:React.SelectHTMLAttributes<HTMLSelectElement>){return <select {...props} className={`h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 ${props.className??''}`}/>;}\n"
+          helper="function ColourField({label,value,onChange}:{label:string;value:string;onChange:(value:string)=>void}){return <Field label={label}><div className=\"flex items-center gap-2\"><input type=\"color\" value={value} onChange={(event)=>onChange(event.target.value)} className=\"h-10 w-12 cursor-pointer rounded border border-slate-300 bg-white p-1\" aria-label={`${label} colour`}/><Input value={value} maxLength={7} onChange={(event)=>onChange(event.target.value)}/></div></Field>;}\n"
+          if 'function ColourField(' not in text:
+              if needle not in text: raise SystemExit('ColourField insertion point was not found')
+              text=text.replace(needle,needle+helper,1)
+          workspace.write_text(text)
+
+          api=Path('frontend/src/lib/api.ts')
+          text=api.read_text()
+          old="""async function responseError(response:Response):Promise<ApiError>{\n  let body:{error?:string;message?:string;details?:unknown;requestId?:string}|null=null;\n  try{body=await response.json() as typeof body;}catch{body=null;}\n  const requestId=body?.requestId??response.headers.get('x-request-id');\n  return new ApiError({status:response.status,code:body?.error??`HTTP_${response.status}`,message:body?.message??response.statusText??'Request failed',details:body?.details,requestId});\n}\n"""
+          new="""interface ApiErrorBody {error?:string;message?:string;details?:unknown;requestId?:string;}\nasync function responseError(response:Response):Promise<ApiError>{\n  let body:ApiErrorBody|undefined;\n  try{body=await response.json() as ApiErrorBody;}catch{body=undefined;}\n  const requestId=body?.requestId??response.headers.get('x-request-id');\n  return new ApiError({status:response.status,code:body?.error??`HTTP_${response.status}`,message:body?.message??response.statusText??'Request failed',details:body?.details,requestId});\n}\n"""
+          if 'interface ApiErrorBody' not in text:
+              if old not in text: raise SystemExit('API error-body replacement point was not found')
+              text=text.replace(old,new,1)
+          api.write_text(text)
+          PY
+
+          : > "$RUNNER_TEMP/wi12-correction-blobs.txt"
+          for file in \
+            frontend/src/features/onboarding/ProvisioningWorkspace.tsx \
+            frontend/src/lib/api.ts
+          do
+            encoded="$(base64 -w0 "$file")"
+            sha="$(jq -n --arg content "$encoded" '{content:$content,encoding:"base64"}' | gh api "repos/${GITHUB_REPOSITORY}/git/blobs" --method POST --input - --jq .sha)"
+            printf '%s=%s\n' "$file" "$sha" | tee -a "$RUNNER_TEMP/wi12-correction-blobs.txt"
+          done
+
+      - name: Upload correction blob references
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: wi12-correction-blobs
+          path: ${{ runner.temp }}/wi12-correction-blobs.txt
+          retention-days: 1
