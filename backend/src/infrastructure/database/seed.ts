@@ -3,6 +3,12 @@ import { db, getSqliteConnection } from './connection';
 import * as schema from './schema';
 import { rebuildSearchIndex } from './WorkspaceRepository';
 import { LocalDocumentStorage } from '../storage/LocalDocumentStorage';
+import { BrandAssetStore } from '../storage/BrandAssetStore';
+import { getRuntimePaths } from '../../config/runtimePaths';
+import { DEFAULT_ONBOARDING_CONFIGURATION,type OnboardingConfiguration } from 'shared/onboarding';
+import { resetWi12OnboardingState } from './wi12OnboardingSchema';
+import { OnboardingRepository } from './OnboardingRepository';
+import fs from 'node:fs';
 
 const IDS = {
   goodOrderOrganisation: '10000000-0000-4000-8000-000000000001',
@@ -56,10 +62,34 @@ function addDays(base: Date, days: number): string {
   return dateOnly(copy);
 }
 
-export async function runSeed(): Promise<void> {
-  console.log('Resetting and seeding the WI4 development database...');
+export type SeedMode='fresh'|'demo'|'published';
+
+function clone<T>(value:T):T{return JSON.parse(JSON.stringify(value)) as T;}
+function demoOnboardingConfiguration():OnboardingConfiguration{
+  const configuration=clone(DEFAULT_ONBOARDING_CONFIGURATION);
+  configuration.deployment={...configuration.deployment,mode:'standalone',instanceSlug:'good-order',instanceUrl:'',distributionMethod:'standalone',expectedUsers:5};
+  configuration.identity={...configuration.identity,displayName:'Good Order Ltd',legalName:'Good Order Ltd',email:'owner@goodorder.invalid',phone:'Not provided',address:'Co. Kildare, Ireland',supportEmail:'owner@goodorder.invalid'};
+  configuration.branding={...configuration.branding,primaryColor:'#111827',secondaryColor:'#2563eb',accentColor:'#0f766e'};
+  configuration.financial={...configuration.financial,defaultTaxRate:23,invoicePrefix:'GO',invoiceFooter:'Good Order Ltd · Co. Kildare, Ireland'};
+  return configuration;
+}
+function publishableOnboardingConfiguration():OnboardingConfiguration{
+  const configuration=demoOnboardingConfiguration();
+  configuration.identity.phone='+353 1 000 0000';
+  configuration.security={...configuration.security,backupConfigured:true,backupEncryptionConfirmed:true,restoreRehearsed:true,recoveryPlanConfirmed:true,retentionPolicyReviewed:true};
+  return configuration;
+}
+
+export async function runSeed(mode:SeedMode='published'): Promise<void> {
+  console.log(`Resetting development database in ${mode} mode...`);
   const sqlite = getSqliteConnection();
-  const nowDate = new Date();
+  const paths=getRuntimePaths();
+  fs.rmSync(paths.documentDirectory,{recursive:true,force:true});
+  fs.mkdirSync(paths.documentDirectory,{recursive:true});
+  new BrandAssetStore().reset();
+  const seedNow=process.env.CRM_SEED_NOW;
+  const nowDate=seedNow?new Date(seedNow):new Date();
+  if(Number.isNaN(nowDate.getTime()))throw new Error('CRM_SEED_NOW must be an ISO-8601 timestamp');
   const now = nowDate.toISOString();
   const today = dateOnly(nowDate);
   const overdueDate = addDays(nowDate, -5);
@@ -117,6 +147,8 @@ export async function runSeed(): Promise<void> {
       createdAt: now,
       updatedAt: now,
     }).run();
+
+    if(mode==='fresh')return;
 
     db.insert(schema.services).values({
       id: IDS.acmeService,
@@ -393,40 +425,49 @@ export async function runSeed(): Promise<void> {
     ]).run();
   })();
 
+  if(mode!=='fresh'){
   const storage = new LocalDocumentStorage();
-  const content = Buffer.from('Acme Ltd diagnostic proposal and evidence summary.','utf8');
-  const stored = storage.write(IDS.acmeDocument,IDS.acmeDocumentVersion,'acme-diagnostic-proposal.txt',content);
-  sqlite.transaction(() => {
-    sqlite.prepare(`INSERT INTO tasks(id,organisation_id,contact_id,engagement_id,activity_id,source_type,source_id,title,description,status,priority,due_at,reminder_at,recurrence_rule,assigned_to,created_by_source,workflow_run_id,completed_at,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(IDS.acmeTask,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,null,'engagement',IDS.acmeDiagnostic,'Prepare leadership readout','Consolidate diagnostic evidence and prepare the leadership readout.','in_progress','high',upcomingDate+'T10:00:00.000Z',today+'T16:00:00.000Z',null,'Stephen Mullins','user',null,null,now,now);
-    sqlite.prepare(`INSERT INTO tasks(id,organisation_id,contact_id,engagement_id,title,description,status,priority,due_at,created_by_source,completed_at,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(IDS.acmeCompletedTask,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'Issue evidence request','Evidence request issued and acknowledged.','completed','normal',overdueDate+'T09:00:00.000Z','user',overdueDate+'T16:00:00.000Z',overdueDate+'T09:00:00.000Z',now);
-    sqlite.prepare(`INSERT INTO reminders(id,source_type,source_id,organisation_id,scheduled_at,delivery_method,status,created_at,updated_at) VALUES(?,?,?,?,?,'desktop','pending',?,?)`).run(IDS.acmeReminder,'task',IDS.acmeTask,IDS.acmeOrganisation,today+'T16:00:00.000Z',now,now);
-    sqlite.prepare(`INSERT INTO documents(id,title,current_filename,mime_type,byte_size,checksum,storage_provider,storage_key,description,category,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,'local',?,?,?, ?,?,NULL)`).run(IDS.acmeDocument,'Acme diagnostic proposal','acme-diagnostic-proposal.txt','text/plain',stored.byteSize,stored.checksum,stored.storageKey,'Proposal and evidence summary for the active diagnostic.','proposal',now,now);
-    sqlite.prepare(`INSERT INTO document_versions(id,document_id,version_number,filename,mime_type,byte_size,checksum,storage_key,version_note,created_at) VALUES(?,?,1,?,?,?,?,?,'Initial WI5 fixture',?)`).run(IDS.acmeDocumentVersion,IDS.acmeDocument,'acme-diagnostic-proposal.txt','text/plain',stored.byteSize,stored.checksum,stored.storageKey,now);
-    sqlite.prepare(`INSERT INTO document_links(id,document_id,entity_type,entity_id,created_at) VALUES(?,?,'organisation',?,?)`).run(IDS.acmeDocumentLink,IDS.acmeDocument,IDS.acmeOrganisation,now);
-    sqlite.prepare(`INSERT INTO communications(id,organisation_id,contact_id,engagement_id,channel,direction,subject,body,occurred_at,status,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,'logged',?,?,NULL)`).run(IDS.acmeEmailCommunication,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'email','inbound','Diagnostic evidence','Aisling confirmed the evidence pack is complete.',addDays(nowDate,-2)+'T11:00:00.000Z',now,now);
-    sqlite.prepare(`INSERT INTO communications(id,organisation_id,contact_id,engagement_id,channel,direction,subject,body,occurred_at,status,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,'logged',?,?,NULL)`).run(IDS.acmeMeetingCommunication,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'meeting','internal','Leadership review','Reviewed initial findings and agreed the leadership readout.',addDays(nowDate,-1)+'T14:00:00.000Z',now,now);
-    sqlite.prepare(`INSERT INTO workflow_definitions(id,name,description,enabled,version,trigger_type,condition_json,action_json,created_at,updated_at,archived_at) VALUES(?,?,?,1,1,'manual','{}',?,?,?,NULL)`).run(IDS.acmeWorkflow,'Post-meeting follow-up','Create a follow-up task after a meeting.',JSON.stringify([{type:'create_task',title:'Send meeting follow-up',priority:'high'}]),now,now);
-    sqlite.prepare(`INSERT INTO workflow_runs(id,workflow_definition_id,workflow_version,source_type,source_id,trigger_event,idempotency_key,status,output_summary,started_at,completed_at) VALUES(?, ?,1,'organisation',?,'seed','wi5-seed-workflow','succeeded','[]',?,?)`).run(IDS.acmeWorkflowRun,IDS.acmeWorkflow,IDS.acmeOrganisation,now,now);
-    sqlite.prepare(`INSERT INTO workflow_action_runs(id,workflow_run_id,action_index,action_type,status,output_json,started_at,completed_at) VALUES(?,?,0,'create_task','succeeded','{}',?,?)`).run(IDS.acmeWorkflowActionRun,IDS.acmeWorkflowRun,now,now);
-  })();
-
-  sqlite.transaction(() => {
-    sqlite.prepare(`INSERT INTO communication_accounts(id,kind,name,server_url,username,credential_key,settings_json,enabled,health_status,sync_cursor,last_sync_at,created_at,updated_at,archived_at) VALUES(?, 'email','Good Order fixture inbox','imaps://mail.example','consultant@goodorder.example','fixture-email-key','{"mailbox":"INBOX"}',0,'healthy','42',?,?,?,NULL)`).run(IDS.fixtureEmailAccount,now,now,now);
-    sqlite.prepare(`INSERT INTO communication_accounts(id,kind,name,server_url,username,credential_key,settings_json,enabled,health_status,sync_cursor,last_sync_at,created_at,updated_at,archived_at) VALUES(?, 'calendar','Good Order fixture calendar','https://dav.example/calendars/','consultant@goodorder.example','fixture-calendar-key','{}',0,'healthy',?, ?,?,?,NULL)`).run(IDS.fixtureCalendarAccount,upcomingDate+'T10:00:00.000Z',now,now,now);
-    sqlite.prepare(`INSERT INTO email_threads(id,account_id,provider_thread_key,subject,latest_message_at,organisation_id,contact_id,match_status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'matched',?,?)`).run(IDS.fixtureEmailThread,IDS.fixtureEmailAccount,'fixture-acme-thread','Evidence pack received',addDays(nowDate,-2)+'T11:00:00.000Z',IDS.acmeOrganisation,IDS.acmeAisling,now,now);
-    sqlite.prepare(`INSERT INTO email_messages(id,account_id,thread_id,provider_message_key,rfc_message_id,direction,sender_json,recipients_json,subject,body_text,sent_at,received_at,is_read,raw_headers_json,communication_id,created_at,updated_at) VALUES(?,?,?,?,?,'inbound',?,?,?,?,?,?,0,'{}',?,?,?)`).run(IDS.fixtureEmailMessage,IDS.fixtureEmailAccount,IDS.fixtureEmailThread,'INBOX:42','fixture-42@example',JSON.stringify({name:'Aisling Byrne',address:'aisling.byrne@acme.example'}),JSON.stringify({to:[{address:'consultant@goodorder.example'}],cc:[],bcc:[]}), 'Evidence pack received','The diagnostic evidence pack is ready.',addDays(nowDate,-2)+'T11:00:00.000Z',addDays(nowDate,-2)+'T11:00:01.000Z',IDS.acmeEmailCommunication,now,now);
-    sqlite.prepare(`INSERT INTO calendars(id,account_id,provider_calendar_key,display_name,selected,created_at,updated_at) VALUES(?,?,?,'Primary',1,?,?)`).run(IDS.fixtureCalendar,IDS.fixtureCalendarAccount,'https://dav.example/calendars/primary',now,now);
-    sqlite.prepare(`INSERT INTO calendar_events(id,calendar_id,provider_event_key,title,description,starts_at,ends_at,timezone,recurrence_json,attendees_json,cancelled,organisation_id,contact_id,engagement_id,match_status,communication_id,created_at,updated_at) VALUES(?,?,?,'Acme leadership review','Review diagnostic findings.',?,?, 'Europe/Dublin','{}',?,0,?,?,?,'matched',?,?,?)`).run(IDS.fixtureCalendarEvent,IDS.fixtureCalendar,'fixture-acme-meeting',upcomingDate+'T09:00:00.000Z',upcomingDate+'T10:00:00.000Z',JSON.stringify([{name:'Aisling Byrne',address:'aisling.byrne@acme.example'}]),IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,IDS.acmeMeetingCommunication,now,now);
-    sqlite.prepare(`INSERT INTO synchronization_runs(id,account_id,sync_type,status,cursor_before,cursor_after,fetched_count,created_count,updated_count,matched_count,failure_count,started_at,completed_at) VALUES(?,?,'email','succeeded','41','42',1,1,0,1,0,?,?)`).run(IDS.fixtureEmailSync,IDS.fixtureEmailAccount,now,now);
-    sqlite.prepare(`INSERT INTO synchronization_runs(id,account_id,sync_type,status,cursor_before,cursor_after,fetched_count,created_count,updated_count,matched_count,failure_count,started_at,completed_at) VALUES(?,?,'calendar','succeeded',NULL,?,1,1,0,1,0,?,?)`).run(IDS.fixtureCalendarSync,IDS.fixtureCalendarAccount,upcomingDate+'T10:00:00.000Z',now,now);
-  })();
+    const content = Buffer.from('Acme Ltd diagnostic proposal and evidence summary.','utf8');
+    const stored = storage.write(IDS.acmeDocument,IDS.acmeDocumentVersion,'acme-diagnostic-proposal.txt',content);
+    sqlite.transaction(() => {
+      sqlite.prepare(`INSERT INTO tasks(id,organisation_id,contact_id,engagement_id,activity_id,source_type,source_id,title,description,status,priority,due_at,reminder_at,recurrence_rule,assigned_to,created_by_source,workflow_run_id,completed_at,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(IDS.acmeTask,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,null,'engagement',IDS.acmeDiagnostic,'Prepare leadership readout','Consolidate diagnostic evidence and prepare the leadership readout.','in_progress','high',upcomingDate+'T10:00:00.000Z',today+'T16:00:00.000Z',null,'Stephen Mullins','user',null,null,now,now);
+      sqlite.prepare(`INSERT INTO tasks(id,organisation_id,contact_id,engagement_id,title,description,status,priority,due_at,created_by_source,completed_at,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`).run(IDS.acmeCompletedTask,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'Issue evidence request','Evidence request issued and acknowledged.','completed','normal',overdueDate+'T09:00:00.000Z','user',overdueDate+'T16:00:00.000Z',overdueDate+'T09:00:00.000Z',now);
+      sqlite.prepare(`INSERT INTO reminders(id,source_type,source_id,organisation_id,scheduled_at,delivery_method,status,created_at,updated_at) VALUES(?,?,?,?,?,'desktop','pending',?,?)`).run(IDS.acmeReminder,'task',IDS.acmeTask,IDS.acmeOrganisation,today+'T16:00:00.000Z',now,now);
+      sqlite.prepare(`INSERT INTO documents(id,title,current_filename,mime_type,byte_size,checksum,storage_provider,storage_key,description,category,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,'local',?,?,?, ?,?,NULL)`).run(IDS.acmeDocument,'Acme diagnostic proposal','acme-diagnostic-proposal.txt','text/plain',stored.byteSize,stored.checksum,stored.storageKey,'Proposal and evidence summary for the active diagnostic.','proposal',now,now);
+      sqlite.prepare(`INSERT INTO document_versions(id,document_id,version_number,filename,mime_type,byte_size,checksum,storage_key,version_note,created_at) VALUES(?,?,1,?,?,?,?,?,'Initial WI5 fixture',?)`).run(IDS.acmeDocumentVersion,IDS.acmeDocument,'acme-diagnostic-proposal.txt','text/plain',stored.byteSize,stored.checksum,stored.storageKey,now);
+      sqlite.prepare(`INSERT INTO document_links(id,document_id,entity_type,entity_id,created_at) VALUES(?,?,'organisation',?,?)`).run(IDS.acmeDocumentLink,IDS.acmeDocument,IDS.acmeOrganisation,now);
+      sqlite.prepare(`INSERT INTO communications(id,organisation_id,contact_id,engagement_id,channel,direction,subject,body,occurred_at,status,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,'logged',?,?,NULL)`).run(IDS.acmeEmailCommunication,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'email','inbound','Diagnostic evidence','Aisling confirmed the evidence pack is complete.',addDays(nowDate,-2)+'T11:00:00.000Z',now,now);
+      sqlite.prepare(`INSERT INTO communications(id,organisation_id,contact_id,engagement_id,channel,direction,subject,body,occurred_at,status,created_at,updated_at,archived_at) VALUES(?,?,?,?,?,?,?,?,?,'logged',?,?,NULL)`).run(IDS.acmeMeetingCommunication,IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,'meeting','internal','Leadership review','Reviewed initial findings and agreed the leadership readout.',addDays(nowDate,-1)+'T14:00:00.000Z',now,now);
+      sqlite.prepare(`INSERT INTO workflow_definitions(id,name,description,enabled,version,trigger_type,condition_json,action_json,created_at,updated_at,archived_at) VALUES(?,?,?,1,1,'manual','{}',?,?,?,NULL)`).run(IDS.acmeWorkflow,'Post-meeting follow-up','Create a follow-up task after a meeting.',JSON.stringify([{type:'create_task',title:'Send meeting follow-up',priority:'high'}]),now,now);
+      sqlite.prepare(`INSERT INTO workflow_runs(id,workflow_definition_id,workflow_version,source_type,source_id,trigger_event,idempotency_key,status,output_summary,started_at,completed_at) VALUES(?, ?,1,'organisation',?,'seed','wi5-seed-workflow','succeeded','[]',?,?)`).run(IDS.acmeWorkflowRun,IDS.acmeWorkflow,IDS.acmeOrganisation,now,now);
+      sqlite.prepare(`INSERT INTO workflow_action_runs(id,workflow_run_id,action_index,action_type,status,output_json,started_at,completed_at) VALUES(?,?,0,'create_task','succeeded','{}',?,?)`).run(IDS.acmeWorkflowActionRun,IDS.acmeWorkflowRun,now,now);
+    })();
+  
+    sqlite.transaction(() => {
+      sqlite.prepare(`INSERT INTO communication_accounts(id,kind,name,server_url,username,credential_key,settings_json,enabled,health_status,sync_cursor,last_sync_at,created_at,updated_at,archived_at) VALUES(?, 'email','Good Order fixture inbox','imaps://mail.example','consultant@goodorder.example','fixture-email-key','{"mailbox":"INBOX"}',0,'healthy','42',?,?,?,NULL)`).run(IDS.fixtureEmailAccount,now,now,now);
+      sqlite.prepare(`INSERT INTO communication_accounts(id,kind,name,server_url,username,credential_key,settings_json,enabled,health_status,sync_cursor,last_sync_at,created_at,updated_at,archived_at) VALUES(?, 'calendar','Good Order fixture calendar','https://dav.example/calendars/','consultant@goodorder.example','fixture-calendar-key','{}',0,'healthy',?, ?,?,?,NULL)`).run(IDS.fixtureCalendarAccount,upcomingDate+'T10:00:00.000Z',now,now,now);
+      sqlite.prepare(`INSERT INTO email_threads(id,account_id,provider_thread_key,subject,latest_message_at,organisation_id,contact_id,match_status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'matched',?,?)`).run(IDS.fixtureEmailThread,IDS.fixtureEmailAccount,'fixture-acme-thread','Evidence pack received',addDays(nowDate,-2)+'T11:00:00.000Z',IDS.acmeOrganisation,IDS.acmeAisling,now,now);
+      sqlite.prepare(`INSERT INTO email_messages(id,account_id,thread_id,provider_message_key,rfc_message_id,direction,sender_json,recipients_json,subject,body_text,sent_at,received_at,is_read,raw_headers_json,communication_id,created_at,updated_at) VALUES(?,?,?,?,?,'inbound',?,?,?,?,?,?,0,'{}',?,?,?)`).run(IDS.fixtureEmailMessage,IDS.fixtureEmailAccount,IDS.fixtureEmailThread,'INBOX:42','fixture-42@example',JSON.stringify({name:'Aisling Byrne',address:'aisling.byrne@acme.example'}),JSON.stringify({to:[{address:'consultant@goodorder.example'}],cc:[],bcc:[]}), 'Evidence pack received','The diagnostic evidence pack is ready.',addDays(nowDate,-2)+'T11:00:00.000Z',addDays(nowDate,-2)+'T11:00:01.000Z',IDS.acmeEmailCommunication,now,now);
+      sqlite.prepare(`INSERT INTO calendars(id,account_id,provider_calendar_key,display_name,selected,created_at,updated_at) VALUES(?,?,?,'Primary',1,?,?)`).run(IDS.fixtureCalendar,IDS.fixtureCalendarAccount,'https://dav.example/calendars/primary',now,now);
+      sqlite.prepare(`INSERT INTO calendar_events(id,calendar_id,provider_event_key,title,description,starts_at,ends_at,timezone,recurrence_json,attendees_json,cancelled,organisation_id,contact_id,engagement_id,match_status,communication_id,created_at,updated_at) VALUES(?,?,?,'Acme leadership review','Review diagnostic findings.',?,?, 'Europe/Dublin','{}',?,0,?,?,?,'matched',?,?,?)`).run(IDS.fixtureCalendarEvent,IDS.fixtureCalendar,'fixture-acme-meeting',upcomingDate+'T09:00:00.000Z',upcomingDate+'T10:00:00.000Z',JSON.stringify([{name:'Aisling Byrne',address:'aisling.byrne@acme.example'}]),IDS.acmeOrganisation,IDS.acmeAisling,IDS.acmeDiagnostic,IDS.acmeMeetingCommunication,now,now);
+      sqlite.prepare(`INSERT INTO synchronization_runs(id,account_id,sync_type,status,cursor_before,cursor_after,fetched_count,created_count,updated_count,matched_count,failure_count,started_at,completed_at) VALUES(?,?,'email','succeeded','41','42',1,1,0,1,0,?,?)`).run(IDS.fixtureEmailSync,IDS.fixtureEmailAccount,now,now);
+      sqlite.prepare(`INSERT INTO synchronization_runs(id,account_id,sync_type,status,cursor_before,cursor_after,fetched_count,created_count,updated_count,matched_count,failure_count,started_at,completed_at) VALUES(?,?,'calendar','succeeded',NULL,?,1,1,0,1,0,?,?)`).run(IDS.fixtureCalendarSync,IDS.fixtureCalendarAccount,upcomingDate+'T10:00:00.000Z',now,now);
+    })();
+  
+    }
 
   rebuildSearchIndex(sqlite);
-  console.log(`WI7 seed complete. Acme Ltd communications hub is ready; today is ${today}.`);
+  const initial=mode==='fresh'?clone(DEFAULT_ONBOARDING_CONFIGURATION):mode==='published'?publishableOnboardingConfiguration():demoOnboardingConfiguration();
+  resetWi12OnboardingState(sqlite,initial);
+  if(mode==='published')await new OnboardingRepository(sqlite).publish(null);
+  const lifecycle=new OnboardingRepository(sqlite).getStatus();
+  console.log(`Seed complete: mode=${mode}, instance=${lifecycle.status}, onboardingRequired=${lifecycle.requiresOnboarding}, today=${today}.`);
 }
 
 if (require.main === module) {
-  runSeed().then(() => process.exit(0)).catch((error) => {
+  const rawMode=process.argv[2]??'demo';
+  if(!['fresh','demo','published'].includes(rawMode)){console.error('Seed mode must be fresh, demo or published');process.exit(1);}
+  runSeed(rawMode as SeedMode).then(() => process.exit(0)).catch((error) => {
     console.error('Seed failed:', error);
     process.exit(1);
   });

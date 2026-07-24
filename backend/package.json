@@ -21,7 +21,10 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/infrastructure/database/migrate.ts",
-    "db:seed": "tsx src/infrastructure/database/seed.ts"
+    "db:seed": "tsx src/infrastructure/database/seed.ts demo",
+    "db:seed:fresh": "tsx src/infrastructure/database/seed.ts fresh",
+    "db:seed:demo": "tsx src/infrastructure/database/seed.ts demo",
+    "db:seed:published-fixture": "tsx src/infrastructure/database/seed.ts published"
   },
   "dependencies": {
     "better-sqlite3": "12.11.1",

@@ -1,66 +1,38 @@
-import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Settings } from 'shared';
+import { useQuery } from '@tanstack/react-query';
+import type { Settings } from 'shared';
+import { api } from '../lib/api';
 
-// Utility to calculate contrast (returns black or white)
-function getContrastYIQ(hexcolor: string): string {
-  const cleanHex = hexcolor.replace('#', '');
-  if (cleanHex.length !== 6) return '#ffffff';
-  
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 128 ? '#0f172a' : '#ffffff'; // returns Slate 900 for light background, white for dark
+function getContrastYiq(hexColor:string):string {
+  const clean=hexColor.replace('#','');
+  if(clean.length!==6)return '#ffffff';
+  const red=parseInt(clean.slice(0,2),16);
+  const green=parseInt(clean.slice(2,4),16);
+  const blue=parseInt(clean.slice(4,6),16);
+  const yiq=(red*299+green*587+blue*114)/1000;
+  return yiq>=128?'#0f172a':'#ffffff';
 }
 
-export function useBranding() {
-  const { data: settings, isLoading, error, refetch } = useQuery<Settings>({
-    queryKey: ['settings'],
-    queryFn: async () => {
-      const res = await fetch('/api/settings');
-      if (res.status === 404) {
-        throw new Error('ONBOARDING_REQUIRED');
-      }
-      if (!res.ok) {
-        throw new Error('Failed to fetch settings');
-      }
-      return res.json();
-    },
-    retry: false,
+export function useBranding(){
+  const query=useQuery<Settings>({
+    queryKey:['settings'],
+    queryFn:()=>api.get('/api/settings'),
+    retry:false,
+    staleTime:30_000,
   });
 
-  useEffect(() => {
-    if (settings) {
-      const root = document.documentElement;
-      
-      // Inject primary color and calculate its foreground
-      root.style.setProperty('--primary', settings.primaryColor);
-      root.style.setProperty('--primary-foreground', getContrastYIQ(settings.primaryColor));
+  useEffect(()=>{
+    if(!query.data)return;
+    const root=document.documentElement;
+    root.style.setProperty('--primary',query.data.primaryColor);
+    root.style.setProperty('--primary-foreground',getContrastYiq(query.data.primaryColor));
+    root.style.setProperty('--secondary',query.data.secondaryColor);
+    root.style.setProperty('--secondary-foreground',getContrastYiq(query.data.secondaryColor));
+    root.style.setProperty('--accent',query.data.accentColor);
+    root.style.setProperty('--accent-foreground',getContrastYiq(query.data.accentColor));
+    root.style.setProperty('--ring',query.data.primaryColor);
+    document.title=`${query.data.businessName} Workspace`;
+  },[query.data]);
 
-      // Inject secondary color and calculate its foreground
-      root.style.setProperty('--secondary', settings.secondaryColor);
-      root.style.setProperty('--secondary-foreground', getContrastYIQ(settings.secondaryColor));
-
-      // Inject accent color and calculate its foreground
-      root.style.setProperty('--accent', settings.accentColor);
-      root.style.setProperty('--accent-foreground', getContrastYIQ(settings.accentColor));
-
-      // Inject ring outline color
-      root.style.setProperty('--ring', settings.primaryColor);
-
-      // Set window title
-      document.title = `${settings.businessName} Workspace`;
-    }
-  }, [settings]);
-
-  const needsOnboarding = error?.message === 'ONBOARDING_REQUIRED';
-
-  return {
-    settings,
-    isLoading,
-    needsOnboarding,
-    refetch,
-    error
-  };
+  return {settings:query.data,isLoading:query.isLoading,error:query.error,refetch:query.refetch};
 }

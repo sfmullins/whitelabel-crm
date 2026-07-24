@@ -11,6 +11,7 @@ import {
   Layers,Link2,LogOut,PackageOpen,Plus,Radio,Search,Settings,ShieldCheck,Sparkles,UserCog,UserRound,Users,Workflow,X,
 } from 'lucide-react';
 import type { SavedView,SearchResponse,SearchResult } from 'shared';
+import type { OnboardingStatus } from 'shared/onboarding';
 import { Button } from '../ui/button';
 import { api } from '../../lib/api';
 import { buildQueryString,formatEntityLabel,groupSearchResults,readRecentRecords,rememberRecentRecord,savedViewRoute } from '../../lib/wi4';
@@ -38,7 +39,23 @@ const navGroups:Array<{label:string;items:NavItem[]}>= [
 export default function MainLayout(){const identity=useIdentity();if(identity.isLoading)return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">Establishing CRM identity…</div>;if(!identity.user)return <Login/>;return <AuthenticatedLayout user={identity.user} can={identity.can}/>;}
 
 function AuthenticatedLayout({user,can}:{user:CrmIdentity;can:(permission:string)=>boolean}){
-  const {settings,isLoading,needsOnboarding,refetch}=useBranding();const extensionRuntime=useExtensionRuntime();const navigate=useNavigate();const client=useQueryClient();
+  const client=useQueryClient();
+  const lifecycle=useQuery<OnboardingStatus>({queryKey:['onboarding-status'],queryFn:()=>api.get('/api/onboarding/status'),retry:false,staleTime:5_000});
+  const signOut=async()=>{await logout();client.setQueryData(['crm-identity'],{user:null});client.removeQueries();};
+  if(lifecycle.isLoading)return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-400">Checking instance lifecycle…</div>;
+  if(lifecycle.isError||!lifecycle.data)return <LifecycleBlock title="Instance status unavailable" message={(lifecycle.error as Error)?.message||'The authoritative instance lifecycle could not be loaded.'} onSignOut={signOut}/>;
+  if(lifecycle.data.status==='suspended')return <LifecycleBlock title="Instance suspended" message="This CRM instance is suspended. Normal workspace access is disabled until an administrator restores it." onSignOut={signOut}/>;
+  if(!lifecycle.data.canAccessWorkspace){
+    if(can('onboarding.manage'))return <Onboarding onSuccess={async()=>{await Promise.all([client.invalidateQueries({queryKey:['onboarding-status']}),client.invalidateQueries({queryKey:['settings']}),client.invalidateQueries({queryKey:['extension-runtime']})]);}}/>;
+    return <LifecycleBlock title="Instance setup in progress" message="The business instance has not been published. An owner or administrator must complete onboarding before employees can open the CRM workspace." onSignOut={signOut}/>;
+  }
+  return <ActiveWorkspace user={user} can={can}/>;
+}
+
+function LifecycleBlock({title,message,onSignOut}:{title:string;message:string;onSignOut:()=>Promise<void>}){return <div className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-slate-200"><div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-7 shadow-2xl"><ShieldCheck className="h-8 w-8 text-blue-400"/><h1 className="mt-4 text-2xl font-black">{title}</h1><p className="mt-3 text-sm leading-6 text-slate-400">{message}</p><Button variant="outline" className="mt-6 border-slate-700 bg-transparent text-white" onClick={()=>void onSignOut()}><LogOut className="mr-2 h-4 w-4"/>Sign out</Button></div></div>;}
+
+function ActiveWorkspace({user,can}:{user:CrmIdentity;can:(permission:string)=>boolean}){
+  const {settings,isLoading,error:brandingError}=useBranding();const extensionRuntime=useExtensionRuntime();const navigate=useNavigate();const client=useQueryClient();
   const [isSearchOpen,setIsSearchOpen]=useState(false);const [query,setQuery]=useState('');const [selectedIndex,setSelectedIndex]=useState(0);const triggerRef=useRef<HTMLButtonElement>(null);const inputRef=useRef<HTMLInputElement>(null);
   const recents=useMemo(()=>readRecentRecords(),[isSearchOpen]);
   const search=useQuery<SearchResponse>({queryKey:['command-search',query],queryFn:({signal})=>api.get(`/api/search${buildQueryString({q:query,limit:12,offset:0})}`,{signal}),enabled:isSearchOpen&&query.trim().length>=2,staleTime:10_000});
@@ -52,7 +69,7 @@ function AuthenticatedLayout({user,can}:{user:CrmIdentity;can:(permission:string
   useEffect(()=>{const keydown=(event:KeyboardEvent)=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();setIsSearchOpen((open)=>!open);}if(!isSearchOpen)return;if(event.key==='Escape'){event.preventDefault();closeSearch();}if(event.key==='ArrowDown'){event.preventDefault();setSelectedIndex((index)=>Math.min(index+1,Math.max(0,flatResults.length-1)));}if(event.key==='ArrowUp'){event.preventDefault();setSelectedIndex((index)=>Math.max(0,index-1));}if(event.key==='Enter'&&flatResults[selectedIndex]){event.preventDefault();openResult(flatResults[selectedIndex]);}};window.addEventListener('keydown',keydown);return()=>window.removeEventListener('keydown',keydown);},[isSearchOpen,flatResults,selectedIndex]);
   useEffect(()=>{if(isSearchOpen){setQuery('');setSelectedIndex(0);requestAnimationFrame(()=>inputRef.current?.focus());}},[isSearchOpen]);useEffect(()=>setSelectedIndex(0),[query]);
   const signOut=async()=>{await logout();client.setQueryData(['crm-identity'],{user:null});client.removeQueries();};
-  if(isLoading)return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Opening local CRM workspace…</div>;if(needsOnboarding&&can('settings.manage'))return <Onboarding onSuccess={refetch}/>;
+  if(isLoading)return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Opening local CRM workspace…</div>;if(brandingError||!settings)return <LifecycleBlock title="Published settings unavailable" message={(brandingError as Error)?.message||'The active instance does not have a readable settings projection.'} onSignOut={signOut}/>;
 
   return <div className="flex min-h-screen bg-slate-50">
     <aside className="hidden w-64 shrink-0 flex-col justify-between border-r bg-white md:flex"><div className="space-y-6 p-5"><div className="flex items-center gap-3 px-2">{settings?.logoUrl?<img src={settings.logoUrl} alt="" className="h-9 w-9 object-contain"/>:<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground">{settings?.businessName?.[0]?.toUpperCase()||'G'}</div>}<div className="min-w-0"><h2 className="truncate font-bold text-slate-800">{settings?.businessName}</h2><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Controlled CRM workspace</p></div></div><nav className="space-y-5">{visibleGroups.map((group)=><div key={group.label}><p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">{group.label}</p><div className="space-y-1">{group.items.map(({to,label,icon:Icon})=><NavLink key={`${to}:${label}`} to={to} end={to==='/'} className={({isActive})=>`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive?'bg-primary text-primary-foreground shadow-sm':'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}><Icon className="h-4 w-4"/>{label}</NavLink>)}</div></div>)}</nav></div><div className="border-t bg-slate-50/60 p-4"><div className="flex items-start gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm"><UserRound className="h-4 w-4 text-primary"/></div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-800">{user.displayName}</p><p className="truncate text-[10px] text-slate-500">{user.roles.map((role)=>role.name).join(', ')}</p><p className="mt-1 text-[10px] text-slate-400">{user.localTrusted?'Trusted local session':'Authenticated session'}</p></div><button onClick={signOut} className="rounded p-1.5 text-slate-400 hover:bg-white hover:text-red-700" aria-label="Sign out or switch user"><LogOut className="h-4 w-4"/></button></div></div></aside>

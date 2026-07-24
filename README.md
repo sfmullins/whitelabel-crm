@@ -62,11 +62,19 @@ npm ci
 
 ## Local development
 
-Run database migrations and seed the development database:
+Run database migrations and create the default demonstration database. The default seed deliberately leaves the instance in `provisioning` so onboarding is exercised before the CRM workspace opens:
 
 ```bash
 npm run db:migrate
 npm run db:seed
+```
+
+Explicit seed modes are available:
+
+```bash
+npm run db:seed:fresh              # empty CRM, onboarding required
+npm run db:seed:demo               # demo records, onboarding required
+npm run db:seed:published-fixture  # automated active fixture only
 ```
 
 Start the backend and frontend development servers:
@@ -79,7 +87,8 @@ Default development endpoints:
 
 - Backend: `http://localhost:5000`
 - Frontend: `http://localhost:3000`
-- Frontend requests under `/api` are proxied to the backend.
+- Frontend requests under `/api` and `/branding-assets` are proxied to the backend.
+- The frontend port is strict: an occupied port fails instead of silently moving the origin. Set `CRM_FRONTEND_PORT` explicitly when an alternate development port is required.
 
 Start the built standalone Electron application:
 
@@ -199,11 +208,12 @@ Completed and merged:
 
 Current:
 
-- WI12 — Instance Onboarding, Provisioning and Deployment Profiles, PR #28.
+- WI12 — Instance Onboarding, Provisioning and Deployment Profiles, PR #28;
+- WI12 stabilization — authoritative first-run lifecycle and development mutation reliability, PR #30 (in progress).
 
 Next:
 
-- WI13 — Enterprise Packaging, Distribution and Release Certification.
+- WI13 — Enterprise Packaging, Distribution and Release Certification, paused until WI12 stabilization is merged and verified.
 
 The authoritative plan and current gates are maintained in `docs/WI10-WI12-IMPLEMENTATION-PLAN.md`, whose title now covers WI10–WI13.
 

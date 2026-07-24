@@ -1,7 +1,7 @@
 import type { OnboardingConfiguration,OnboardingWorkspace,SignedDeploymentProfile } from 'shared/onboarding';
 import type { OnboardingImportMapping,OnboardingImportPreview } from 'shared/onboarding-import';
 
-export type SaveState='loading'|'saved'|'saving'|'error';
+export type SaveState='loading'|'unsaved'|'saved'|'saving'|'conflict'|'error';
 export type ProvisioningSection='readiness'|'deployment'|'identity'|'brand'|'locale'|'terminology'|'people'|'data-model'|'import'|'integrations'|'extensions'|'recovery'|'employees'|'publish';
 
 export interface AdminPermission {key:string;category:string;description:string;}

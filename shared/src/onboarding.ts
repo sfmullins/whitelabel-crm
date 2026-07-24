@@ -5,6 +5,7 @@ const OptionalAbsoluteUrlSchema = z.string().url().or(z.literal(''));
 const OptionalEmailSchema = z.string().email().or(z.literal(''));
 const SlugSchema = z.string().trim().min(2).max(64).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Use lowercase letters, numbers and hyphens');
 const VersionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/, 'Use a semantic version such as 1.0.0');
+const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/, 'Use a lowercase SHA-256 checksum');
 
 export const DeploymentModeSchema = z.enum(['managed', 'standalone']);
 export const ConfigurationRevisionStateSchema = z.enum(['draft', 'published', 'superseded', 'rolled_back']);
@@ -25,8 +26,25 @@ export const BusinessIdentitySchema = z.object({
   description: z.string().trim().max(1500).default(''),
 }).strict();
 
+export const BrandAssetReferenceSchema = z.object({
+  id: Sha256Schema,
+  url: z.string().max(500),
+  checksum: Sha256Schema,
+  mimeType: z.enum(['image/png','image/jpeg','image/webp']),
+  byteSize: z.number().int().positive().max(1_048_576),
+  width: z.number().int().positive().max(4096),
+  height: z.number().int().positive().max(4096),
+}).strict();
+
+export const BrandAssetUploadSchema = z.object({
+  contentBase64: z.string().min(4).max(1_500_000),
+  mimeType: z.enum(['image/png','image/jpeg','image/webp']),
+  fileName: z.string().trim().min(1).max(160),
+}).strict();
+
 export const BrandingConfigurationSchema = z.object({
-  logoUrl: z.string().max(2_000_000).default(''),
+  logoUrl: z.string().max(2_000).default(''),
+  logoAsset: BrandAssetReferenceSchema.nullable().default(null),
   compactLogoUrl: z.string().max(2_000_000).default(''),
   monochromeLogoUrl: z.string().max(2_000_000).default(''),
   primaryColor: HexColourSchema.default('#0f172a'),
@@ -147,7 +165,7 @@ export const DEFAULT_ONBOARDING_CONFIGURATION: OnboardingConfiguration = {
   schemaVersion: 1,
   deployment: { mode: 'managed', instanceSlug: 'my-business', instanceUrl: '', expectedUsers: 10, locations: ['Primary location'], minimumClientVersion: '1.0.0', distributionMethod: 'managed-installer' },
   identity: { displayName: '', legalName: '', registrationNumber: '', taxIdentifier: '', email: '', phone: '', website: '', address: '', supportEmail: '', privacyEmail: '', description: '' },
-  branding: { logoUrl: '', compactLogoUrl: '', monochromeLogoUrl: '', primaryColor: '#0f172a', secondaryColor: '#3b82f6', accentColor: '#10b981', surfaceColor: '#ffffff', backgroundColor: '#f8fafc', darkModeEnabled: true, density: 'comfortable', radius: 'subtle' },
+  branding: { logoUrl: '', logoAsset: null, compactLogoUrl: '', monochromeLogoUrl: '', primaryColor: '#0f172a', secondaryColor: '#3b82f6', accentColor: '#10b981', surfaceColor: '#ffffff', backgroundColor: '#f8fafc', darkModeEnabled: true, density: 'comfortable', radius: 'subtle' },
   locale: { language: 'en-IE', secondaryLanguages: [], timezone: 'Europe/Dublin', currency: 'EUR', dateFormat: 'DD/MM/YYYY', timeFormat: '24h', weekStartsOn: 'monday', financialYearStartMonth: 1 },
   terminology: { organisation: { singular: 'Organisation', plural: 'Organisations' }, contact: { singular: 'Contact', plural: 'Contacts' }, engagement: { singular: 'Engagement', plural: 'Engagements' }, task: { singular: 'Task', plural: 'Tasks' } },
   organisation: { departments: [], teams: ['Default operating team'], sharedQueues: [], defaultOwnership: 'creator' },
@@ -232,6 +250,17 @@ export const OnboardingWorkspaceSchema = z.object({
   deploymentProfileAvailable: z.boolean(),
 }).strict();
 
+export const OnboardingStatusSchema = z.object({
+  instanceId: z.string().uuid(),
+  slug: SlugSchema,
+  status: z.enum(['provisioning','active','suspended']),
+  hasPublishedRevision: z.boolean(),
+  currentPublishedRevisionId: z.string().uuid().nullable(),
+  requiresOnboarding: z.boolean(),
+  canAccessWorkspace: z.boolean(),
+  reason: z.enum(['onboarding-required','ready','suspended','publication-missing']),
+}).strict();
+
 export const CreateEnrolmentSchema = z.object({
   userId: z.string().uuid(),
   expiresInHours: z.number().int().min(1).max(168).optional(),
@@ -251,5 +280,8 @@ export type DeploymentProfile = z.infer<typeof DeploymentProfileSchema>;
 export type SignedDeploymentProfile = z.infer<typeof SignedDeploymentProfileSchema>;
 export type OnboardingRevision = z.infer<typeof OnboardingRevisionSchema>;
 export type OnboardingWorkspace = z.infer<typeof OnboardingWorkspaceSchema>;
+export type OnboardingStatus = z.infer<typeof OnboardingStatusSchema>;
+export type BrandAssetReference = z.infer<typeof BrandAssetReferenceSchema>;
+export type BrandAssetUpload = z.infer<typeof BrandAssetUploadSchema>;
 export type CreateEnrolment = z.infer<typeof CreateEnrolmentSchema>;
 export type RedeemEnrolment = z.infer<typeof RedeemEnrolmentSchema>;

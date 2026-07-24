@@ -5,11 +5,13 @@ import {
   OnboardingConfigurationSchema,
   ReadinessResultSchema,
   SignedDeploymentProfileSchema,
+  OnboardingStatusSchema,
   type CreateEnrolment,
   type DeploymentProfile,
   type OnboardingConfiguration,
   type OnboardingRevision,
   type OnboardingWorkspace,
+  type OnboardingStatus,
   type ReadinessCheck,
   type ReadinessResult,
   type RedeemEnrolment,
@@ -79,6 +81,14 @@ export class OnboardingRepository {
     };
   }
   private configuration(row:RevisionRow):OnboardingConfiguration{return JSON.parse(row.configuration_json) as OnboardingConfiguration;}
+
+  getStatus():OnboardingStatus{
+    const instance=this.getInstance();const hasPublishedRevision=Boolean(instance.current_published_revision_id);
+    const requiresOnboarding=instance.status==='provisioning'||!hasPublishedRevision;
+    const canAccessWorkspace=instance.status==='active'&&hasPublishedRevision;
+    const reason:OnboardingStatus['reason']=instance.status==='suspended'?'suspended':requiresOnboarding?(hasPublishedRevision?'onboarding-required':'publication-missing'):'ready';
+    return OnboardingStatusSchema.parse({instanceId:instance.id,slug:instance.slug,status:instance.status,hasPublishedRevision,currentPublishedRevisionId:instance.current_published_revision_id,requiresOnboarding,canAccessWorkspace,reason});
+  }
 
   getWorkspace():OnboardingWorkspace{
     const instance=this.getInstance();const draft=this.getDraftRow();
