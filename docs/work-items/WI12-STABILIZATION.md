@@ -2,7 +2,7 @@
 
 ## Status
 
-This correction pass is a release prerequisite. WI13 packaging and release certification remain paused until this work is merged and the exact merged head passes the repository gates.
+Complete. PR #30 is the contained correction pass for the first-run and development-session failures discovered after WI12. The exact final head must remain green through the repository governance and Linux packaging workflows before merge. WI13 begins only from a main branch containing this stabilization work.
 
 ## Evidence
 
@@ -79,14 +79,21 @@ The permanent `wi12:stabilization` gate covers:
 - an actual Vite proxy smoke on port 3000 and an explicitly configured alternate port;
 - strict failure when port 3000 is occupied;
 - successful checksum-backed onboarding mutation through the proxy;
-- rejection of a hostile browser origin.
+- rejection of a hostile browser origin;
+- readiness validation and signed publication through the proxy;
+- active workspace access after publication;
+- backend restart against the same database;
+- persisted active lifecycle and workspace access after restart.
 
 ## Exit criteria
 
-WI13 may restart only after:
+WI12 stabilization is complete only when all of the following are true on the exact final PR head:
 
-1. PR CI passes on the exact final head.
-2. `npm run db:seed:demo && npm run dev` opens onboarding on port 3000.
-3. Onboarding publishes successfully and the active workspace survives restart.
-4. A repeat manual HAR contains no unexpected 4xx/5xx responses or Vite `EPIPE` errors.
-5. No temporary patch/export workflow remains in the repository.
+1. The full repository governance workflow passes.
+2. The Linux desktop package workflow produces a Debian artifact.
+3. The permanent proxy smoke opens provisioning on the canonical port and an explicit alternate port without origin failures.
+4. The proxy smoke publishes onboarding successfully and verifies the active workspace after backend restart.
+5. Expected hostile-origin and provisioning-gate responses are asserted explicitly; no unexpected 4xx/5xx response is tolerated by the smoke.
+6. The clean-repository gate passes and no temporary patch, export or diagnostic workflow remains.
+
+These automated checks replace the one-off manual reproduction requirement and remain part of CI for every later change.
