@@ -209,7 +209,8 @@ Completed and merged:
 - first full post-WI11 repository audit, PR #16;
 - independent second audit and trust-boundary correction, PR #18;
 - WI12 — Instance Onboarding, Provisioning and Deployment Profiles, PR #28;
-- WI12 stabilization — authoritative first-run lifecycle and development mutation reliability, PR #30.
+- WI12 stabilization and acceptance — authoritative first-run lifecycle,
+  development mutation reliability and complete provisioning journey, PR #32.
 
 Next:
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Complete. PR #30 is the contained correction pass for the first-run and development-session failures discovered after WI12. The exact final head must remain green through the repository governance and Linux packaging workflows before merge. WI13 begins only from a main branch containing this stabilization work.
+Complete. PR #32 is the final contained correction and acceptance pass for the first-run and development-session failures discovered after WI12. The exact final head must remain green through the repository governance and Linux packaging workflows before merge. WI13 begins only from a main branch containing this stabilization work.
 
 ## Evidence
 
@@ -58,6 +58,14 @@ The onboarding UI now:
 - surfaces structured API status, error code and request ID;
 - stores logos as validated content-addressed assets rather than base64 configuration values.
 
+The final acceptance pass also:
+
+- labels every section as required, optional or conditional for publication;
+- provides an explicit in-flow continuation action through all 14 sections;
+- keeps extension installation out of the provisioning lifecycle and explains its post-publication availability;
+- normalises custom entities whose API response omits embedded fields;
+- reconciles one-session checksum conflicts once without overwriting genuine concurrent edits.
+
 ### Observability
 
 Every request receives an `x-request-id`. Completion logs include status, duration, identity type, origin classification and rejection reason. Logs do not contain request bodies, credentials, tokens, enrolment codes, signatures or asset content.
@@ -85,6 +93,11 @@ The permanent `wi12:stabilization` gate covers:
 - backend restart against the same database;
 - persisted active lifecycle and workspace access after restart.
 
+The frontend journey regression traverses every provisioning section, verifies
+its publication requirement and completion guidance, renders a custom entity
+without embedded fields, follows the Extensions to Security & recovery handoff,
+approves the final configuration and invokes publication.
+
 ## Exit criteria
 
 WI12 stabilization is complete only when all of the following are true on the exact final PR head:
@@ -95,5 +108,6 @@ WI12 stabilization is complete only when all of the following are true on the ex
 4. The proxy smoke publishes onboarding successfully and verifies the active workspace after backend restart.
 5. Expected hostile-origin and provisioning-gate responses are asserted explicitly; no unexpected 4xx/5xx response is tolerated by the smoke.
 6. The clean-repository gate passes and no temporary patch, export or diagnostic workflow remains.
+7. The complete frontend journey regression passes on the exact PR head.
 
 These automated checks replace the one-off manual reproduction requirement and remain part of CI for every later change.
