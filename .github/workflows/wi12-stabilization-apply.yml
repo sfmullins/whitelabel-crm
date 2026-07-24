@@ -1,0 +1,48 @@
+name: WI12 stabilization patch installer
+
+on:
+  push:
+    branches:
+      - WI12-Stabilization
+    paths:
+      - .github/wi12-stabilization-patch/**
+      - .github/workflows/wi12-stabilization-apply.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wi12-stabilization-installer
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out branch head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: WI12-Stabilization
+          fetch-depth: 0
+
+      - name: Apply consolidated stabilization implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/wi12-stabilization-patch/00 .github/wi12-stabilization-patch/01 \
+            | base64 --decode \
+            | gzip --decompress \
+            > "${RUNNER_TEMP}/wi12-stabilization.patch"
+          echo "15258ecf858d942e07a4aded6c4107b118b53018b4cf5f785a257fe48ba9b935  ${RUNNER_TEMP}/wi12-stabilization.patch" | sha256sum --check
+          git apply --check "${RUNNER_TEMP}/wi12-stabilization.patch"
+          git apply "${RUNNER_TEMP}/wi12-stabilization.patch"
+          rm -rf .github/wi12-stabilization-patch
+          rm -f .github/workflows/wi12-stabilization-apply.yml
+          rm -f .github/workflows/wi12-stabilization-export.yml
+          git add -A
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "fix: stabilize WI12 onboarding and development runtime"
+          git push origin HEAD:WI12-Stabilization
