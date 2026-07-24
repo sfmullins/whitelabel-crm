@@ -250,10 +250,11 @@ describe('CRM API', () => {
       const result = await requestJson(server.url, '/api/__test/unknown-error');
       const text = JSON.stringify(result.body);
       expect(result.response.status).toBe(500);
-      expect(result.body).toEqual({
+      expect(result.body).toMatchObject({
         error: 'INTERNAL_SERVER_ERROR',
         message: 'An unexpected error occurred',
       });
+      expect(result.body.requestId).toMatch(/^[0-9a-f-]{36}$/i);
       expect(text).not.toMatch(/internal test|stack|sql|sqlite|constraint|\/tmp/i);
     } finally {
       await server.close();
