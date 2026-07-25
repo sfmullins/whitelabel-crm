@@ -26,9 +26,27 @@ import {
   paginationQueryFields,
   parseRequest,
 } from './crmValidation';
+import { DATA_MODEL_LABELS } from 'shared/onboarding';
+import type { WorkspaceModel } from 'shared';
+import { OnboardingRepository } from '../../infrastructure/database/OnboardingRepository';
+import { CustomObjectRepository } from '../../infrastructure/database/repositories/CustomObjectRepository';
+import { CustomFieldRepository } from '../../infrastructure/database/repositories/CustomFieldRepository';
+import { CustomerRepository } from '../../infrastructure/database/repositories/CustomerRepository';
 
 const router = Router();
 const service = new WorkspaceService(new WorkspaceRepository());
+const onboarding = new OnboardingRepository();
+const customObjects = new CustomObjectRepository();
+const customFields = new CustomFieldRepository();
+const customers = new CustomerRepository();
+
+const customerTerms:Record<WorkspaceModel['sector'],{singular:string;plural:string}>={
+  general:{singular:'Customer',plural:'Customers'},
+  'after-school-childcare':{singular:'Parent or guardian',plural:'Families & guardians'},
+  'pet-behaviour':{singular:'Pet owner',plural:'Pet owners'},
+  veterinary:{singular:'Animal owner',plural:'Animal owners'},
+  'pet-grooming':{singular:'Pet owner',plural:'Pet owners'},
+};
 
 const IdParamsSchema = z.object({ id: z.string().uuid('Invalid ID') }).strict();
 const OrganisationParamsSchema = z.object({ organisationId: z.string().uuid('Invalid organisation ID') }).strict();
@@ -97,6 +115,34 @@ const SavedViewListSchema = z.object({
   context: SavedViewContextSchema.optional(),
   pinnedOnly: z.preprocess((value) => value === 'true' || value === true, z.boolean().default(false)),
 }).strict();
+
+router.get('/workspace/model',async(_req,res,next)=>{
+  try{
+    const configuration=onboarding.getPublishedConfiguration();
+    const definitions=await customObjects.getDefinitions();
+    const enriched=await Promise.all(definitions.map(async(definition)=>({
+      ...definition,
+      fields:await customFields.getDefinitions(definition.apiName),
+      recordCount:await customObjects.countRecords(definition.id!),
+    })));
+    const templateKey=configuration.dataModel.mode==='template'
+      ? configuration.dataModel.appliedTemplateKey||configuration.dataModel.templateKey
+      : null;
+    const terms=customerTerms[configuration.businessProfile.sector];
+    const model:WorkspaceModel={
+      sector:configuration.businessProfile.sector,
+      mode:configuration.dataModel.mode,
+      templateKey,
+      templateName:templateKey?DATA_MODEL_LABELS[templateKey]??templateKey:'Custom setup',
+      customerCount:await customers.count(),
+      customerSingular:terms.singular,
+      customerPlural:terms.plural,
+      definitions:enriched,
+    };
+    res.setHeader('cache-control','no-store');
+    res.json(model);
+  }catch(error){next(error);}
+});
 
 router.get('/workspace/organisations', async (req, res, next) => {
   try {
