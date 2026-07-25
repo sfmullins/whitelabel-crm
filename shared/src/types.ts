@@ -230,6 +230,21 @@ export interface CustomObjectDetails extends CustomObjectDefinition {
   fields: CustomFieldDefinition[];
 }
 
+export interface WorkspaceModelDefinition extends CustomObjectDetails {
+  recordCount: number;
+}
+
+export interface WorkspaceModel {
+  sector: 'general' | 'after-school-childcare' | 'pet-behaviour' | 'veterinary' | 'pet-grooming';
+  mode: 'template' | 'blank';
+  templateKey: string | null;
+  templateName: string;
+  customerCount: number;
+  customerSingular: string;
+  customerPlural: string;
+  definitions: WorkspaceModelDefinition[];
+}
+
 // ==========================================
 // Organisations, Contacts & Engagements
 // ==========================================
