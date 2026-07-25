@@ -1755,6 +1755,7 @@ function BusinessFitSection({studio,onContinue}:{studio:Studio;onContinue:()=>vo
 function DataModelSection({ studio }: { studio: Studio }) {
   const state = studio.state!;
   const recommendations=rankDataModelTemplates(state.draft.businessProfile);
+  const selectedTemplate=recommendations.find((item)=>item.key===state.draft.dataModel.templateKey)??recommendations[0];
   const [showManual,setShowManual]=useState(false);
   const [field, setField] = useState({
     entityType: "customer",
@@ -1824,7 +1825,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
           {state.draft.dataModel.mode==="template"&&<Button disabled={studio.working==="data-model-template"} onClick={()=>void studio.applyDataModelTemplate(recommendations.find((item)=>item.key===state.draft.dataModel.templateKey)??recommendations[0])}>{studio.working==="data-model-template"?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<Sparkles className="mr-2 h-4 w-4"/>}Use this template</Button>}
           <Button variant="outline" onClick={()=>setShowManual((value)=>!value)}>{showManual?"Hide detailed editor":"Customise fields and records"}</Button>
         </div>
-        {state.draft.dataModel.appliedTemplateKey&&<p className="mt-3 text-xs font-bold text-emerald-700">Template added. The items below now belong to this CRM and can be changed independently.</p>}
+        {state.draft.dataModel.appliedTemplateKey&&<div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700"/><div><p className="font-black">{selectedTemplate.name} is now your active starting model</p><p className="mt-1 text-sm text-emerald-800">After setup, the workspace will show {selectedTemplate.objects.map((item)=>item.pluralName).join(", ")} directly in its navigation and dashboard. These are ordinary editable records, not a locked industry mode.</p></div></div></div>}
       </Panel>
       {!showManual&&<Panel title="What will be added" description="Templates add ordinary customer fields and related record types. Every related record remains connected to its customer, so the full history stays together."><p className="text-sm text-slate-600">Open “Customise fields and records” to review or change individual items. You can also do this later from CRM settings.</p></Panel>}
       {showManual&&<>
@@ -3112,6 +3113,21 @@ function Summary({ label, value }: { label: string; value: string }) {
 }
 
 function LivePreview({ value }: { value: OnboardingConfiguration }) {
+  const specialistItems:Record<OnboardingConfiguration["businessProfile"]["sector"],string[]>={
+    general:[value.terminology.organisation.plural,value.terminology.contact.plural,value.terminology.task.plural],
+    "after-school-childcare":["Families & guardians","Children","Enrolments","Attendance"],
+    "pet-behaviour":["Pet owners","Pets","Behaviour cases","Consultations"],
+    veterinary:["Animal owners","Animals","Consultations","Vaccinations"],
+    "pet-grooming":["Pet owners","Pets","Grooming profiles","Appointments"],
+  };
+  const workspaceLabel=value.businessProfile.sector==="general"
+    ? value.deployment.mode === "managed"?"Managed CRM workspace":"Standalone CRM workspace"
+    : {
+      "after-school-childcare":"After-school childcare workspace",
+      "pet-behaviour":"Pet behaviour workspace",
+      veterinary:"Veterinary practice workspace",
+      "pet-grooming":"Pet grooming workspace",
+    }[value.businessProfile.sector];
   return (
     <div>
       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
@@ -3141,9 +3157,7 @@ function LivePreview({ value }: { value: OnboardingConfiguration }) {
               {value.identity.displayName || "Your business"}
             </p>
             <p className="text-[10px] opacity-70">
-              {value.deployment.mode === "managed"
-                ? "Managed CRM workspace"
-                : "Standalone CRM workspace"}
+              {workspaceLabel}
             </p>
           </div>
         </div>
@@ -3151,9 +3165,7 @@ function LivePreview({ value }: { value: OnboardingConfiguration }) {
           <div className="space-y-2">
             {[
               "Dashboard",
-              value.terminology.organisation.plural,
-              value.terminology.contact.plural,
-              value.terminology.task.plural,
+              ...specialistItems[value.businessProfile.sector],
             ].map((item, index) => (
               <div
                 key={item}
