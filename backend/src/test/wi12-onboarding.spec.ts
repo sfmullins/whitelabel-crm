@@ -61,6 +61,15 @@ describe('WI12 instance onboarding and deployment profiles',()=>{
     expect(saved.readiness.publishable).toBe(true);
   });
 
+  it('blocks publication when the selected time zone is not supported',()=>{
+    const onboarding=repository();
+    const configuration=validConfiguration();
+    configuration.locale.timezone='UTC+1';
+    const saved=onboarding.saveDraft(configuration,LOCAL_OWNER_USER_ID);
+    expect(saved.readiness.checks.find((check)=>check.id==='locale.timezone')).toMatchObject({status:'failed',severity:'required'});
+    expect(saved.readiness.publishable).toBe(false);
+  });
+
   it('rejects stale draft saves and publication attempts',async()=>{
     const onboarding=repository();const initial=onboarding.getWorkspace();const first=onboarding.saveDraft(validConfiguration('First Identity'),LOCAL_OWNER_USER_ID,initial.draft.checksum);
     expect(()=>onboarding.saveDraft(validConfiguration('Stale Writer'),LOCAL_OWNER_USER_ID,initial.draft.checksum)).toThrow('changed');

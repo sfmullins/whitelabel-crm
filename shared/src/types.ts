@@ -1,5 +1,32 @@
 import { z } from 'zod';
 
+export function isSupportedTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function normalizeLegacyTimeZone(value: unknown, fallback = 'UTC'): string {
+  const candidate = String(value ?? '').trim();
+  if (candidate && isSupportedTimeZone(candidate)) return candidate;
+
+  const fixedOffset = /^(?:UTC|GMT)([+-])(\d{1,2})(?::?00)?$/i.exec(candidate);
+  if (fixedOffset) {
+    const hours = Number(fixedOffset[2]);
+    if (hours === 0) return 'UTC';
+    if (hours <= 14) {
+      const reversedSign = fixedOffset[1] === '+' ? '-' : '+';
+      const ianaOffset = `Etc/GMT${reversedSign}${hours}`;
+      if (isSupportedTimeZone(ianaOffset)) return ianaOffset;
+    }
+  }
+
+  return isSupportedTimeZone(fallback) ? fallback : 'UTC';
+}
+
 // ==========================================
 // Settings & Onboarding Schema
 // ==========================================
@@ -17,7 +44,10 @@ export const SettingsSchema = z.object({
   invoiceFooter: z.string().optional(),
   defaultTaxRate: z.number().min(0, 'Tax rate cannot be negative').default(0),
   currency: z.string().min(1, 'Currency is required').default('USD'),
-  timezone: z.string().min(1, 'Time zone is required').default('UTC'),
+  timezone: z.string()
+    .min(1, 'Time zone is required')
+    .refine(isSupportedTimeZone, 'Select a supported regional time zone')
+    .default('UTC'),
   dateFormat: z.string().min(1, 'Date format is required').default('YYYY-MM-DD'),
 });
 

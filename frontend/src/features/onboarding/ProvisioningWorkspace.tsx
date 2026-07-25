@@ -186,6 +186,19 @@ const navigation: NavItem[] = [
       "Define rollout policy now; issue enrolment tokens only when employees are ready to activate.",
   },
 ];
+const commonTimezones = new Set([
+  "Europe/Dublin",
+  "Europe/London",
+  "Europe/Lisbon",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "Australia/Sydney",
+  "UTC",
+]);
 
 const coreSectionOrder: ProvisioningSection[] = [
   "identity",
@@ -1352,12 +1365,27 @@ function LocaleSection({ studio }: { studio: Studio }) {
           />
         </Field>
         <Field label="Timezone">
-          <Input
+          <Select
             value={value.timezone}
             onChange={(event) =>
               studio.patch("locale", { timezone: event.target.value })
             }
-          />
+          >
+            {!commonTimezones.has(value.timezone) ? (
+              <option value={value.timezone}>{value.timezone} (saved setting)</option>
+            ) : null}
+            <option value="Europe/Dublin">Dublin (Ireland)</option>
+            <option value="Europe/London">London (United Kingdom)</option>
+            <option value="Europe/Lisbon">Lisbon (Portugal)</option>
+            <option value="Europe/Paris">Paris (Central Europe)</option>
+            <option value="Europe/Berlin">Berlin (Central Europe)</option>
+            <option value="America/New_York">New York (Eastern Time)</option>
+            <option value="America/Chicago">Chicago (Central Time)</option>
+            <option value="America/Denver">Denver (Mountain Time)</option>
+            <option value="America/Los_Angeles">Los Angeles (Pacific Time)</option>
+            <option value="Australia/Sydney">Sydney (Australia)</option>
+            <option value="UTC">UTC</option>
+          </Select>
         </Field>
         <Field label="Currency">
           <Input

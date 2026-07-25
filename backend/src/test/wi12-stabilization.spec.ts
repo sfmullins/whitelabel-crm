@@ -107,6 +107,25 @@ describe('WI12 stabilization',()=>{
     expect(connection.pragma('integrity_check')).toEqual([{integrity_check:'ok'}]);
   });
 
+  it('normalizes legacy UTC offsets before the published dashboard is read',async()=>{
+    await runSeed('published');
+    const connection=getSqliteConnection();
+    connection.prepare(`UPDATE settings SET timezone='UTC+1' WHERE id='default'`).run();
+    const draft=connection.prepare(`SELECT id,configuration_json FROM instance_configuration_revisions WHERE state='draft'`).get() as {id:string;configuration_json:string};
+    const configuration=JSON.parse(draft.configuration_json) as Record<string,unknown>;
+    (configuration.locale as Record<string,unknown>).timezone='UTC+1';
+    connection.prepare(`UPDATE instance_configuration_revisions SET configuration_json=?,checksum=? WHERE id=?`).run(JSON.stringify(configuration),'0'.repeat(64),draft.id);
+
+    ensureWi12OnboardingSchema(connection);
+
+    expect((connection.prepare(`SELECT timezone FROM settings WHERE id='default'`).get() as {timezone:string}).timezone).toBe('Etc/GMT-1');
+    expect(new OnboardingRepository(connection).getWorkspace().draft.configuration.locale.timezone).toBe('Etc/GMT-1');
+    server=await startServer({host:'127.0.0.1',port:0});
+    const dashboard=await fetch(`${server.url}/api/workspace/dashboard`);
+    expect(dashboard.status).toBe(200);
+    expect(connection.pragma('integrity_check')).toEqual([{integrity_check:'ok'}]);
+  });
+
   it('stores verified logos outside the onboarding configuration payload',async()=>{
     await runSeed('demo');
     server=await startServer({host:'127.0.0.1',port:0});

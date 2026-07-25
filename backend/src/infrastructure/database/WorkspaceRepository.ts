@@ -9,6 +9,7 @@ import {
   SavedViewResponseSchema,
   SearchResponseSchema,
   TimelineResponseSchema,
+  normalizeLegacyTimeZone,
   type ContactDirectoryQuery,
   type ContactDirectoryResponse,
   type DashboardOperationalSummary,
@@ -75,7 +76,7 @@ function parseMetadata(value: string): unknown {
 
 function getTodayInTimezone(connection: Database.Database): string {
   const row = connection.prepare(`select timezone from settings where id = 'default'`).get() as { timezone?: string } | undefined;
-  const timezone = row?.timezone || 'Europe/Dublin';
+  const timezone = normalizeLegacyTimeZone(row?.timezone, 'Europe/Dublin');
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
