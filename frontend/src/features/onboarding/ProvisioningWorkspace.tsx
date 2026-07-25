@@ -21,6 +21,8 @@ import {
   Save,
   ShieldCheck,
   Sparkles,
+  Store,
+  Trash2,
   Users,
   Workflow,
   XCircle,
@@ -35,6 +37,7 @@ import { Input } from "../../components/ui/input";
 import { api } from "../../lib/api";
 import { useProvisioningWorkspace } from "./useProvisioningWorkspace";
 import type { ProvisioningSection } from "./models";
+import { rankDataModelTemplates } from "./dataModelTemplates";
 
 interface ProvisioningWorkspaceProps {
   onSuccess?: () => void;
@@ -49,81 +52,108 @@ interface NavItem {
 }
 const navigation: NavItem[] = [
   {
-    key: "readiness",
-    label: "Readiness",
-    description: "Progress, evidence and blockers",
-    icon: Sparkles,
+    key: "business-fit",
+    label: "How you do business",
+    description: "Help us suggest the right customer records",
+    icon: Store,
     requirement: "Required",
     completion:
-      "Review every mandatory blocker. Each blocker links to the section where it can be resolved.",
-  },
-  {
-    key: "deployment",
-    label: "Deployment",
-    description: "Managed or standalone topology",
-    icon: Cloud,
-    requirement: "Required",
-    completion:
-      "Choose the authoritative topology and complete its deployment identity.",
+      "Choose the answers that best describe the business. We use them only to rank suitable starting templates.",
   },
   {
     key: "identity",
-    label: "Business identity",
-    description: "Legal and public details",
+    label: "Your business",
+    description: "The essentials we need to get started",
     icon: Building2,
     requirement: "Required",
     completion:
-      "Enter the business identity that employees and published profiles will see.",
+      "Add the four essentials marked “Needed to publish”. Everything else can wait.",
   },
   {
     key: "brand",
-    label: "Brand studio",
-    description: "Identity, tokens and preview",
+    label: "Look & feel",
+    description: "Logo and colours your team will see",
     icon: Palette,
     requirement: "Required",
     completion:
-      "Confirm an accessible visual identity and preview it before continuing.",
+      "Choose a main colour with readable contrast. The other design settings already have safe defaults.",
   },
   {
     key: "locale",
-    label: "Locale",
-    description: "Currency, dates and timezone",
+    label: "Business defaults",
+    description: "Currency, dates and working preferences",
     icon: Globe2,
     requirement: "Required",
     completion:
-      "Confirm the currency, timezone, date format and financial year settings.",
+      "Check the suggested regional and financial defaults. Change only what is wrong for your business.",
+  },
+  {
+    key: "people",
+    label: "Your team",
+    description: "Who can use the CRM and what they can do",
+    icon: Users,
+    requirement: "Required",
+    completion:
+      "Your owner account is enough to publish. Add colleagues now only if you are ready.",
+  },
+  {
+    key: "recovery",
+    label: "Keep your data safe",
+    description: "Simple backup and recovery checks",
+    icon: ShieldCheck,
+    requirement: "Required",
+    completion:
+      "For a shared business system, confirm where backups go, that they are encrypted and who will recover them.",
+  },
+  {
+    key: "publish",
+    label: "Check & finish",
+    description: "See exactly what remains, then open the CRM",
+    icon: CheckCircle2,
+    requirement: "Required",
+    completion:
+      "Complete any items marked “Needed to publish”, approve the summary and finish setup.",
+  },
+  {
+    key: "deployment",
+    label: "How people connect",
+    description: "Single computer or shared team access",
+    icon: Cloud,
+    requirement: "Required",
+    completion:
+      "Choose whether this CRM lives on one computer or is shared by your team. Technical defaults are handled for you.",
+  },
+  {
+    key: "readiness",
+    label: "Setup details",
+    description: "Full checks and diagnostic evidence",
+    icon: Sparkles,
+    requirement: "Optional",
+    completion:
+      "This detailed view is for support and troubleshooting. You do not need to understand it to finish setup.",
   },
   {
     key: "terminology",
-    label: "Terminology",
-    description: "Business-facing CRM language",
+    label: "Words you use",
+    description: "Rename CRM terms to suit your business",
     icon: Workflow,
     requirement: "Optional",
     completion:
       "Keep the defaults or tailor the labels to the business vocabulary.",
   },
   {
-    key: "people",
-    label: "People & access",
-    description: "Teams, users, roles and permissions",
-    icon: Users,
+    key: "data-model",
+    label: "Your customer records",
+    description: "Choose a suggested starting point or build your own",
+    icon: Layers3,
     requirement: "Required",
     completion:
-      "Ensure the owner and required initial employees have appropriate access.",
-  },
-  {
-    key: "data-model",
-    label: "CRM model",
-    description: "Statuses, fields and entities",
-    icon: Layers3,
-    requirement: "Optional",
-    completion:
-      "The standard CRM model is publication-ready; add custom schema only where the business genuinely needs it.",
+      "Choose a recommended template or a blank model. Templates remain fully editable and can be changed later.",
   },
   {
     key: "import",
-    label: "Data import",
-    description: "Map, preview and reconcile",
+    label: "Bring in existing data",
+    description: "Import customers from a spreadsheet",
     icon: FileSpreadsheet,
     requirement: "Optional",
     completion:
@@ -131,8 +161,8 @@ const navigation: NavItem[] = [
   },
   {
     key: "integrations",
-    label: "Communications",
-    description: "Email, calendar and documents",
+    label: "Email & calendar",
+    description: "Optional connections after setup",
     icon: Mail,
     requirement: "Optional",
     completion:
@@ -140,47 +170,46 @@ const navigation: NavItem[] = [
   },
   {
     key: "extensions",
-    label: "Extensions",
-    description: "Approved instance capabilities",
+    label: "Add-ons",
+    description: "Optional extra capabilities",
     icon: Plug,
     requirement: "Optional",
     completion:
       "Extensions are not required for publication. Select only packages already installed and enabled.",
   },
   {
-    key: "recovery",
-    label: "Security & recovery",
-    description: "Sessions, backup and restore",
-    icon: ShieldCheck,
-    requirement: "Required",
-    completion:
-      "Confirm the security and recovery controls required for publication.",
-  },
-  {
     key: "employees",
-    label: "Employee rollout",
-    description: "Enrolment and device control",
+    label: "Invite employees",
+    description: "Give colleagues secure access",
     icon: KeyRound,
     requirement: "Conditional",
     completion:
       "Define rollout policy now; issue enrolment tokens only when employees are ready to activate.",
   },
-  {
-    key: "publish",
-    label: "Review & publish",
-    description: "Immutable profile and history",
-    icon: CheckCircle2,
-    requirement: "Required",
-    completion:
-      "Resolve every mandatory blocker, approve the configuration, then publish the signed instance profile.",
-  },
 ];
+
+const coreSectionOrder: ProvisioningSection[] = [
+  "identity",
+  "business-fit",
+  "data-model",
+  "deployment",
+  "brand",
+  "locale",
+  "people",
+  "recovery",
+  "publish",
+];
+const coreSectionKeys = new Set(coreSectionOrder);
+const coreNavigation = coreSectionOrder.map(
+  (key) => navigation.find((item) => item.key === key)!,
+);
 
 export default function ProvisioningWorkspace({
   onSuccess,
 }: ProvisioningWorkspaceProps) {
   const studio = useProvisioningWorkspace(onSuccess);
-  const [section, setSection] = useState<ProvisioningSection>("readiness");
+  const [section, setSection] = useState<ProvisioningSection>("identity");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const state = studio.state;
   if (!state)
     return (
@@ -201,12 +230,9 @@ export default function ProvisioningWorkspace({
               <Sparkles className="h-5 w-5 text-blue-300" />
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-lg font-black">
-                Instance provisioning studio
-              </h1>
+              <h1 className="truncate text-lg font-black">Set up your CRM</h1>
               <p className="truncate text-xs text-slate-400">
-                {state.workspace.instance.slug} · draft revision{" "}
-                {state.workspace.draft.revision}
+                We save your answers automatically
               </p>
             </div>
           </div>
@@ -223,7 +249,7 @@ export default function ProvisioningWorkspace({
               ) : (
                 <RefreshCw className="mr-2 h-4 w-4" />
               )}
-              Validate
+              Check my setup
             </Button>
           </div>
         </div>
@@ -234,8 +260,11 @@ export default function ProvisioningWorkspace({
             score={state.workspace.readiness.score}
             blockers={blockers.length}
           />
-          <nav className="mt-4 space-y-1" aria-label="Provisioning sections">
-            {navigation.map((item) => {
+          <p className="mt-5 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+            Get ready to use your CRM
+          </p>
+          <nav className="mt-2 space-y-1" aria-label="Setup sections">
+            {coreNavigation.map((item) => {
               const Icon = item.icon;
               const hasFailure = state.workspace.readiness.checks.some(
                 (check) =>
@@ -264,13 +293,40 @@ export default function ProvisioningWorkspace({
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((current) => !current)}
+              className="mt-4 flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-black text-slate-700 hover:bg-slate-50"
+            >
+              Optional & advanced setup
+              <ChevronRight className={`h-4 w-4 transition ${showAdvanced ? "rotate-90" : ""}`} />
+            </button>
+            {showAdvanced &&
+              navigation
+                .filter((item) => !coreSectionKeys.has(item.key))
+                .map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => setSection(item.key)}
+                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${section === item.key ? "bg-slate-950 text-white shadow" : "text-slate-700 hover:bg-slate-100"}`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-black">{item.label}</span>
+                        <span className={`block truncate text-[11px] ${section === item.key ? "text-slate-400" : "text-slate-500"}`}>{item.description}</span>
+                      </span>
+                    </button>
+                  );
+                })}
           </nav>
         </aside>
         <main className="min-w-0 p-4 md:p-8">
           <div className="mb-6">
             <div className="flex flex-wrap items-center gap-3">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">
-                WI12 · approved instance configuration
+                Step {coreNavigation.findIndex((item) => item.key === section) + 1 || "Optional"} of {coreNavigation.length}
               </p>
               <RequirementBadge value={active.requirement} />
             </div>
@@ -278,15 +334,14 @@ export default function ProvisioningWorkspace({
               {active.label}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-              {active.description}. Draft instance settings autosave; canonical
-              user, schema and integration actions are clearly identified when
-              they apply immediately.
+              {active.description}.
             </p>
           </div>
           {studio.message && <Notice>{studio.message}</Notice>}
           {section === "readiness" && <ReadinessSection studio={studio} />}{" "}
           {section === "deployment" && <DeploymentSection studio={studio} />}{" "}
           {section === "identity" && <IdentitySection studio={studio} />}{" "}
+          {section === "business-fit" && <BusinessFitSection studio={studio} onContinue={()=>setSection("data-model")} />}{" "}
           {section === "brand" && <BrandSection studio={studio} />}{" "}
           {section === "locale" && <LocaleSection studio={studio} />}{" "}
           {section === "terminology" && <TerminologySection studio={studio} />}{" "}
@@ -299,14 +354,20 @@ export default function ProvisioningWorkspace({
           {section === "extensions" && <ExtensionsSection studio={studio} />}{" "}
           {section === "recovery" && <RecoverySection studio={studio} />}{" "}
           {section === "employees" && <EmployeesSection studio={studio} />}{" "}
-          {section === "publish" && <PublishSection studio={studio} />}
+          {section === "publish" && (
+            <PublishSection studio={studio} onSelect={setSection} />
+          )}
           <SectionCompletion
             item={active}
             onContinue={(next) => setSection(next)}
           />
         </main>
         <aside className="border-l bg-white p-5 lg:min-h-[calc(100vh-73px)]">
-          <LivePreview value={state.draft} />
+          <PublicationChecklist
+            checks={state.workspace.readiness.checks}
+            onSelect={setSection}
+          />
+          <div className="mt-6"><LivePreview value={state.draft} /></div>
           <div className="mt-6">
             <h3 className="text-sm font-black">Required actions</h3>
             <div className="mt-3 space-y-2">
@@ -337,7 +398,7 @@ export default function ProvisioningWorkspace({
               )}
             </div>
           </div>
-          <ModuleEvidence studio={studio} />
+          {showAdvanced && <ModuleEvidence studio={studio} />}
         </aside>
       </div>
     </div>
@@ -390,7 +451,7 @@ function SaveIndicator({ state }: { state: string }) {
   );
 }
 function ReadinessCard({
-  score,
+  score: _score,
   blockers,
 }: {
   score: number;
@@ -401,9 +462,9 @@ function ReadinessCard({
       <div className="flex items-end justify-between">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-            Readiness
+            Still needed
           </p>
-          <p className="mt-1 text-3xl font-black">{score}%</p>
+          <p className="mt-1 text-3xl font-black">{blockers}</p>
         </div>
         {blockers ? (
           <AlertCircle className="h-8 w-8 text-amber-600" />
@@ -411,16 +472,10 @@ function ReadinessCard({
           <CheckCircle2 className="h-8 w-8 text-emerald-600" />
         )}
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-        <div
-          className="h-full rounded-full bg-blue-600"
-          style={{ width: `${score}%` }}
-        />
-      </div>
       <p className="mt-2 text-xs text-slate-500">
         {blockers
-          ? `${blockers} mandatory gate${blockers === 1 ? "" : "s"} outstanding`
-          : "Mandatory gates are clear"}
+          ? `item${blockers === 1 ? "" : "s"} needed before you can finish`
+          : "You have answered everything needed to finish"}
       </p>
     </div>
   );
@@ -444,7 +499,7 @@ function RequirementBadge({ value }: { value: NavItem["requirement"] }) {
     <span
       className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${colour}`}
     >
-      {value} for publication
+      {value === "Required" ? "Part of initial setup" : value}
     </span>
   );
 }
@@ -455,15 +510,16 @@ function SectionCompletion({
   item: NavItem;
   onContinue: (next: ProvisioningSection) => void;
 }) {
-  const index = navigation.findIndex((candidate) => candidate.key === item.key);
-  const next = navigation[index + 1];
+  const journey = coreNavigation;
+  const index = journey.findIndex((candidate) => candidate.key === item.key);
+  const next = index >= 0 ? journey[index + 1] : undefined;
   return (
     <section className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-black text-blue-950">
-              Completion guidance
+              Before you continue
             </p>
             <RequirementBadge value={item.requirement} />
           </div>
@@ -512,15 +568,26 @@ function Panel({
 function Field({
   label,
   hint,
+  required,
+  missing,
   children,
 }: {
   label: string;
   hint?: string;
+  required?: boolean;
+  missing?: boolean;
   children: ReactNode;
 }) {
   return (
-    <label className="block space-y-1.5">
-      <span className="text-xs font-black text-slate-700">{label}</span>
+    <label className={`block space-y-1.5 rounded-xl ${missing ? "bg-red-50 p-3 ring-1 ring-red-200" : ""}`}>
+      <span className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-700">
+        {label}
+        {required && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[9px] uppercase tracking-wider text-red-800">
+            Needed to publish
+          </span>
+        )}
+      </span>
       {children}
       {hint && (
         <span className="block text-[11px] leading-relaxed text-slate-500">
@@ -529,6 +596,123 @@ function Field({
       )}
     </label>
   );
+}
+
+function PublicationChecklist({
+  checks,
+  onSelect,
+}: {
+  checks: ReadinessCheck[];
+  onSelect: (section: ProvisioningSection) => void;
+}) {
+  const required = checks.filter((check) => check.severity === "required");
+  const missing = required.filter((check) => check.status === "failed");
+  return (
+    <section className={`rounded-2xl border p-5 ${missing.length ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+      <p className="text-sm font-black">
+        {missing.length ? `${missing.length} item${missing.length === 1 ? "" : "s"} needed before you can finish` : "Ready to finish setup"}
+      </p>
+      <p className="mt-1 text-xs leading-5 text-slate-600">
+        {missing.length
+          ? "Select an item to go straight to the answer we need."
+          : "All required answers and safety checks are complete."}
+      </p>
+      <div className="mt-4 space-y-2">
+        {missing.map((check) => (
+          <button
+            key={check.id}
+            type="button"
+            onClick={() => onSelect(sectionForCheck(check))}
+            className="flex w-full items-start gap-3 rounded-xl border border-amber-200 bg-white p-3 text-left hover:border-amber-400"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <span>
+              <span className="block text-xs font-black text-slate-900">{plainCheckTitle(check)}</span>
+              <span className="mt-1 block text-[11px] leading-5 text-slate-600">{plainCheckAction(check)}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function sectionForCheck(check: ReadinessCheck): ProvisioningSection {
+  const aliases: Record<string, ProvisioningSection> = {
+    branding: "brand",
+    security: "recovery",
+    review: "publish",
+    communications: "integrations",
+  };
+  return aliases[check.section] ?? (check.section as ProvisioningSection);
+}
+
+function plainCheckTitle(check: ReadinessCheck) {
+  const labels: Record<string, string> = {
+    "configuration.schema": "One or more answers need correcting",
+    "identity.complete": "Business contact details",
+    "deployment.topology": "How people will connect",
+    "branding.contrast": "A readable main colour",
+    "permissions.owner": "An active business owner",
+    "employees.default-role": "Default access for employees",
+    "recovery.viable": "Backup and recovery confirmations",
+    "extensions.compatible": "Unavailable add-on selected",
+    "configuration.secret-free": "Sensitive information in setup answers",
+  };
+  return labels[check.id] ?? check.title;
+}
+
+function plainCheckAction(check: ReadinessCheck) {
+  if (check.id === "identity.complete") {
+    const evidence = check.evidence as Record<string, boolean>;
+    const fields = [
+      !evidence.displayName && "business name",
+      !evidence.email && "email address",
+      !evidence.phone && "phone number",
+      !evidence.address && "business address",
+    ].filter(Boolean);
+    return `Add: ${fields.join(", ")}.`;
+  }
+  if (check.id === "recovery.viable") {
+    const evidence = check.evidence as Record<string, boolean>;
+    const fields = [
+      !evidence.backupConfigured && "where backups will be kept",
+      !evidence.backupEncryptionConfirmed && "backup encryption",
+      !evidence.recoveryPlanConfirmed && "who will recover the system",
+    ].filter(Boolean);
+    return `Confirm: ${fields.join(", ")}.`;
+  }
+  if (check.id === "configuration.schema") {
+    const issues = (check.evidence as { issues?: Array<{ path: string; message: string }> }).issues ?? [];
+    return issues.length
+      ? issues
+          .slice(0, 2)
+          .map((issue) => `${friendlyFieldName(issue.path)}: ${issue.message}`)
+          .join(" · ")
+      : "Open this item to review the answer that needs attention.";
+  }
+  return check.remediation || check.explanation;
+}
+
+function friendlyFieldName(path: string) {
+  const labels: Record<string, string> = {
+    "identity.displayName": "Business name",
+    "identity.email": "Main business email",
+    "identity.phone": "Main phone number",
+    "identity.address": "Business address",
+    "deployment.instanceUrl": "CRM web address",
+    "branding.primaryColor": "Main brand colour",
+    "locale.currency": "Currency",
+    "locale.timezone": "Timezone",
+    "financial.defaultTaxRate": "Default tax rate",
+    "employees.defaultRoleKey": "Default employee access",
+  };
+  if (labels[path]) return labels[path];
+  return path
+    .split(".")
+    .at(-1)!
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^./, (letter) => letter.toUpperCase());
 }
 function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
@@ -741,15 +925,15 @@ function DeploymentSection({ studio }: { studio: Studio }) {
   return (
     <div className="space-y-5">
       <Panel
-        title="Authoritative data topology"
-        description="This choice prevents employee machines from becoming divergent copies of the same CRM."
+        title="Will the CRM be shared?"
+        description="Most businesses with more than one user should choose the shared option. A single-computer CRM is only for one person working on one device."
       >
         <div className="grid gap-4 md:grid-cols-2">
           <Choice
             selected={managed}
             icon={<Cloud />}
-            title="Managed business instance"
-            description="Recommended for teams. One authoritative backend and database; employees connect through signed branded clients or browsers."
+            title="Shared with my team"
+            description="Recommended for teams. Everyone works from the same customer records, whether they use the desktop app or a browser."
             onClick={() =>
               studio.patch("deployment", {
                 mode: "managed",
@@ -760,8 +944,8 @@ function DeploymentSection({ studio }: { studio: Studio }) {
           <Choice
             selected={!managed}
             icon={<Laptop />}
-            title="Standalone local instance"
-            description="One intentionally isolated database on one machine. Multiple standalone installs are separate CRMs, not a shared deployment."
+            title="Only on this computer"
+            description="Choose this only when one person will use the CRM on this device. It will not sync with another installation."
             onClick={() =>
               studio.patch("deployment", {
                 mode: "standalone",
@@ -772,9 +956,12 @@ function DeploymentSection({ studio }: { studio: Studio }) {
           />
         </div>
       </Panel>
-      <Panel title="Deployment identity">
+      <Panel
+        title="Connection details"
+        description="The suggested technical values are safe for most businesses. If Good Order or another provider is hosting the CRM, they should supply the web address."
+      >
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Instance slug">
+          <Field label="Short system name" hint="A lowercase identifier used behind the scenes. The suggested value normally does not need changing.">
             <Input
               value={value.deployment.instanceSlug}
               onChange={(event) =>
@@ -788,8 +975,10 @@ function DeploymentSection({ studio }: { studio: Studio }) {
           </Field>
           {managed && (
             <Field
-              label="Managed instance URL"
-              hint="Employee clients bind to this exact HTTPS origin."
+              label="CRM web address"
+              hint="Needed for shared access. Enter the secure https:// address supplied by whoever hosts the CRM."
+              required
+              missing={!value.deployment.instanceUrl.trim()}
             >
               <Input
                 value={value.deployment.instanceUrl}
@@ -802,7 +991,7 @@ function DeploymentSection({ studio }: { studio: Studio }) {
               />
             </Field>
           )}
-          <Field label="Expected users">
+          <Field label="Rough number of users" hint="An estimate is fine. This helps size the installation and does not limit your account.">
             <Input
               type="number"
               min={1}
@@ -815,7 +1004,7 @@ function DeploymentSection({ studio }: { studio: Studio }) {
               }
             />
           </Field>
-          <Field label="Minimum client version">
+          <Field label="Oldest supported app version" hint="Advanced. Keep the suggested value unless your installer or support provider says otherwise.">
             <Input
               value={value.deployment.minimumClientVersion}
               onChange={(event) =>
@@ -825,7 +1014,7 @@ function DeploymentSection({ studio }: { studio: Studio }) {
               }
             />
           </Field>
-          <Field label="Employee distribution">
+          <Field label="How employees will open the CRM" hint="Choose browser unless your provider supplies a desktop installer.">
             <Select
               value={value.deployment.distributionMethod}
               onChange={(event) =>
@@ -888,11 +1077,16 @@ function IdentitySection({ studio }: { studio: Studio }) {
   const value = studio.state!.draft.identity;
   return (
     <Panel
-      title="Business identity"
-      description="These details feed application branding, reports, exports, documents and deployment metadata."
+      title="Tell us about your business"
+      description="We use these details on screens, documents and customer records. Only four answers are needed to open the CRM; the rest can be added later."
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Trading name">
+        <Field
+          label="Business or trading name"
+          hint="The familiar name your customers and team use. This appears at the top of the CRM."
+          required
+          missing={!value.displayName.trim()}
+        >
           <Input
             value={value.displayName}
             onChange={(event) =>
@@ -900,7 +1094,7 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Legal name">
+        <Field label="Registered legal name" hint="Optional. Add this if it differs from your trading name.">
           <Input
             value={value.legalName}
             onChange={(event) =>
@@ -908,7 +1102,7 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Registration number">
+        <Field label="Company registration number" hint="Optional. You can add this later for formal documents.">
           <Input
             value={value.registrationNumber}
             onChange={(event) =>
@@ -918,7 +1112,7 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Tax identifier">
+        <Field label="Tax or VAT number" hint="Optional during setup.">
           <Input
             value={value.taxIdentifier}
             onChange={(event) =>
@@ -926,7 +1120,12 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Primary email">
+        <Field
+          label="Main business email"
+          hint="Used as the default contact address. It does not connect your inbox."
+          required
+          missing={!value.email.includes("@")}
+        >
           <Input
             type="email"
             value={value.email}
@@ -935,7 +1134,12 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Phone">
+        <Field
+          label="Main phone number"
+          hint="The number customers or employees should use for the business."
+          required
+          missing={!value.phone.trim()}
+        >
           <Input
             value={value.phone}
             onChange={(event) =>
@@ -943,7 +1147,7 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Website">
+        <Field label="Website" hint="Optional. Include https://, for example https://example.ie.">
           <Input
             value={value.website}
             placeholder="https://example.ie"
@@ -952,7 +1156,7 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Support email">
+        <Field label="Customer support email" hint="Optional. Leave blank to use the main business email.">
           <Input
             type="email"
             value={value.supportEmail}
@@ -961,7 +1165,7 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Privacy contact">
+        <Field label="Privacy contact email" hint="Optional. The contact for data-access or privacy queries.">
           <Input
             type="email"
             value={value.privacyEmail}
@@ -970,7 +1174,12 @@ function IdentitySection({ studio }: { studio: Studio }) {
             }
           />
         </Field>
-        <Field label="Address">
+        <Field
+          label="Business address"
+          hint="Used on business records and documents. A trading address is sufficient."
+          required
+          missing={!value.address.trim()}
+        >
           <Textarea
             value={value.address}
             onChange={(event) =>
@@ -1452,8 +1661,51 @@ function PeopleSection({ studio }: { studio: Studio }) {
   );
 }
 
+function BusinessFitSection({studio,onContinue}:{studio:Studio;onContinue:()=>void}) {
+  const profile=studio.state!.draft.businessProfile;
+  return <div className="space-y-5">
+    <Panel title="How does your business work?" description="There are no technical answers here. We use these choices to put the most relevant customer-record templates first.">
+      <p className="mb-3 text-sm font-bold text-slate-700">What best describes your business?</p>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {([
+          ["general","Another type of business","Use the answers below to recommend a broad starting point"],
+          ["after-school-childcare","After-school childcare","Children, guardians, enrolments and attendance"],
+          ["pet-behaviour","Pet behaviour","Pets, behaviour cases, consultations and plans"],
+          ["veterinary","Veterinary practice","Animals, consultations, vaccinations and prescriptions"],
+          ["pet-grooming","Pet grooming","Pets, grooming preferences, bookings and visit history"],
+        ] as const).map(([value,title,description])=><Choice key={value} selected={profile.sector===value} icon={<Store/>} title={title} description={description} onClick={()=>studio.patch("businessProfile",{sector:value})}/>)}
+      </div>
+      <p className="mb-3 mt-6 text-sm font-bold text-slate-700">Who are your customers?</p>
+      <div className="grid gap-4 md:grid-cols-3">
+        {([
+          ["businesses","Other businesses","Companies and the people who work in them"],
+          ["consumers","Individual customers","People buying for themselves or their household"],
+          ["both","Both","A meaningful mix of business and individual customers"],
+        ] as const).map(([value,title,description])=><Choice key={value} selected={profile.customerType===value} icon={<Users/>} title={title} description={description} onClick={()=>studio.patch("businessProfile",{customerType:value})}/>)}
+      </div>
+    </Panel>
+    <Panel title="Where and how do you sell?">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {([
+          ["services","Services","Advice, projects, appointments or work delivered for customers"],
+          ["ecommerce","Online shop","Products ordered through a website or marketplace"],
+          ["retail","Shop or premises","Products sold mainly in a physical location"],
+          ["hybrid","A mixture","More than one of these is central to the business"],
+        ] as const).map(([value,title,description])=><Choice key={value} selected={profile.operatingModel===value} icon={<Store/>} title={title} description={description} onClick={()=>studio.patch("businessProfile",{operatingModel:value})}/>)}
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <Toggle checked={profile.tracksProducts} onChange={(tracksProducts)=>studio.patch("businessProfile",{tracksProducts})} label="We need to track products" description="Put product and order-oriented templates higher in the list."/>
+        <Toggle checked={profile.booksAppointments} onChange={(booksAppointments)=>studio.patch("businessProfile",{booksAppointments})} label="We book appointments or visits" description="Include appointment and service-history records in recommendations."/>
+      </div>
+      <Button className="mt-5" onClick={onContinue}>See my recommended templates <ChevronRight className="ml-2 h-4 w-4"/></Button>
+    </Panel>
+  </div>;
+}
+
 function DataModelSection({ studio }: { studio: Studio }) {
   const state = studio.state!;
+  const recommendations=rankDataModelTemplates(state.draft.businessProfile);
+  const [showManual,setShowManual]=useState(false);
   const [field, setField] = useState({
     entityType: "customer",
     name: "",
@@ -1507,6 +1759,25 @@ function DataModelSection({ studio }: { studio: Studio }) {
   const crm = state.draft.crm;
   return (
     <div className="space-y-5">
+      <Panel title="Choose your starting point" description="These are ordered from the answers you just gave. A template is only a starting copy: you can rename, add and remove anything after applying it.">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {recommendations.map((template,index)=><button type="button" key={template.key} onClick={()=>studio.patch("dataModel",{mode:"template",templateKey:template.key})} className={`rounded-2xl border-2 p-5 text-left ${state.draft.dataModel.mode==="template"&&state.draft.dataModel.templateKey===template.key?"border-blue-600 bg-blue-50":"border-slate-200 hover:border-slate-400"}`}>
+            <div className="flex items-start justify-between gap-3"><div><p className="font-black">{template.name}</p><p className="mt-1 text-sm text-slate-600">{template.summary}</p></div>{index===0&&<span className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">Best match</span>}</div>
+            <p className="mt-3 text-xs font-bold text-slate-500">Best for: {template.bestFor}</p>
+            <p className="mt-2 text-xs text-slate-500">{template.customerFields.length} extra customer fields · {template.objects.length} related record types</p>
+          </button>)}
+          <button type="button" onClick={()=>studio.patch("dataModel",{mode:"blank",templateKey:"simple-crm"})} className={`rounded-2xl border-2 p-5 text-left ${state.draft.dataModel.mode==="blank"?"border-blue-600 bg-blue-50":"border-slate-200 hover:border-slate-400"}`}>
+            <p className="font-black">Build my own</p><p className="mt-1 text-sm text-slate-600">Start with the standard customer, contact, activity and task records, then add only what you need.</p>
+          </button>
+        </div>
+        <div className="mt-5 flex flex-wrap gap-3">
+          {state.draft.dataModel.mode==="template"&&<Button disabled={studio.working==="data-model-template"} onClick={()=>void studio.applyDataModelTemplate(recommendations.find((item)=>item.key===state.draft.dataModel.templateKey)??recommendations[0])}>{studio.working==="data-model-template"?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<Sparkles className="mr-2 h-4 w-4"/>}Use this template</Button>}
+          <Button variant="outline" onClick={()=>setShowManual((value)=>!value)}>{showManual?"Hide detailed editor":"Customise fields and records"}</Button>
+        </div>
+        {state.draft.dataModel.appliedTemplateKey&&<p className="mt-3 text-xs font-bold text-emerald-700">Template added. The items below now belong to this CRM and can be changed independently.</p>}
+      </Panel>
+      {!showManual&&<Panel title="What will be added" description="Templates add ordinary customer fields and related record types. Every related record remains connected to its customer, so the full history stays together."><p className="text-sm text-slate-600">Open “Customise fields and records” to review or change individual items. You can also do this later from CRM settings.</p></Panel>}
+      {showManual&&<>
       <Panel title="CRM operating model">
         <div className="grid gap-4 md:grid-cols-2">
           <ListField
@@ -1663,7 +1934,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
         <div className="mt-5 grid gap-2 md:grid-cols-2">
           {state.fields.map((item) => (
             <div key={item.id} className="rounded-lg border p-3">
-              <p className="text-sm font-black">{item.label}</p>
+              <div className="flex items-center gap-2"><Input defaultValue={item.label} aria-label={`Rename ${item.label}`} onBlur={(event)=>{if(event.target.value.trim()&&event.target.value.trim()!==item.label)void studio.renameField(item.id,event.target.value.trim());}}/><Button size="sm" variant="outline" aria-label={`Remove ${item.label}`} onClick={()=>void studio.deleteField(item.id)}><Trash2 className="h-4 w-4"/></Button></div>
               <p className="text-xs text-slate-500">
                 {item.entityType}.{item.name} · {item.type}
                 {item.required ? " · required" : ""}
@@ -1834,7 +2105,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           {state.objects.map((item) => (
             <div key={item.id} className="rounded-xl border p-4">
-              <p className="font-black">{item.name}</p>
+              <div className="flex items-center gap-2"><Input defaultValue={item.name} aria-label={`Rename ${item.name}`} onBlur={(event)=>{const name=event.target.value.trim();if(name&&name!==item.name)void studio.renameObject(item.id,{name,pluralName:item.pluralName,description:item.description??""});}}/><Button size="sm" variant="outline" aria-label={`Remove ${item.name}`} onClick={()=>void studio.deleteObject(item.id)}><Trash2 className="h-4 w-4"/></Button></div>
               <p className="text-xs text-slate-500">
                 {item.apiName} · {(item.fields ?? []).length} fields
               </p>
@@ -1852,6 +2123,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
           ))}
         </div>
       </Panel>
+      </>}
     </div>
   );
 }
@@ -2335,9 +2607,12 @@ function RecoverySection({ studio }: { studio: Studio }) {
   const value = studio.state!.draft.security;
   return (
     <div className="space-y-5">
-      <Panel title="Authentication policy">
+      <Panel
+        title="Sign-in safety"
+        description="These defaults suit most small businesses. You can change them later."
+      >
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Session duration (hours)">
+          <Field label="Sign employees out after (hours)" hint="12 hours normally covers a working day without leaving accounts signed in indefinitely.">
             <Input
               type="number"
               min={1}
@@ -2361,8 +2636,8 @@ function RecoverySection({ studio }: { studio: Studio }) {
         </div>
       </Panel>
       <Panel
-        title="Recovery publication gate"
-        description="These are explicit operational confirmations. Passwords and encryption keys remain outside the deployment profile."
+        title="Could you recover the CRM if this computer failed?"
+        description="For a shared CRM, the first three confirmations are needed before setup can finish. Do not tick them unless they are genuinely true. If somebody else is hosting the system, ask them to confirm these arrangements."
       >
         <div className="grid gap-3">
           <Toggle
@@ -2371,7 +2646,7 @@ function RecoverySection({ studio }: { studio: Studio }) {
               studio.patch("security", { backupConfigured })
             }
             label="Backup destination configured"
-            description="A durable destination and retention policy are selected."
+            description="Backups are copied somewhere other than the computer running the CRM."
           />
           <Toggle
             checked={value.backupEncryptionConfirmed}
@@ -2379,7 +2654,7 @@ function RecoverySection({ studio }: { studio: Studio }) {
               studio.patch("security", { backupEncryptionConfirmed })
             }
             label="Backup encryption confirmed"
-            description="The recovery password is held outside the CRM and installer."
+            description="Backup files are protected, and the recovery password is stored somewhere safe."
           />
           <Toggle
             checked={value.recoveryPlanConfirmed}
@@ -2387,7 +2662,7 @@ function RecoverySection({ studio }: { studio: Studio }) {
               studio.patch("security", { recoveryPlanConfirmed })
             }
             label="Recovery plan confirmed"
-            description="An authorised operator and documented recovery path exist."
+            description="You know who is responsible for restoring the CRM and how to contact them."
           />
           <Toggle
             checked={value.restoreRehearsed}
@@ -2395,7 +2670,7 @@ function RecoverySection({ studio }: { studio: Studio }) {
               studio.patch("security", { restoreRehearsed })
             }
             label="Restore rehearsal completed"
-            description="A controlled restore has been tested against a disposable environment."
+            description="Recommended after setup: a backup has been tested without risking the live CRM."
           />
           <Toggle
             checked={value.retentionPolicyReviewed}
@@ -2403,13 +2678,13 @@ function RecoverySection({ studio }: { studio: Studio }) {
               studio.patch("security", { retentionPolicyReviewed })
             }
             label="Retention policy reviewed"
-            description="Business data and immutable audit retention have been reviewed."
+            description="Recommended: you have decided how long customer and audit records should be kept."
           />
         </div>
         <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
-          Backup settings and operations health are available after the initial
-          publication. These confirmations record the approved recovery plan
-          without sending you to routes that are blocked during provisioning.
+          The actual backup schedule and storage settings become available once
+          setup is finished. These questions make sure a workable plan exists
+          before a shared CRM starts holding customer data.
         </div>
       </Panel>
     </div>
@@ -2615,19 +2890,32 @@ function EmployeesSection({ studio }: { studio: Studio }) {
   );
 }
 
-function PublishSection({ studio }: { studio: Studio }) {
+function PublishSection({
+  studio,
+  onSelect,
+}: {
+  studio: Studio;
+  onSelect: (section: ProvisioningSection) => void;
+}) {
   const state = studio.state!;
   const [approved, setApproved] = useState(false);
   return (
     <div className="space-y-5">
-      <Panel title="Publication summary">
+      <PublicationChecklist
+        checks={state.workspace.readiness.checks}
+        onSelect={onSelect}
+      />
+      <Panel
+        title="What you are setting up"
+        description="This is the information your employees will see when they open the CRM."
+      >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Metric
             label="Business"
             value={state.draft.identity.displayName || "Not configured"}
           />
           <Metric
-            label="Topology"
+            label="Access"
             value={
               state.draft.deployment.mode === "managed"
                 ? "Managed shared instance"
@@ -2635,12 +2923,8 @@ function PublishSection({ studio }: { studio: Studio }) {
             }
           />
           <Metric
-            label="Draft"
-            value={`Revision ${state.workspace.draft.revision}`}
-          />
-          <Metric
-            label="Readiness"
-            value={`${state.workspace.readiness.score}%`}
+            label="Setup status"
+            value={state.workspace.readiness.publishable ? "Ready" : "Needs attention"}
           />
           <Metric label="Employees" value={state.users.length} />
           <Metric
@@ -2650,8 +2934,8 @@ function PublishSection({ studio }: { studio: Studio }) {
         </div>
       </Panel>
       <Panel
-        title="Publish signed instance profile"
-        description="Publication creates a pre-publication backup, freezes the approved revision, signs the profile and opens a new draft. The active database and reusable credentials are never placed in the profile."
+        title="Finish setup and open the CRM"
+        description="We will make a safety backup, protect this approved setup from accidental changes and then open the CRM workspace. Your live customer database and passwords are never included in the setup profile."
       >
         <label className="flex items-start gap-3 rounded-xl border p-4">
           <input
@@ -2662,12 +2946,11 @@ function PublishSection({ studio }: { studio: Studio }) {
           />
           <span>
             <span className="block text-sm font-black">
-              I approve this business configuration for employee deployment
+              I have checked these business details and want to finish setup
             </span>
             <span className="mt-1 block text-xs leading-relaxed text-slate-500">
-              The profile contains instance identity and safe configuration
-              only. It excludes the live database, reusable credentials and
-              private signing material.
+              You can change normal business settings later. Finishing setup
+              opens the CRM for day-to-day use.
             </span>
           </span>
         </label>
@@ -2685,19 +2968,19 @@ function PublishSection({ studio }: { studio: Studio }) {
             ) : (
               <ShieldCheck className="mr-2 h-4 w-4" />
             )}
-            Publish profile
+            Finish setup
           </Button>
           {state.profile && (
             <Button variant="outline" onClick={studio.downloadDeploymentFiles}>
               <Download className="mr-2 h-4 w-4" />
-              Download profile and trust anchor
+              Download installation profile
             </Button>
           )}
         </div>
       </Panel>
       <Panel
-        title="Publication and rollback history"
-        description="Rollback copies an old immutable configuration into the current draft and publishes it as a new revision; history is never rewritten."
+        title="Previous setup versions"
+        description="Advanced recovery history. Restoring a version creates a new auditable version; it never erases the history."
       >
         <div className="space-y-2">
           {state.workspace.history.map((revision) => (
