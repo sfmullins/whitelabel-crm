@@ -37,6 +37,7 @@ describe('WI12 instance onboarding and deployment profiles',()=>{
 
   it('autosaves incomplete drafts without exposing credential-bearing fields',()=>{
     const onboarding=repository();const incomplete=structuredClone(DEFAULT_ONBOARDING_CONFIGURATION);incomplete.identity.displayName='Draft company';const saved=onboarding.saveDraft(incomplete,LOCAL_OWNER_USER_ID);expect(saved.draft.configuration.identity.displayName).toBe('Draft company');expect(saved.readiness.publishable).toBe(false);
+    expect(saved.readiness.checks.find((check)=>check.id==='identity.complete')?.evidence).toMatchObject({displayName:true,email:false,phone:false,address:false});
     expect(()=>onboarding.saveDraft({...incomplete,apiToken:'not-allowed'},LOCAL_OWNER_USER_ID)).toThrow('cannot contain credentials');
   });
 

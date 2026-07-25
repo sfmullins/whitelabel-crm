@@ -52,6 +52,14 @@ export class CustomFieldRepository implements ICustomFieldRepository {
     db.delete(customFieldsDefinition).where(eq(customFieldsDefinition.id, id)).run();
   }
 
+  async updateDefinition(id:string,input:{label:string}):Promise<CustomFieldDefinition>{
+    assertResourceNotExtensionOwned(sqlite,'custom_field',id);
+    db.update(customFieldsDefinition).set({label:input.label}).where(eq(customFieldsDefinition.id,id)).run();
+    const row=db.select().from(customFieldsDefinition).where(eq(customFieldsDefinition.id,id)).get();
+    if(!row)throw new Error('Custom field definition was not found');
+    return this.mapDefRow(row);
+  }
+
   async saveValues(entityId: string, values: Record<string, string>): Promise<void> {
     const names = Object.keys(values);
     if (names.length === 0) return;

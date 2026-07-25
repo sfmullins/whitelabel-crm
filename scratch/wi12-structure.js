@@ -32,7 +32,7 @@ const desktop=read('desktop/src/main.ts');
 if(!desktop.includes("deploymentRuntime.mode==='managed'"))throw new Error('Desktop managed-client runtime is not wired');
 if(!desktop.includes('resolveDeploymentRuntime'))throw new Error('Desktop does not verify the deployment bootstrap profile');
 const onboarding=read('frontend/src/features/onboarding/ProvisioningWorkspace.tsx');
-for(const feature of ['Instance provisioning studio','Managed business instance','Live employee preview','Publish signed instance profile','Create token'])if(!onboarding.includes(feature))throw new Error(`Onboarding experience is missing: ${feature}`);
+for(const feature of ['How you do business','Needed to publish','Optional & advanced setup','Finish setup','Live employee preview','Create token'])if(!onboarding.includes(feature))throw new Error(`Onboarding experience is missing: ${feature}`);
 const login=read('frontend/src/pages/Login.tsx');
 for(const feature of ['Activate this device','First activation','One-time enrolment token','Activate and open workspace','/api/onboarding/public-profile'])if(!login.includes(feature))throw new Error(`Employee activation experience is missing: ${feature}`);
 const identity=read('frontend/src/hooks/useIdentity.ts');

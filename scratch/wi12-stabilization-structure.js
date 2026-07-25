@@ -27,7 +27,7 @@ const hook=read('frontend/src/features/onboarding/useProvisioningWorkspace.ts');
 for(const token of ['expectedChecksum','uploadBrandAsset','savePromise','recoverSingleSessionDraftConflict'])if(!hook.includes(token))throw new Error(`Onboarding persistence hardening is missing: ${token}`);
 if(/logoUrl\s*:\s*encoded|readAsDataURL/.test(hook))throw new Error('Base64 logo data is still persisted in the onboarding draft');
 const provisioning=read('frontend/src/features/onboarding/ProvisioningWorkspace.tsx');
-for(const token of ['Extensions are optional','package installation becomes available after the initial instance is published','Continue to','Security & recovery','(item.fields ?? []).length','(item.fields ?? []).map'])if(!provisioning.includes(token))throw new Error(`Onboarding UX stabilization is missing: ${token}`);
+for(const token of ['Extensions are optional','package installation becomes available after the initial instance is published','Continue to','Keep your data safe','(item.fields ?? []).length','(item.fields ?? []).map'])if(!provisioning.includes(token))throw new Error(`Onboarding UX stabilization is missing: ${token}`);
 for(const blockedAction of ['Manage packages','Open connected accounts','Open backup settings','Open operations health'])if(provisioning.includes(blockedAction))throw new Error(`Lifecycle-blocked onboarding action remains visible: ${blockedAction}`);
 const seed=read('backend/src/infrastructure/database/seed.ts');
 for(const token of ["SeedMode='fresh'|'demo'|'published'",'resetWi12OnboardingState','runSeed(rawMode as SeedMode)'])if(!seed.includes(token))throw new Error(`Seed-mode control is missing: ${token}`);

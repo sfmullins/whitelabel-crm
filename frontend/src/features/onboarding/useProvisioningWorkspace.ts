@@ -33,6 +33,7 @@ import {
   normalizeReadinessResult,
   unwrapCollection,
 } from "./runtimeAdapters";
+import type { DataModelTemplate } from "./dataModelTemplates";
 
 type ConfigSection = Exclude<keyof OnboardingConfiguration, "schemaVersion">;
 const emptyImport: ImportWorkspace = {
@@ -567,6 +568,50 @@ export function useProvisioningWorkspace(
       () => api.post("/api/custom-objects/definitions", input),
       "Custom entity created in the canonical schema registry.",
     );
+  const applyDataModelTemplate = async (template: DataModelTemplate) => {
+    const result=await run(
+      "data-model-template",
+      async () => {
+        const current = stateRef.current;
+        if (!current) throw new Error("The setup workspace is unavailable.");
+        const existingFields = new Set(current.fields.map((item) => `${item.entityType}.${item.name}`));
+        const existingObjects = new Map(current.objects.map((item) => [item.apiName, item]));
+        for (const field of template.customerFields) {
+          if (existingFields.has(`customer.${field.name}`)) continue;
+          await api.post("/api/custom-fields/definitions", {
+            entityType: "customer", ...field, required: field.required ?? false, options: field.options ?? [],
+          });
+        }
+        for (const definition of template.objects) {
+          let created = existingObjects.get(definition.apiName);
+          if (!created) {
+            created = await api.post<ProvisioningState["objects"][number]>("/api/custom-objects/definitions", {
+              name: definition.name, apiName: definition.apiName, pluralName: definition.pluralName, description: definition.description,
+            });
+          }
+          const existingObjectFields = new Set((created.fields ?? []).map((item) => item.name));
+          for (const field of definition.fields) {
+            if (existingObjectFields.has(field.name)) continue;
+            await api.post(`/api/custom-objects/definitions/${created.id}/fields`, {
+              ...field, required: field.required ?? false, options: field.options ?? [],
+            });
+          }
+        }
+        return template;
+      },
+      `${template.name} has been added. You can now rename, add or remove its fields.`,
+    );
+    if(result)patch("dataModel", { mode: "template", templateKey: template.key, appliedTemplateKey: template.key });
+    return result;
+  };
+  const deleteField = (id: string) =>
+    run("delete-field", () => api.delete(`/api/custom-fields/definitions/${id}`), "Field removed.");
+  const deleteObject = (id: string) =>
+    run("delete-object", () => api.delete(`/api/custom-objects/definitions/${id}`), "Related record type removed.");
+  const renameField = (id:string,label:string) =>
+    run("rename-field",()=>api.patch(`/api/custom-fields/definitions/${id}`,{label}),"Field renamed.");
+  const renameObject = (id:string,input:{name:string;pluralName:string;description?:string}) =>
+    run("rename-object",()=>api.patch(`/api/custom-objects/definitions/${id}`,input),"Related record type renamed.");
   const testAccount = (id: string) =>
     run(
       `account:${id}`,
@@ -719,6 +764,11 @@ export function useProvisioningWorkspace(
     createUser,
     createField,
     createObject,
+    applyDataModelTemplate,
+    deleteField,
+    deleteObject,
+    renameField,
+    renameObject,
     testAccount,
     toggleExtension,
     createEnrolment,

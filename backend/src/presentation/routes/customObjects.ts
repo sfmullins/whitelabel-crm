@@ -1,18 +1,30 @@
 import { Router } from 'express';
 import { CustomObjectRepository } from '../../infrastructure/database/repositories/CustomObjectRepository';
-import { CustomObjectDefinitionSchema, CustomObjectRecordSchema } from 'shared';
+import { CustomFieldRepository } from '../../infrastructure/database/repositories/CustomFieldRepository';
+import { CustomFieldDefinitionSchema, CustomObjectDefinitionSchema, CustomObjectRecordSchema } from 'shared';
 
 const router = Router();
 const coRepo = new CustomObjectRepository();
+const cfRepo = new CustomFieldRepository();
 
 // GET all custom object definitions
 router.get('/definitions', async (req, res, next) => {
   try {
     const list = await coRepo.getDefinitions();
-    res.json(list);
+    res.json(await Promise.all(list.map(async(definition)=>({...definition,fields:await cfRepo.getDefinitions(definition.apiName)}))));
   } catch (error) {
     next(error);
   }
+});
+
+router.post('/definitions/:id/fields',async(req,res,next)=>{
+  try{
+    const definition=(await coRepo.getDefinitions()).find((item)=>item.id===req.params.id);
+    if(!definition)return res.status(404).json({error:'Custom object definition was not found'});
+    const parsed=CustomFieldDefinitionSchema.safeParse({...req.body,entityType:definition.apiName});
+    if(!parsed.success)return res.status(400).json({error:'Validation failed',details:parsed.error.format()});
+    res.status(201).json(await cfRepo.createDefinition(parsed.data));
+  }catch(error){next(error);}
 });
 
 // POST register custom object definition
@@ -30,6 +42,18 @@ router.post('/definitions', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+router.patch('/definitions/:id',async(req,res,next)=>{
+  try{
+    const input={
+      name:String(req.body?.name??'').trim(),
+      pluralName:String(req.body?.pluralName??'').trim(),
+      description:String(req.body?.description??'').trim(),
+    };
+    if(!input.name||!input.pluralName)return res.status(400).json({error:'Name and plural name are required'});
+    res.json(await coRepo.updateDefinition(req.params.id,input));
+  }catch(error){next(error);}
 });
 
 // DELETE definition

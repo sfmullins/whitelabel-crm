@@ -36,6 +36,14 @@ router.post('/definitions', async (req, res, next) => {
   }
 });
 
+router.patch('/definitions/:id', async (req,res,next)=>{
+  try{
+    const label=String(req.body?.label??'').trim();
+    if(!label)return res.status(400).json({error:'Label is required'});
+    res.json(await cfRepo.updateDefinition(req.params.id,{label}));
+  }catch(error){next(error);}
+});
+
 // Delete definition
 router.delete('/definitions/:id', async (req, res, next) => {
   try {
