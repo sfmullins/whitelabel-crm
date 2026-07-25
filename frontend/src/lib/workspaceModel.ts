@@ -45,7 +45,8 @@ const sectorExperience:Record<WorkspaceModel['sector'],Omit<WorkspaceExperience,
 
 export function workspaceExperience(model:WorkspaceModel|undefined):WorkspaceExperience{
   const sector=model?.sector??'general';
-  return {...sectorExperience[sector],specialist:sector!=='general'&&model?.mode==='template'};
+  const templateDriven=model?.mode==='template'&&Boolean(model.templateKey)&&model.templateKey!=='simple-crm';
+  return {...sectorExperience[sector],...(model?.presentation??{}),specialist:templateDriven};
 }
 
 export function definitionRoute(definition:WorkspaceModelDefinition):string{

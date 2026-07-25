@@ -32,6 +32,7 @@ import { OnboardingRepository } from '../../infrastructure/database/OnboardingRe
 import { CustomObjectRepository } from '../../infrastructure/database/repositories/CustomObjectRepository';
 import { CustomFieldRepository } from '../../infrastructure/database/repositories/CustomFieldRepository';
 import { CustomerRepository } from '../../infrastructure/database/repositories/CustomerRepository';
+import { workspacePresentation } from '../../application/workspaceTemplateCatalog';
 
 const router = Router();
 const service = new WorkspaceService(new WorkspaceRepository());
@@ -138,6 +139,7 @@ router.get('/workspace/model',async(_req,res,next)=>{
       customerSingular:terms.singular,
       customerPlural:terms.plural,
       definitions:enriched,
+      presentation:workspacePresentation(templateKey),
     };
     res.setHeader('cache-control','no-store');
     res.json(model);

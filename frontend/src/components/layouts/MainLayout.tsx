@@ -64,12 +64,20 @@ function ActiveWorkspace({user,can}:{user:CrmIdentity;can:(permission:string)=>b
   const pinnedViews=useQuery<SavedView[]>({queryKey:['saved-views','pinned'],queryFn:()=>api.get('/api/saved-views?pinnedOnly=true'),enabled:isSearchOpen});const flatResults=search.data?.items??[];
   const visible=(item:NavItem)=>!item.permission&&!item.anyPermission||Boolean(item.permission&&can(item.permission))||Boolean(item.anyPermission?.some(can));
   const experience=workspaceExperience(workspaceModel.data);
+  const definitionByKey=new Map((workspaceModel.data?.definitions??[]).map((definition)=>[definition.apiName,definition]));
+  const templateItems:NavItem[]=(workspaceModel.data?.presentation?.navigation??[]).flatMap((item)=>{
+    if(item.source==='customers')return [{to:'/customers',label:item.label||workspaceModel.data!.customerPlural,icon:Users,permission:'crm.read'}];
+    if(item.source==='route'&&item.route)return [{to:item.route,label:item.label||item.key,icon:item.key==='follow-ups'?CalendarClock:Layers,permission:'crm.read'}];
+    const definition=definitionByKey.get(item.key);
+    return definition?[{to:definitionRoute(definition),label:item.label||definition.pluralName,icon:Layers,permission:'crm.read'}]:[];
+  });
+  const configuredDefinitionKeys=new Set((workspaceModel.data?.presentation?.navigation??[]).filter((item)=>item.source==='custom_object').map((item)=>item.key));
+  const addedModelItems:NavItem[]=(workspaceModel.data?.definitions??[]).filter((definition)=>!configuredDefinitionKeys.has(definition.apiName)).map((definition)=>({to:definitionRoute(definition),label:definition.pluralName,icon:Layers,permission:'crm.read'}));
   const specialistGroups=experience.specialist?[
     navGroups[0],
-    {label:experience.groupLabel,items:[
+    {label:experience.groupLabel,items:templateItems.length?[...templateItems,...addedModelItems]:[
       {to:'/customers',label:workspaceModel.data!.customerPlural,icon:Users,permission:'crm.read'},
       ...workspaceModel.data!.definitions.map((definition)=>({to:definitionRoute(definition),label:definition.pluralName,icon:Layers,permission:'crm.read'})),
-      {to:'/follow-ups',label:'Follow-ups',icon:CalendarClock,permission:'crm.read'},
     ]},
     {...navGroups[2],items:navGroups[2].items.filter((item)=>item.to!=='/customers')},
     navGroups[3],

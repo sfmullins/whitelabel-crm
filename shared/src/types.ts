@@ -234,6 +234,48 @@ export interface WorkspaceModelDefinition extends CustomObjectDetails {
   recordCount: number;
 }
 
+export interface WorkspaceNavigationItem {
+  source: 'customers' | 'custom_object' | 'route';
+  key: string;
+  label?: string;
+  route?: string;
+}
+
+export interface WorkspaceDashboardCard {
+  source: 'customers' | 'custom_object';
+  key: string;
+  label?: string;
+}
+
+export interface WorkspaceQuickAction {
+  source: 'customers' | 'custom_object' | 'route';
+  key: string;
+  label: string;
+  route?: string;
+}
+
+export interface WorkspaceStarterReport {
+  key: string;
+  name: string;
+  description: string;
+  sourceKey: string;
+  columns: string[];
+  groupBy?: string;
+}
+
+export interface WorkspacePresentation {
+  groupLabel: string;
+  workspaceLabel: string;
+  dashboardTitle: string;
+  dashboardDescription: string;
+  searchPlaceholder: string;
+  createLabel: string;
+  navigation: WorkspaceNavigationItem[];
+  dashboardCards: WorkspaceDashboardCard[];
+  quickActions: WorkspaceQuickAction[];
+  starterReports: WorkspaceStarterReport[];
+}
+
 export interface WorkspaceModel {
   sector: 'general' | 'after-school-childcare' | 'pet-behaviour' | 'veterinary' | 'pet-grooming';
   mode: 'template' | 'blank';
@@ -243,6 +285,7 @@ export interface WorkspaceModel {
   customerSingular: string;
   customerPlural: string;
   definitions: WorkspaceModelDefinition[];
+  presentation?: WorkspacePresentation;
 }
 
 // ==========================================

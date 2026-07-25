@@ -32,6 +32,7 @@ export async function apiFetch<T=unknown>(path:string,options:RequestInit={}):Pr
 }
 
 async function download(path:string):Promise<{blob:Blob;filename:string}>{const headers=new Headers();applyIdentity(headers);const response=await fetch(path,{headers});if(!response.ok)throw await responseError(response);const disposition=response.headers.get('content-disposition')||'';const filename=disposition.match(/filename="?([^";]+)"?/i)?.[1]||'download';return {blob:await response.blob(),filename};}
+async function downloadPost(path:string,body:unknown):Promise<{blob:Blob;filename:string}>{const headers=new Headers({'content-type':'application/json'});applyIdentity(headers);const response=await fetch(path,{method:'POST',headers,body:JSON.stringify(body)});if(!response.ok)throw await responseError(response);const disposition=response.headers.get('content-disposition')||'';const filename=disposition.match(/filename="?([^";]+)"?/i)?.[1]||'download';return {blob:await response.blob(),filename};}
 
 function jsonRequest<T>(method:string,path:string,body:unknown,options:RequestInit={}):Promise<T>{return apiFetch<T>(path,{...options,method,body:JSON.stringify(body)});}
 export const api={
@@ -41,4 +42,5 @@ export const api={
   patch:<T=unknown>(path:string,body:unknown,options:RequestInit={})=>jsonRequest<T>('PATCH',path,body,options),
   delete:<T=unknown>(path:string,options:RequestInit={})=>apiFetch<T>(path,{...options,method:'DELETE'}),
   download,
+  downloadPost,
 };

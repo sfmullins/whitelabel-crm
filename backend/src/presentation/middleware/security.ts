@@ -29,6 +29,7 @@ function permissionFor(method:string,path:string):string|null{
   if(policyPath.startsWith('/extensions/runtime/reports'))return 'reports.read';
   if(policyPath.startsWith('/extensions/runtime'))return 'crm.read';
   if(policyPath.startsWith('/extensions')){if(policyPath.includes('/data-export'))return 'extensions.manage';return method==='GET'||method==='HEAD'?'extensions.read':'extensions.manage';}
+  if(policyPath==='/reporting/builder/run')return 'reports.read';
   if(policyPath.startsWith('/reporting')){if(policyPath.includes('/export')||policyPath.endsWith('/download'))return 'reports.export';return method==='GET'?'reports.read':'reports.manage';}
   if(policyPath.startsWith('/admin/users')||policyPath.startsWith('/admin/teams'))return 'users.manage';
   if(policyPath.startsWith('/admin/roles'))return 'roles.manage';
