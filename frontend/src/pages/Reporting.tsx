@@ -4,6 +4,7 @@ import { Bar,BarChart,CartesianGrid,Cell,Legend,Line,LineChart,Pie,PieChart,Resp
 import { BarChart3,CalendarClock,Download,FilePlus2,LayoutDashboard,Play,RefreshCw,Save } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
+import ReportBuilder from '../features/reporting/ReportBuilder';
 import { useIdentity } from '../hooks/useIdentity';
 
 const REPORTS=[
@@ -49,8 +50,11 @@ export default function Reporting(){
   const openSaved=(item:SavedReport)=>{setReportKey(item.reportKey);if(item.filters.from)setFrom(item.filters.from.slice(0,10));if(item.filters.to)setTo(item.filters.to.slice(0,10));};
 
   return <div className="space-y-6">
-    <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><div className="flex items-center gap-2 text-primary"><BarChart3 className="h-5 w-5"/><span className="text-xs font-bold uppercase tracking-[0.16em]">WI8 reporting</span></div><h1 className="mt-2 text-3xl font-black tracking-tight">Reporting & dashboards</h1><p className="mt-1 text-sm text-muted-foreground">Persisted CRM, finance, activity, workload and operating data. No simulated trends.</p></div><div className="flex flex-wrap items-end gap-3"><label className="text-xs font-bold text-muted-foreground">From<input type="date" value={from} onChange={(event)=>setFrom(event.target.value)} className="mt-1 block h-9 rounded-md border bg-background px-2 text-sm text-foreground"/></label><label className="text-xs font-bold text-muted-foreground">To<input type="date" value={to} onChange={(event)=>setTo(event.target.value)} className="mt-1 block h-9 rounded-md border bg-background px-2 text-sm text-foreground"/></label><Button variant="outline" size="sm" onClick={()=>report.refetch()}><RefreshCw className="mr-2 h-4 w-4"/>Refresh</Button>{identity.can('reports.export')&&<Button size="sm" onClick={exportReport}><Download className="mr-2 h-4 w-4"/>Export CSV</Button>}</div></header>
+    <header><div className="flex items-center gap-2 text-primary"><BarChart3 className="h-5 w-5"/><span className="text-xs font-bold uppercase tracking-[0.16em]">Flexible reporting</span></div><h1 className="mt-2 text-3xl font-black tracking-tight">Reporting & dashboards</h1><p className="mt-1 text-sm text-muted-foreground">Build reports from your chosen CRM model, keep them local or prepare a customer-scoped email draft.</p></header>
 
+    <ReportBuilder/>
+
+    <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><h2 className="text-xl font-black">Standard operating reports</h2><p className="mt-1 text-xs text-muted-foreground">Finance, workload and platform reports shared by every template.</p></div><div className="flex flex-wrap items-end gap-3"><label className="text-xs font-bold text-muted-foreground">From<input type="date" value={from} onChange={(event)=>setFrom(event.target.value)} className="mt-1 block h-9 rounded-md border bg-background px-2 text-sm text-foreground"/></label><label className="text-xs font-bold text-muted-foreground">To<input type="date" value={to} onChange={(event)=>setTo(event.target.value)} className="mt-1 block h-9 rounded-md border bg-background px-2 text-sm text-foreground"/></label><Button variant="outline" size="sm" onClick={()=>report.refetch()}><RefreshCw className="mr-2 h-4 w-4"/>Refresh</Button>{identity.can('reports.export')&&<Button size="sm" onClick={exportReport}><Download className="mr-2 h-4 w-4"/>Export CSV</Button>}</div></div>
     <div className="flex gap-2 overflow-x-auto pb-1">{REPORTS.map((item)=><button key={item.key} onClick={()=>setReportKey(item.key)} className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs font-bold ${item.key===reportKey?'border-primary bg-primary text-primary-foreground':'bg-card hover:bg-muted'}`}>{item.name}</button>)}</div>
 
     {report.isLoading?<State text="Calculating report from local records…"/>:report.isError?<State danger text={(report.error as Error).message}/>:<ReportView reportKey={reportKey} data={report.data}/>} 

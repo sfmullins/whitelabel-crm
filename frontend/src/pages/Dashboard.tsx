@@ -33,17 +33,41 @@ export default function Dashboard() {
 }
 function SpecialistDashboard({data,model,money}:{data:DashboardOperationalSummary;model:WorkspaceModel;money:(cents:number)=>string}){
   const experience=workspaceExperience(model);
+  const definitions=new Map(model.definitions.map((definition)=>[definition.apiName,definition]));
+  const configuredCardKeys=new Set((model.presentation?.dashboardCards??[]).filter((item)=>item.source==='custom_object').map((item)=>item.key));
+  const cardDefinitions=[
+    ...(model.presentation?.dashboardCards??[
+    {source:'customers' as const,key:'customers',label:undefined},
+    ...model.definitions.map((definition)=>({source:'custom_object' as const,key:definition.apiName,label:undefined})),
+    ]),
+    ...(model.presentation?model.definitions.filter((definition)=>!configuredCardKeys.has(definition.apiName)).map((definition)=>({source:'custom_object' as const,key:definition.apiName,label:undefined})):[]),
+  ];
+  const cards=cardDefinitions.flatMap((item)=>{
+    if(item.source==='customers')return [{key:'customers',label:item.label||model.customerPlural,value:model.customerCount,route:'/customers'}];
+    const definition=definitions.get(item.key);
+    return definition?[{key:definition.apiName,label:item.label||definition.pluralName,value:definition.recordCount,route:definitionRoute(definition)}]:[];
+  });
+  const configuredActionKeys=new Set((model.presentation?.quickActions??[]).filter((item)=>item.source==='custom_object').map((item)=>item.key));
+  const actionDefinitions=[
+    ...(model.presentation?.quickActions??[]),
+    ...(model.presentation?model.definitions.filter((definition)=>!configuredActionKeys.has(definition.apiName)).map((definition)=>({source:'custom_object' as const,key:definition.apiName,label:`Add ${definition.name.toLowerCase()}`})):[]),
+  ];
+  const actions=actionDefinitions.flatMap((item)=>{
+    if(item.source==='customers')return [{key:'customers',label:item.label,route:'/customers?action=create'}];
+    if(item.source==='route'&&item.route)return [{key:item.key,label:item.label,route:item.route}];
+    const definition=definitions.get(item.key);
+    return definition?[{key:definition.apiName,label:item.label,route:definitionRoute(definition)}]:[];
+  });
   return <div className="space-y-7">
     <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-primary">{model.templateName} model active</p><h1 className="mt-1 text-3xl font-extrabold tracking-tight">{experience.dashboardTitle}</h1><p className="mt-1 text-sm text-muted-foreground">{experience.dashboardDescription}</p></div><Link to="/onboarding" className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-xs font-bold shadow-sm hover:bg-muted"><Settings className="h-4 w-4"/>Customise this setup</Link></div>
     <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700"/><div><h2 className="font-bold">Your {model.templateName.toLowerCase()} setup is applied</h2><p className="mt-1 text-xs text-emerald-800">The workspace below is built from your selected model. Its record types remain yours to rename, add to or remove.</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-bold shadow-sm">{model.definitions.length} record types active</span></section>
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-      <LinkCard label={model.customerPlural} value={model.customerCount} route="/customers" icon={Users}/>
-      {model.definitions.map((definition)=><LinkCard key={definition.id} label={definition.pluralName} value={definition.recordCount} route={definitionRoute(definition)} icon={Layers}/>)}
+      {cards.map((card)=><LinkCard key={card.key} label={card.label} value={card.value} route={card.route} icon={card.key==='customers'?Users:Layers}/>)}
     </div>
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
       <Card label="Overdue follow-ups" value={data.overdueFollowUps} icon={AlertTriangle} danger/><Card label="Due today" value={data.dueTodayFollowUps} icon={CalendarClock}/><Card label="Collected this month" value={money(data.collectedRevenueCents)} icon={CircleDollarSign}/><Card label="Outstanding invoices" value={money(data.outstandingCents)} icon={WalletCards}/>
     </div>
-    <section className="rounded-xl border bg-card p-6 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold">Next actions</h2><p className="mt-1 text-xs text-muted-foreground">Start with a person, then connect the specialist records you need.</p></div><Link to="/follow-ups" className="text-xs font-semibold text-primary">Open follow-up queue</Link></div><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3"><Link to="/customers?action=create" className="rounded-lg border p-4 hover:bg-muted/40"><p className="font-bold">Add {model.customerSingular.toLowerCase()}</p><p className="mt-1 text-xs text-muted-foreground">Create the main contact record.</p></Link>{model.definitions.map((definition)=><Link key={definition.id} to={definitionRoute(definition)} className="rounded-lg border p-4 hover:bg-muted/40"><p className="font-bold">Add {definition.name.toLowerCase()}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{definition.description||`Open ${definition.pluralName.toLowerCase()}.`}</p></Link>)}</div></section>
+    <section className="rounded-xl border bg-card p-6 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold">Next actions</h2><p className="mt-1 text-xs text-muted-foreground">Actions and terminology come from the active template and remain editable through your model.</p></div><Link to="/reporting" className="text-xs font-semibold text-primary">Open reports</Link></div><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{actions.map((action)=><Link key={action.key} to={action.route} className="rounded-lg border p-4 hover:bg-muted/40"><p className="font-bold">{action.label}</p><p className="mt-1 text-xs text-muted-foreground">Open the relevant workspace and create a record.</p></Link>)}</div></section>
   </div>;
 }
 function LinkCard({label,value,route,icon:Icon}:{label:string;value:number;route:string;icon:React.ComponentType<{className?:string}>}){return <Link to={route} className="flex items-center justify-between rounded-xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-black">{value}</p><p className="mt-1 text-[10px] font-semibold text-primary">Open {label.toLowerCase()}</p></div><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5"/></div></Link>;}

@@ -44,6 +44,26 @@ describe('workspace model experience',()=>{
     });
   });
 
+  it('uses a template-driven workspace for general-sector business templates',()=>{
+    expect(workspaceExperience({...childcare,sector:'general',templateKey:'b2b-services'}).specialist).toBe(true);
+    expect(workspaceExperience({...childcare,sector:'general',templateKey:'simple-crm'}).specialist).toBe(false);
+  });
+
+  it('uses presentation supplied by the active template instead of hard-coded sector copy',()=>{
+    expect(workspaceExperience({...childcare,presentation:{
+      groupLabel:'Configured operations',workspaceLabel:'Configured workspace',
+      dashboardTitle:'Configured overview',dashboardDescription:'Configured description',
+      searchPlaceholder:'Configured search',createLabel:'Configured create',
+      navigation:[],dashboardCards:[],quickActions:[],starterReports:[],
+    }})).toMatchObject({
+      specialist:true,
+      groupLabel:'Configured operations',
+      workspaceLabel:'Configured workspace',
+      dashboardTitle:'Configured overview',
+      createLabel:'Configured create',
+    });
+  });
+
   it('derives a useful record title from model values',()=>{
     expect(recordTitle(childcare.definitions[0],{first_name:'Aoife',last_name:'Murphy'})).toBe('Aoife Murphy');
   });
