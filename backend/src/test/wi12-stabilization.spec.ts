@@ -6,6 +6,7 @@ import { getRuntimePaths } from '../config/runtimePaths';
 import { OnboardingRepository } from '../infrastructure/database/OnboardingRepository';
 import { SecurityRepository } from '../infrastructure/database/SecurityRepository';
 import { getSqliteConnection } from '../infrastructure/database/connection';
+import { ensureWi12OnboardingSchema } from '../infrastructure/database/wi12OnboardingSchema';
 import { runSeed } from '../infrastructure/database/seed';
 import { BrandAssetStore } from '../infrastructure/storage/BrandAssetStore';
 import { startServer,type RunningServer } from '../server';
@@ -79,6 +80,31 @@ describe('WI12 stabilization',()=>{
     expect(new OnboardingRepository().getStatus()).toMatchObject({status:'provisioning',requiresOnboarding:true});
     expect((getSqliteConnection().prepare('SELECT count(*) AS count FROM organisations').get() as {count:number}).count).toBe(0);
     expect((getSqliteConnection().prepare('SELECT count(*) AS count FROM customers').get() as {count:number}).count).toBe(0);
+  });
+
+  it('upgrades a pre-redesign draft without replacing existing answers',async()=>{
+    await runSeed('demo');
+    const connection=getSqliteConnection();
+    const row=connection.prepare(`SELECT id,configuration_json FROM instance_configuration_revisions WHERE state='draft'`).get() as {id:string;configuration_json:string};
+    const legacy=JSON.parse(row.configuration_json) as Record<string,unknown>;
+    delete legacy.businessProfile;
+    delete legacy.dataModel;
+    (legacy.identity as Record<string,unknown>).displayName='Preserved legacy business';
+    connection.prepare(`UPDATE instance_configuration_revisions SET configuration_json=?,checksum=? WHERE id=?`).run(JSON.stringify(legacy),'0'.repeat(64),row.id);
+
+    ensureWi12OnboardingSchema(connection);
+
+    const upgraded=new OnboardingRepository(connection).getWorkspace();
+    expect(upgraded.draft.configuration.identity.displayName).toBe('Preserved legacy business');
+    expect(upgraded.draft.configuration.businessProfile).toEqual({
+      sector:'general',customerType:'businesses',operatingModel:'services',relationshipStyle:'repeat',
+      tracksProducts:false,booksAppointments:false,confirmed:false,
+    });
+    expect(upgraded.draft.configuration.dataModel).toEqual({
+      mode:'template',templateKey:'b2b-services',appliedTemplateKey:'',
+    });
+    expect(upgraded.draft.checksum).not.toBe('0'.repeat(64));
+    expect(connection.pragma('integrity_check')).toEqual([{integrity_check:'ok'}]);
   });
 
   it('stores verified logos outside the onboarding configuration payload',async()=>{

@@ -1,8 +1,10 @@
 import type {
+  OnboardingConfiguration,
   OnboardingWorkspace,
   ReadinessCheck,
   ReadinessResult,
 } from "shared/onboarding";
+import { DEFAULT_ONBOARDING_CONFIGURATION } from "shared/onboarding";
 import type { CustomObjectDefinition } from "./models";
 
 const readinessSectionMap: Record<string, string> = {
@@ -42,8 +44,33 @@ export function normalizeReadinessResult(
 export function normalizeOnboardingWorkspace(
   workspace: OnboardingWorkspace,
 ): OnboardingWorkspace {
+  const normalizeConfiguration = (
+    value: OnboardingConfiguration,
+  ): OnboardingConfiguration => ({
+    ...value,
+    businessProfile: {
+      ...DEFAULT_ONBOARDING_CONFIGURATION.businessProfile,
+      ...(value.businessProfile ?? {}),
+    },
+    dataModel: {
+      ...DEFAULT_ONBOARDING_CONFIGURATION.dataModel,
+      ...(value.dataModel ?? {}),
+    },
+  });
   return {
     ...workspace,
+    draft: {
+      ...workspace.draft,
+      configuration: normalizeConfiguration(workspace.draft.configuration),
+    },
+    published: workspace.published
+      ? {
+          ...workspace.published,
+          configuration: normalizeConfiguration(
+            workspace.published.configuration,
+          ),
+        }
+      : null,
     readiness: normalizeReadinessResult(workspace.readiness),
   };
 }

@@ -15,6 +15,38 @@ export const WI12_PERMISSIONS=[
 const now=()=>new Date().toISOString();
 const checksum=(value:string)=>crypto.createHash('sha256').update(value,'utf8').digest('hex');
 function clone<T>(value:T):T{return JSON.parse(JSON.stringify(value)) as T;}
+function canonicalize(value:unknown):unknown{
+  if(Array.isArray(value))return value.map(canonicalize);
+  if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value as Record<string,unknown>).sort().map((key)=>[key,canonicalize((value as Record<string,unknown>)[key])]));
+  return value;
+}
+function canonicalJson(value:unknown):string{return JSON.stringify(canonicalize(value));}
+function normalizeEditableConfiguration(value:unknown):unknown{
+  if(!value||typeof value!=='object'||Array.isArray(value))return value;
+  const configuration=clone(value as Record<string,unknown>);
+  const businessProfile=configuration.businessProfile;
+  configuration.businessProfile={
+    ...clone(DEFAULT_ONBOARDING_CONFIGURATION.businessProfile),
+    ...(businessProfile&&typeof businessProfile==='object'&&!Array.isArray(businessProfile)?businessProfile:{}),
+  };
+  const dataModel=configuration.dataModel;
+  configuration.dataModel={
+    ...clone(DEFAULT_ONBOARDING_CONFIGURATION.dataModel),
+    ...(dataModel&&typeof dataModel==='object'&&!Array.isArray(dataModel)?dataModel:{}),
+  };
+  return configuration;
+}
+function normalizeLegacyDrafts(connection:Database.Database):void{
+  const rows=connection.prepare(`SELECT id,configuration_json FROM instance_configuration_revisions WHERE state='draft'`).all() as Array<{id:string;configuration_json:string}>;
+  const update=connection.prepare(`UPDATE instance_configuration_revisions SET configuration_json=?,checksum=?,updated_at=? WHERE id=? AND state='draft'`);
+  for(const row of rows){
+    let parsed:unknown;
+    try{parsed=JSON.parse(row.configuration_json);}catch{continue;}
+    const serialized=canonicalJson(normalizeEditableConfiguration(parsed));
+    if(serialized===row.configuration_json)continue;
+    update.run(serialized,checksum(serialized),now(),row.id);
+  }
+}
 function slugify(value:string):string{
   const normalized=value.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,64);
   return normalized.length>=2?normalized:'my-business';
@@ -159,7 +191,7 @@ export function ensureWi12OnboardingSchema(connection:Database.Database,options:
   for(const role of roleRows)for(const permission of WI12_PERMISSIONS)rolePermissionStatement.run(role.id,permission[0],timestamp);
 
   const existing=connection.prepare(`SELECT id FROM crm_instances LIMIT 1`).get() as {id:string}|undefined;
-  if(existing)return;
+  if(existing){normalizeLegacyDrafts(connection);return;}
   const initial=options.initialConfiguration?clone(options.initialConfiguration):(legacyConfiguration(connection)??clone(DEFAULT_ONBOARDING_CONFIGURATION));
   const instanceId=DEFAULT_INSTANCE_ID;
   const serialized=JSON.stringify(initial);
