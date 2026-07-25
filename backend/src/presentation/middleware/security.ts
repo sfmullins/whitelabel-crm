@@ -6,7 +6,7 @@ import { WI10_EVENT_TYPES } from '../../infrastructure/database/wi10PlatformSche
 
 export interface CrmRequest extends Request {crm?:{requestId:string;identity:RequestIdentity|null;startedAt:number;originClassification?:string;rejectionReason?:string};}
 const buckets=new Map<string,{windowStarted:number;count:number}>();
-const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext|signature|publickey|privatekey|encryptionkey|accesskey/i;
+const SENSITIVE=/password|token|secret|credential|authorization|contentbase64|bodyhtml|bodytext|signature|publickey|privatekey|encryptionkey|accesskey|csvdata|previewrows/i;
 const PUBLIC_ONBOARDING_PATHS=new Set(['/onboarding/public-profile','/onboarding/enrolments/redeem']);
 
 export function isLoopback(req:Request):boolean{const address=req.socket.remoteAddress||'';return address==='127.0.0.1'||address==='::1'||address==='::ffff:127.0.0.1';}
@@ -34,6 +34,12 @@ function permissionFor(method:string,path:string):string|null{
   if(policyPath.startsWith('/admin/users')||policyPath.startsWith('/admin/teams'))return 'users.manage';
   if(policyPath.startsWith('/admin/roles'))return 'roles.manage';
   if(policyPath.startsWith('/admin/audit'))return 'audit.read';
+  if(policyPath.startsWith('/workspace-design/navigation'))return 'crm.read';
+  if(policyPath.startsWith('/workspace-design'))return method==='GET'||method==='HEAD'?'crm.read':'schema.manage';
+  if(policyPath.startsWith('/bulk-import'))return 'data.import';
+  if(policyPath.startsWith('/workspace-navigation'))return 'crm.read';
+  if(policyPath.startsWith('/custom-objects/definitions'))return method==='GET'||method==='HEAD'?'crm.read':'schema.manage';
+  if(policyPath.startsWith('/custom-fields/definitions'))return method==='GET'||method==='HEAD'?'crm.read':'schema.manage';
   if(policyPath.startsWith('/settings')&&method!=='GET')return 'settings.manage';
   if(policyPath.startsWith('/backups')||policyPath.startsWith('/operations-health')||policyPath.startsWith('/operations-maintenance')||policyPath.startsWith('/operations-reconcile'))return 'operations.manage';
   if(method==='GET'||method==='HEAD')return 'crm.read';

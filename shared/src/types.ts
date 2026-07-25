@@ -221,6 +221,7 @@ export const CustomObjectRecordSchema = z.object({
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
   values: z.record(z.string(), z.any()).optional(), // custom fields values mapped by field name/API name
+  relationships: z.record(z.string(), z.string().uuid()).optional(),
 });
 
 export type CustomObjectRecord = z.infer<typeof CustomObjectRecordSchema>;
@@ -232,6 +233,17 @@ export interface CustomObjectDetails extends CustomObjectDefinition {
 
 export interface WorkspaceModelDefinition extends CustomObjectDetails {
   recordCount: number;
+  relationships?: WorkspaceModelRelationship[];
+}
+
+export interface WorkspaceModelRelationship {
+  id:string;
+  sourceDefinitionId:string;
+  targetType:'customer'|'custom_object';
+  targetDefinitionId:string|null;
+  name:string;
+  label:string;
+  cardinality:'many-to-one'|'one-to-many'|'one-to-one';
 }
 
 export interface WorkspaceNavigationItem {

@@ -16,7 +16,8 @@ export class CustomObjectRepository implements ICustomObjectRepository {
     const cleaned = cleanNulls(row);
     return {
       ...cleaned,
-      values
+      values,
+      relationships:this.getRecordRelationships(row.id),
     };
   }
 
@@ -45,9 +46,36 @@ export class CustomObjectRepository implements ICustomObjectRepository {
     return row&&isExtensionResourceEnabled(sqlite,'custom_entity',row.id) ? this.mapDefRow(row) : null;
   }
 
+  async getDefinitionImpact(id:string):Promise<{
+    id:string;name:string;apiName:string;recordCount:number;fieldCount:number;
+    relationshipCount:number;linkedRecordCount:number;
+  }|null>{
+    const definition=sqlite.prepare(`
+      SELECT id,name,api_name AS apiName FROM custom_objects_definition WHERE id=?
+    `).get(id) as {id:string;name:string;apiName:string}|undefined;
+    if(!definition)return null;
+    const recordCount=(sqlite.prepare(`SELECT count(*) AS count FROM custom_objects_records WHERE object_definition_id=?`).get(id) as {count:number}).count;
+    const fieldCount=(sqlite.prepare(`SELECT count(*) AS count FROM custom_fields_definition WHERE entity_type=?`).get(definition.apiName) as {count:number}).count;
+    const relationshipCount=(sqlite.prepare(`
+      SELECT count(*) AS count FROM custom_object_relationships
+      WHERE source_definition_id=? OR target_definition_id=?
+    `).get(id,id) as {count:number}).count;
+    const linkedRecordCount=(sqlite.prepare(`
+      SELECT count(*) AS count FROM custom_object_record_relationships rr
+      JOIN custom_object_relationships r ON r.id=rr.relationship_id
+      WHERE r.source_definition_id=? OR r.target_definition_id=?
+    `).get(id,id) as {count:number}).count;
+    return {...definition,recordCount,fieldCount,relationshipCount,linkedRecordCount};
+  }
+
   async deleteDefinition(id: string): Promise<void> {
     assertResourceNotExtensionOwned(sqlite,'custom_entity',id);
-    db.delete(customObjectsDefinition).where(eq(customObjectsDefinition.id, id)).run();
+    const impact=await this.getDefinitionImpact(id);
+    if(!impact)throw new Error('Custom object definition was not found');
+    sqlite.transaction(()=>{
+      sqlite.prepare(`DELETE FROM custom_fields_definition WHERE entity_type=?`).run(impact.apiName);
+      sqlite.prepare(`DELETE FROM custom_objects_definition WHERE id=?`).run(id);
+    })();
   }
 
   async updateDefinition(id:string,input:{name:string;pluralName:string;description?:string}):Promise<CustomObjectDefinition>{
@@ -162,6 +190,50 @@ export class CustomObjectRepository implements ICustomObjectRepository {
         }
       }
     });
+  }
+
+  saveRecordRelationships(recordId:string,relationships:Record<string,string>):void{
+    const record=sqlite.prepare(`SELECT object_definition_id AS definitionId FROM custom_objects_records WHERE id=?`).get(recordId) as {definitionId:string}|undefined;
+    if(!record)throw new Error('Custom object record is unavailable');
+    const timestamp=new Date().toISOString();
+    sqlite.transaction(()=>{
+      for(const [relationshipId,targetId] of Object.entries(relationships)){
+        const relationship=sqlite.prepare(`
+          SELECT source_definition_id AS sourceDefinitionId,target_type AS targetType,target_definition_id AS targetDefinitionId,cardinality
+          FROM custom_object_relationships WHERE id=?
+        `).get(relationshipId) as {sourceDefinitionId:string;targetType:'customer'|'custom_object';targetDefinitionId:string|null;cardinality:'many-to-one'|'one-to-one'}|undefined;
+        if(!relationship||relationship.sourceDefinitionId!==record.definitionId)throw new Error('Relationship does not belong to this object');
+        if(relationship.targetType==='customer'){
+          if(!sqlite.prepare(`SELECT 1 FROM customers WHERE id=?`).get(targetId))throw new Error('Connected customer was not found');
+        }else{
+          const target=sqlite.prepare(`SELECT object_definition_id AS definitionId FROM custom_objects_records WHERE id=?`).get(targetId) as {definitionId:string}|undefined;
+          if(!target||target.definitionId!==relationship.targetDefinitionId)throw new Error('Connected record does not match the relationship target');
+        }
+        if(relationship.cardinality==='one-to-one'){
+          const duplicate=sqlite.prepare(`
+            SELECT 1 FROM custom_object_record_relationships
+            WHERE relationship_id=? AND source_record_id<>?
+              AND coalesce(target_customer_id,target_record_id)=?
+          `).get(relationshipId,recordId,targetId);
+          if(duplicate)throw new Error('This target is already connected through a one-to-one relationship');
+        }
+        sqlite.prepare(`
+          INSERT INTO custom_object_record_relationships(
+            relationship_id,source_record_id,target_customer_id,target_record_id,created_at
+          ) VALUES(?,?,?,?,?)
+          ON CONFLICT(relationship_id,source_record_id) DO UPDATE SET
+            target_customer_id=excluded.target_customer_id,target_record_id=excluded.target_record_id
+        `).run(relationshipId,recordId,relationship.targetType==='customer'?targetId:null,relationship.targetType==='custom_object'?targetId:null,timestamp);
+      }
+    })();
+  }
+
+  getRecordRelationships(recordId:string):Record<string,string>{
+    const rows=sqlite.prepare(`
+      SELECT relationship_id AS relationshipId,coalesce(target_customer_id,target_record_id) AS targetId
+      FROM custom_object_record_relationships WHERE source_record_id=?
+    `).all(recordId) as Array<{relationshipId:string;targetId:string}>;
+    return Object.fromEntries(rows.map((row)=>[row.relationshipId,row.targetId]));
   }
 
   async getRecordValues(recordId: string): Promise<Record<string, string>> {

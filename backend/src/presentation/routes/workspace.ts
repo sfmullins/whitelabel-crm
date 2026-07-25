@@ -33,6 +33,7 @@ import { CustomObjectRepository } from '../../infrastructure/database/repositori
 import { CustomFieldRepository } from '../../infrastructure/database/repositories/CustomFieldRepository';
 import { CustomerRepository } from '../../infrastructure/database/repositories/CustomerRepository';
 import { workspacePresentation } from '../../application/workspaceTemplateCatalog';
+import { getSqliteConnection } from '../../infrastructure/database/connection';
 
 const router = Router();
 const service = new WorkspaceService(new WorkspaceRepository());
@@ -121,10 +122,16 @@ router.get('/workspace/model',async(_req,res,next)=>{
   try{
     const configuration=onboarding.getPublishedConfiguration();
     const definitions=await customObjects.getDefinitions();
+    const relationships=getSqliteConnection().prepare(`
+      SELECT id,source_definition_id AS sourceDefinitionId,target_type AS targetType,
+        target_definition_id AS targetDefinitionId,name,label,cardinality
+      FROM custom_object_relationships ORDER BY created_at
+    `).all() as Array<{id:string;sourceDefinitionId:string;targetType:'customer'|'custom_object';targetDefinitionId:string|null;name:string;label:string;cardinality:'many-to-one'|'one-to-many'|'one-to-one'}>;
     const enriched=await Promise.all(definitions.map(async(definition)=>({
       ...definition,
       fields:await customFields.getDefinitions(definition.apiName),
       recordCount:await customObjects.countRecords(definition.id!),
+      relationships:relationships.filter((relationship)=>relationship.sourceDefinitionId===definition.id),
     })));
     const templateKey=configuration.dataModel.mode==='template'
       ? configuration.dataModel.appliedTemplateKey||configuration.dataModel.templateKey

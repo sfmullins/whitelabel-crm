@@ -56,9 +56,27 @@ router.patch('/definitions/:id',async(req,res,next)=>{
   }catch(error){next(error);}
 });
 
+router.get('/definitions/:id/impact',async(req,res,next)=>{
+  try{
+    const impact=await coRepo.getDefinitionImpact(req.params.id);
+    if(!impact)return res.status(404).json({error:'OBJECT_NOT_FOUND',message:'The object no longer exists'});
+    res.json(impact);
+  }catch(error){next(error);}
+});
+
 // DELETE definition
 router.delete('/definitions/:id', async (req, res, next) => {
   try {
+    const impact=await coRepo.getDefinitionImpact(req.params.id);
+    if(!impact)return res.status(404).json({error:'OBJECT_NOT_FOUND',message:'The object no longer exists'});
+    const confirmation=String(req.body?.confirmation??'').trim();
+    if(req.body?.permanent!==true||confirmation!==impact.name){
+      return res.status(409).json({
+        error:'DELETION_CONFIRMATION_REQUIRED',
+        message:`Type ${impact.name} to permanently delete this object`,
+        details:impact,
+      });
+    }
     await coRepo.deleteDefinition(req.params.id);
     res.status(204).end();
   } catch (error) {
@@ -96,6 +114,7 @@ router.post('/records', async (req, res, next) => {
     if (req.body.values) {
       await coRepo.saveRecordValues(created.id!, req.body.values);
     }
+    if(req.body.relationships)coRepo.saveRecordRelationships(created.id!,req.body.relationships);
     
     const finalRecord = await coRepo.getRecordById(created.id!);
     res.status(201).json(finalRecord);
@@ -123,6 +142,7 @@ router.put('/records/:id', async (req, res, next) => {
     if (req.body.values) {
       await coRepo.saveRecordValues(req.params.id, req.body.values);
     }
+    if(req.body.relationships)coRepo.saveRecordRelationships(req.params.id,req.body.relationships);
     const record = await coRepo.getRecordById(req.params.id);
     res.json(record);
   } catch (error) {

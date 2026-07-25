@@ -2156,7 +2156,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           {state.objects.map((item) => (
             <div key={item.id} className="rounded-xl border p-4">
-              <div className="flex items-center gap-2"><Input defaultValue={item.name} aria-label={`Rename ${item.name}`} onBlur={(event)=>{const name=event.target.value.trim();if(name&&name!==item.name)void studio.renameObject(item.id,{name,pluralName:item.pluralName,description:item.description??""});}}/><Button size="sm" variant="outline" aria-label={`Remove ${item.name}`} onClick={()=>void studio.deleteObject(item.id)}><Trash2 className="h-4 w-4"/></Button></div>
+              <div className="flex items-center gap-2"><Input defaultValue={item.name} aria-label={`Rename ${item.name}`} onBlur={(event)=>{const name=event.target.value.trim();if(name&&name!==item.name)void studio.renameObject(item.id,{name,pluralName:item.pluralName,description:item.description??""});}}/><Button size="sm" variant="outline" aria-label={`Remove ${item.name}`} onClick={()=>window.confirm(`Permanently remove ${item.name} and all of its records and fields?`)&&void studio.deleteObject(item.id,item.name)}><Trash2 className="h-4 w-4"/></Button></div>
               <p className="text-xs text-slate-500">
                 {item.apiName} · {(item.fields ?? []).length} fields
               </p>

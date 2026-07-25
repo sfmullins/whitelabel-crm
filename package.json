@@ -23,6 +23,7 @@
     "test": "npm run test -w backend && npm run test -w frontend",
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend",
+    "object:delete": "node scratch/delete-custom-object.mjs",
     "db:seed": "npm run db:seed:demo",
     "desktop:start": "npm run build && npm run start -w desktop",
     "desktop:package": "npm run package -w desktop",

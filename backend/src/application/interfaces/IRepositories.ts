@@ -95,6 +95,10 @@ export interface ICustomObjectRepository {
   createDefinition(def: CustomObjectDefinition): Promise<CustomObjectDefinition>;
   getDefinitions(): Promise<CustomObjectDefinition[]>;
   getDefinitionByApiName(apiName: string): Promise<CustomObjectDefinition | null>;
+  getDefinitionImpact(id: string): Promise<{
+    id:string;name:string;apiName:string;recordCount:number;fieldCount:number;
+    relationshipCount:number;linkedRecordCount:number;
+  }|null>;
   deleteDefinition(id: string): Promise<void>;
   createRecord(record: Omit<CustomObjectRecord, 'values'>): Promise<CustomObjectRecord>;
   getRecords(definitionId: string, customerId?: string): Promise<CustomObjectRecord[]>;
@@ -103,6 +107,8 @@ export interface ICustomObjectRepository {
   deleteRecord(recordId: string): Promise<void>;
   saveRecordValues(recordId: string, values: Record<string, string>): Promise<void>;
   getRecordValues(recordId: string): Promise<Record<string, string>>;
+  saveRecordRelationships(recordId: string, relationships: Record<string,string>): void;
+  getRecordRelationships(recordId: string): Record<string,string>;
 }
 
 export interface ListOptions<TStatus> {

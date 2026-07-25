@@ -41,6 +41,7 @@ export const api={
   put:<T=unknown>(path:string,body:unknown,options:RequestInit={})=>jsonRequest<T>('PUT',path,body,options),
   patch:<T=unknown>(path:string,body:unknown,options:RequestInit={})=>jsonRequest<T>('PATCH',path,body,options),
   delete:<T=unknown>(path:string,options:RequestInit={})=>apiFetch<T>(path,{...options,method:'DELETE'}),
+  deleteJson:<T=unknown>(path:string,body:unknown,options:RequestInit={})=>jsonRequest<T>('DELETE',path,body,options),
   download,
   downloadPost,
 };
