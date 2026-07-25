@@ -22,6 +22,14 @@ const sections = [
   ["Keep your data safe", "Part of initial setup"],
   ["Check & finish", "Part of initial setup"],
 ] as const;
+const optionalSections = [
+  "Setup details",
+  "Words you use",
+  "Bring in existing data",
+  "Email & calendar",
+  "Add-ons",
+  "Invite employees",
+] as const;
 
 function nodeText(node: ReactTestInstance | string | number): string {
   if (typeof node === "string" || typeof node === "number")
@@ -133,6 +141,7 @@ function studioFixture() {
     createUser: vi.fn(),
     createField: vi.fn(),
     createObject: vi.fn(),
+    createObjectField: vi.fn(),
     applyDataModelTemplate: vi.fn(),
     deleteField: vi.fn(),
     deleteObject: vi.fn(),
@@ -224,6 +233,80 @@ describe("provisioning workspace user journey", () => {
       "package installation becomes available after the initial instance is published",
     );
     expect(rendered).not.toContain("Manage packages");
+  });
+
+  it("opens every optional and advanced stage without leaving the setup flow", async () => {
+    vi.mocked(useProvisioningWorkspace).mockReturnValue(
+      studioFixture() as never,
+    );
+    const renderer = create(<ProvisioningWorkspace />);
+    await act(async () => {
+      navigationButton(renderer.root, "Optional & advanced setup").props.onClick();
+    });
+    for (const label of optionalSections) {
+      await act(async () => {
+        navigationButton(renderer.root, label).props.onClick();
+      });
+      expect(
+        renderer.root
+          .findAllByType("h2")
+          .filter((heading) => nodeText(heading) === label),
+      ).toHaveLength(1);
+    }
+  });
+
+  it("requires an explicit confirmation before showing record templates", async () => {
+    const studio = studioFixture();
+    vi.mocked(useProvisioningWorkspace).mockReturnValue(studio as never);
+    const renderer = create(<ProvisioningWorkspace />);
+    await act(async () => {
+      navigationButton(renderer.root, "How you do business").props.onClick();
+    });
+    await act(async () => {
+      button(
+        renderer.root,
+        "Confirm these answers and see my templates",
+      ).props.onClick();
+    });
+    expect(studio.patch).toHaveBeenCalledWith("businessProfile", {
+      confirmed: true,
+    });
+    expect(
+      renderer.root
+        .findAllByType("h2")
+        .some((heading) => nodeText(heading) === "Your customer records"),
+    ).toBe(true);
+  });
+
+  it("keeps installer and version controls behind advanced connection settings", async () => {
+    vi.mocked(useProvisioningWorkspace).mockReturnValue(
+      studioFixture() as never,
+    );
+    const renderer = create(<ProvisioningWorkspace />);
+    await act(async () => {
+      navigationButton(renderer.root, "How people connect").props.onClick();
+    });
+    expect(nodeText(renderer.root)).not.toContain("Oldest supported app version");
+    await act(async () => {
+      button(renderer.root, "Advanced connection settings").props.onClick();
+    });
+    expect(nodeText(renderer.root)).toContain("Oldest supported app version");
+  });
+
+  it("uses the canonical dropdown type in the detailed field editors", async () => {
+    vi.mocked(useProvisioningWorkspace).mockReturnValue(
+      studioFixture() as never,
+    );
+    const renderer = create(<ProvisioningWorkspace />);
+    await act(async () => {
+      navigationButton(renderer.root, "Your customer records").props.onClick();
+    });
+    await act(async () => {
+      button(renderer.root, "Customise fields and records").props.onClick();
+    });
+    const optionValues=renderer.root.findAllByType("option").map((option)=>option.props.value??nodeText(option));
+    expect(optionValues).toContain("dropdown");
+    expect(optionValues).not.toContain("select");
   });
 
   it("uses the owner's sector choice to drive specialist template recommendations", async () => {

@@ -36,14 +36,22 @@ describe("onboarding runtime adapters", () => {
     ).toEqual(["brand", "integrations", "publish", "recovery", "people"]);
   });
 
-  it("normalizes workspace readiness without altering the draft", () => {
+  it("normalizes workspace readiness and legacy draft additions", () => {
     const workspace = {
       readiness: { checks: [{ id: "brand", section: "branding" }] },
       draft: { configuration: { schemaVersion: 1 } },
     } as unknown as OnboardingWorkspace;
     const normalized = normalizeOnboardingWorkspace(workspace);
     expect(normalized.readiness.checks[0].section).toBe("brand");
-    expect(normalized.draft).toBe(workspace.draft);
+    expect(normalized.draft.configuration.businessProfile).toMatchObject({
+      sector: "general",
+      confirmed: false,
+    });
+    expect(normalized.draft.configuration.dataModel).toEqual({
+      mode: "template",
+      templateKey: "b2b-services",
+      appliedTemplateKey: "",
+    });
   });
 
   it("normalizes custom entity definitions returned without embedded fields", () => {

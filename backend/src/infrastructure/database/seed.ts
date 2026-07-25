@@ -76,6 +76,8 @@ function demoOnboardingConfiguration():OnboardingConfiguration{
 function publishableOnboardingConfiguration():OnboardingConfiguration{
   const configuration=demoOnboardingConfiguration();
   configuration.identity.phone='+353 1 000 0000';
+  configuration.businessProfile={...configuration.businessProfile,confirmed:true};
+  configuration.dataModel={mode:'blank',templateKey:'simple-crm',appliedTemplateKey:''};
   configuration.security={...configuration.security,backupConfigured:true,backupEncryptionConfirmed:true,restoreRehearsed:true,recoveryPlanConfirmed:true,retentionPolicyReviewed:true};
   return configuration;
 }

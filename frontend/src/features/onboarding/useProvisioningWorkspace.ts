@@ -568,6 +568,25 @@ export function useProvisioningWorkspace(
       () => api.post("/api/custom-objects/definitions", input),
       "Custom entity created in the canonical schema registry.",
     );
+  const createObjectField = (
+    definitionId: string,
+    input: {
+      name: string;
+      label: string;
+      type: string;
+      required: boolean;
+      options: string[];
+    },
+  ) =>
+    run(
+      "object-field",
+      () =>
+        api.post(
+          `/api/custom-objects/definitions/${definitionId}/fields`,
+          input,
+        ),
+      "Field added to the related record type.",
+    );
   const applyDataModelTemplate = async (template: DataModelTemplate) => {
     const result=await run(
       "data-model-template",
@@ -764,6 +783,7 @@ export function useProvisioningWorkspace(
     createUser,
     createField,
     createObject,
+    createObjectField,
     applyDataModelTemplate,
     deleteField,
     deleteObject,

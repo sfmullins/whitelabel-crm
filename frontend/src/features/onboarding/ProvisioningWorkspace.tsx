@@ -34,7 +34,6 @@ import type {
 import type { OnboardingImportMapping } from "shared/onboarding-import";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { api } from "../../lib/api";
 import { useProvisioningWorkspace } from "./useProvisioningWorkspace";
 import type { ProvisioningSection } from "./models";
 import { rankDataModelTemplates } from "./dataModelTemplates";
@@ -651,6 +650,8 @@ function plainCheckTitle(check: ReadinessCheck) {
   const labels: Record<string, string> = {
     "configuration.schema": "One or more answers need correcting",
     "identity.complete": "Business contact details",
+    "business-profile.confirmed": "How your business works",
+    "data-model.selected": "Your customer-record starting point",
     "deployment.topology": "How people will connect",
     "branding.contrast": "A readable main colour",
     "permissions.owner": "An active business owner",
@@ -922,6 +923,7 @@ function ReadinessSection({ studio }: { studio: Studio }) {
 function DeploymentSection({ studio }: { studio: Studio }) {
   const value = studio.state!.draft;
   const managed = value.deployment.mode === "managed";
+  const [showTechnical, setShowTechnical] = useState(false);
   return (
     <div className="space-y-5">
       <Panel
@@ -937,7 +939,7 @@ function DeploymentSection({ studio }: { studio: Studio }) {
             onClick={() =>
               studio.patch("deployment", {
                 mode: "managed",
-                distributionMethod: "managed-installer",
+                distributionMethod: "browser",
               })
             }
           />
@@ -958,21 +960,9 @@ function DeploymentSection({ studio }: { studio: Studio }) {
       </Panel>
       <Panel
         title="Connection details"
-        description="The suggested technical values are safe for most businesses. If Good Order or another provider is hosting the CRM, they should supply the web address."
+        description="If Good Order or another provider is hosting the CRM, they should supply the secure web address. The other settings already have safe defaults."
       >
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Short system name" hint="A lowercase identifier used behind the scenes. The suggested value normally does not need changing.">
-            <Input
-              value={value.deployment.instanceSlug}
-              onChange={(event) =>
-                studio.patch("deployment", {
-                  instanceSlug: event.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9-]/g, ""),
-                })
-              }
-            />
-          </Field>
           {managed && (
             <Field
               label="CRM web address"
@@ -1004,39 +994,69 @@ function DeploymentSection({ studio }: { studio: Studio }) {
               }
             />
           </Field>
-          <Field label="Oldest supported app version" hint="Advanced. Keep the suggested value unless your installer or support provider says otherwise.">
-            <Input
-              value={value.deployment.minimumClientVersion}
-              onChange={(event) =>
-                studio.patch("deployment", {
-                  minimumClientVersion: event.target.value,
-                })
-              }
-            />
-          </Field>
-          <Field label="How employees will open the CRM" hint="Choose browser unless your provider supplies a desktop installer.">
-            <Select
-              value={value.deployment.distributionMethod}
-              onChange={(event) =>
-                studio.patch("deployment", {
-                  distributionMethod: event.target
-                    .value as OnboardingConfiguration["deployment"]["distributionMethod"],
-                })
-              }
-            >
-              <option value="managed-installer">Managed installer</option>
-              <option value="portable">Portable client</option>
-              <option value="browser">Browser access</option>
-              <option value="standalone">Standalone package</option>
-            </Select>
-          </Field>
-          <ListField
-            label="Locations"
-            value={value.deployment.locations}
-            onChange={(locations) => studio.patch("deployment", { locations })}
-            hint="One business location per line."
-          />
         </div>
+        <Button
+          variant="outline"
+          className="mt-5"
+          onClick={() => setShowTechnical((current) => !current)}
+        >
+          {showTechnical
+            ? "Hide advanced connection settings"
+            : "Advanced connection settings"}
+        </Button>
+        {showTechnical && (
+          <div className="mt-4 grid gap-4 rounded-xl border bg-slate-50 p-4 md:grid-cols-2">
+            <Field
+              label="Internal system name"
+              hint="Keep the suggested value unless your installer or support provider says otherwise."
+            >
+              <Input
+                value={value.deployment.instanceSlug}
+                onChange={(event) =>
+                  studio.patch("deployment", {
+                    instanceSlug: event.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9-]/g, ""),
+                  })
+                }
+              />
+            </Field>
+            <Field label="Oldest supported app version">
+              <Input
+                value={value.deployment.minimumClientVersion}
+                onChange={(event) =>
+                  studio.patch("deployment", {
+                    minimumClientVersion: event.target.value,
+                  })
+                }
+              />
+            </Field>
+            <Field label="How employees will open the CRM">
+              <Select
+                value={value.deployment.distributionMethod}
+                onChange={(event) =>
+                  studio.patch("deployment", {
+                    distributionMethod: event.target
+                      .value as OnboardingConfiguration["deployment"]["distributionMethod"],
+                  })
+                }
+              >
+                <option value="managed-installer">Managed installer</option>
+                <option value="portable">Portable client</option>
+                <option value="browser">Browser access</option>
+                <option value="standalone">Standalone package</option>
+              </Select>
+            </Field>
+            <ListField
+              label="Locations"
+              value={value.deployment.locations}
+              onChange={(locations) =>
+                studio.patch("deployment", { locations })
+              }
+              hint="One business location per line."
+            />
+          </div>
+        )}
       </Panel>
     </div>
   );
@@ -1207,8 +1227,8 @@ function BrandSection({ studio }: { studio: Studio }) {
   return (
     <div className="space-y-5">
       <Panel
-        title="Brand assets"
-        description="Brand assets are uploaded once, validated server-side and stored by SHA-256 checksum. Draft saves retain only the bounded asset reference."
+        title="Add your logo"
+        description="Optional. Add the logo your team and customers should see, or leave it blank and continue."
       >
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border bg-slate-50">
@@ -1235,19 +1255,12 @@ function BrandSection({ studio }: { studio: Studio }) {
               className="block text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-slate-950 file:px-4 file:py-2.5 file:font-bold file:text-white disabled:opacity-50"
             />
             <p className="mt-2 text-xs text-slate-500">
-              PNG, JPEG or WebP · maximum 1 MB and 4096 × 4096 · MIME signature
-              and dimensions verified by the backend.
+              Use a PNG, JPEG or WebP image up to 1 MB.
             </p>
-            {value.logoAsset && (
-              <p className="mt-2 break-all font-mono text-[10px] text-slate-400">
-                SHA-256 {value.logoAsset.checksum} · {value.logoAsset.width}×
-                {value.logoAsset.height}
-              </p>
-            )}
           </div>
         </div>
       </Panel>
-      <Panel title="Bounded design tokens">
+      <Panel title="Choose the look">
         <div className="grid gap-4 md:grid-cols-3">
           <ColourField
             label="Primary"
@@ -1697,7 +1710,16 @@ function BusinessFitSection({studio,onContinue}:{studio:Studio;onContinue:()=>vo
         <Toggle checked={profile.tracksProducts} onChange={(tracksProducts)=>studio.patch("businessProfile",{tracksProducts})} label="We need to track products" description="Put product and order-oriented templates higher in the list."/>
         <Toggle checked={profile.booksAppointments} onChange={(booksAppointments)=>studio.patch("businessProfile",{booksAppointments})} label="We book appointments or visits" description="Include appointment and service-history records in recommendations."/>
       </div>
-      <Button className="mt-5" onClick={onContinue}>See my recommended templates <ChevronRight className="ml-2 h-4 w-4"/></Button>
+      <Button
+        className="mt-5"
+        onClick={() => {
+          studio.patch("businessProfile", { confirmed: true });
+          onContinue();
+        }}
+      >
+        Confirm these answers and see my templates
+        <ChevronRight className="ml-2 h-4 w-4" />
+      </Button>
     </Panel>
   </div>;
 }
@@ -1730,15 +1752,15 @@ function DataModelSection({ studio }: { studio: Studio }) {
   });
   const createObjectField = async () => {
     if (!objectField.definitionId) return;
-    await api.post(
-      `/api/custom-objects/definitions/${objectField.definitionId}/fields`,
+    const result = await studio.createObjectField(
+      objectField.definitionId,
       {
         name: objectField.name,
         label: objectField.label,
         type: objectField.type,
         required: objectField.required,
         options:
-          objectField.type === "select"
+          objectField.type === "dropdown"
             ? objectField.options
                 .split(",")
                 .map((item) => item.trim())
@@ -1746,6 +1768,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
             : [],
       },
     );
+    if (!result) return;
     setObjectField({
       definitionId: "",
       name: "",
@@ -1754,7 +1777,6 @@ function DataModelSection({ studio }: { studio: Studio }) {
       required: false,
       options: "",
     });
-    await studio.reload();
   };
   const crm = state.draft.crm;
   return (
@@ -1766,7 +1788,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
             <p className="mt-3 text-xs font-bold text-slate-500">Best for: {template.bestFor}</p>
             <p className="mt-2 text-xs text-slate-500">{template.customerFields.length} extra customer fields · {template.objects.length} related record types</p>
           </button>)}
-          <button type="button" onClick={()=>studio.patch("dataModel",{mode:"blank",templateKey:"simple-crm"})} className={`rounded-2xl border-2 p-5 text-left ${state.draft.dataModel.mode==="blank"?"border-blue-600 bg-blue-50":"border-slate-200 hover:border-slate-400"}`}>
+          <button type="button" onClick={()=>studio.patch("dataModel",{mode:"blank",templateKey:"simple-crm",appliedTemplateKey:""})} className={`rounded-2xl border-2 p-5 text-left ${state.draft.dataModel.mode==="blank"?"border-blue-600 bg-blue-50":"border-slate-200 hover:border-slate-400"}`}>
             <p className="font-black">Build my own</p><p className="mt-1 text-sm text-slate-600">Start with the standard customer, contact, activity and task records, then add only what you need.</p>
           </button>
         </div>
@@ -1877,7 +1899,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
                 "textarea",
                 "number",
                 "date",
-                "select",
+                "dropdown",
                 "checkbox",
                 "url",
                 "email",
@@ -1887,7 +1909,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
               ))}
             </Select>
           </Field>
-          {field.type === "select" && (
+          {field.type === "dropdown" && (
             <Field label="Options" hint="Comma separated">
               <Input
                 value={field.options}
@@ -1911,7 +1933,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
             const result = await studio.createField({
               ...field,
               options:
-                field.type === "select"
+                field.type === "dropdown"
                   ? field.options
                       .split(",")
                       .map((item) => item.trim())
@@ -2061,7 +2083,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
                 "textarea",
                 "number",
                 "date",
-                "select",
+                "dropdown",
                 "checkbox",
                 "url",
                 "email",
@@ -2071,7 +2093,7 @@ function DataModelSection({ studio }: { studio: Studio }) {
               ))}
             </Select>
           </Field>
-          {objectField.type === "select" && (
+          {objectField.type === "dropdown" && (
             <Field label="Options">
               <Input
                 value={objectField.options}

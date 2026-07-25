@@ -93,6 +93,7 @@ export const BusinessProfileSchema = z.object({
   relationshipStyle: z.enum(['one-off', 'repeat', 'subscription', 'project', 'mixed']).default('repeat'),
   tracksProducts: z.boolean().default(false),
   booksAppointments: z.boolean().default(false),
+  confirmed: z.boolean().default(false),
 }).strict();
 
 export const DataModelChoiceSchema = z.object({
@@ -168,7 +169,7 @@ export const OnboardingConfigurationSchema = z.object({
   businessProfile: BusinessProfileSchema.default({
     sector: 'general',
     customerType: 'businesses', operatingModel: 'services', relationshipStyle: 'repeat',
-    tracksProducts: false, booksAppointments: false,
+    tracksProducts: false, booksAppointments: false, confirmed: false,
   }),
   dataModel: DataModelChoiceSchema.default({ mode: 'template', templateKey: 'b2b-services', appliedTemplateKey: '' }),
   organisation: OrganisationConfigurationSchema,
@@ -189,7 +190,7 @@ export const DEFAULT_ONBOARDING_CONFIGURATION: OnboardingConfiguration = {
   branding: { logoUrl: '', logoAsset: null, compactLogoUrl: '', monochromeLogoUrl: '', primaryColor: '#0f172a', secondaryColor: '#3b82f6', accentColor: '#10b981', surfaceColor: '#ffffff', backgroundColor: '#f8fafc', darkModeEnabled: true, density: 'comfortable', radius: 'subtle' },
   locale: { language: 'en-IE', secondaryLanguages: [], timezone: 'Europe/Dublin', currency: 'EUR', dateFormat: 'DD/MM/YYYY', timeFormat: '24h', weekStartsOn: 'monday', financialYearStartMonth: 1 },
   terminology: { organisation: { singular: 'Organisation', plural: 'Organisations' }, contact: { singular: 'Contact', plural: 'Contacts' }, engagement: { singular: 'Engagement', plural: 'Engagements' }, task: { singular: 'Task', plural: 'Tasks' } },
-  businessProfile: { sector: 'general', customerType: 'businesses', operatingModel: 'services', relationshipStyle: 'repeat', tracksProducts: false, booksAppointments: false },
+  businessProfile: { sector: 'general', customerType: 'businesses', operatingModel: 'services', relationshipStyle: 'repeat', tracksProducts: false, booksAppointments: false, confirmed: false },
   dataModel: { mode: 'template', templateKey: 'b2b-services', appliedTemplateKey: '' },
   organisation: { departments: [], teams: ['Default operating team'], sharedQueues: [], defaultOwnership: 'creator' },
   crm: { organisationStatuses: ['Prospect', 'Active client', 'Past client', 'Partner', 'Inactive'], engagementStages: ['Proposed', 'Active', 'Paused', 'Completed', 'Cancelled'], activityTypes: ['Note', 'Call', 'Email', 'Meeting', 'Message', 'Other'], taskPriorities: ['Low', 'Normal', 'High', 'Urgent'], defaultReminderMinutes: 1440, workingHoursStart: '09:00', workingHoursEnd: '17:30' },

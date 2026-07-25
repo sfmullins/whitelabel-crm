@@ -9,6 +9,7 @@ const profile = {
   relationshipStyle: "repeat" as const,
   tracksProducts: false,
   booksAppointments: false,
+  confirmed: true,
 };
 
 describe("data model template recommendations",()=>{

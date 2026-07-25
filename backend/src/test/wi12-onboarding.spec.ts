@@ -15,6 +15,8 @@ function validConfiguration(name='Northstar Operations'):OnboardingConfiguration
   const configuration=structuredClone(DEFAULT_ONBOARDING_CONFIGURATION);
   configuration.deployment={...configuration.deployment,mode:'managed',instanceSlug:'northstar-operations',instanceUrl:'https://crm.northstar.example',expectedUsers:48,distributionMethod:'managed-installer'};
   configuration.identity={...configuration.identity,displayName:name,legalName:`${name} Limited`,email:'owner@northstar.example',phone:'+353 1 555 0100',website:'https://northstar.example',address:'1 Operations Square, Dublin',supportEmail:'support@northstar.example',privacyEmail:'privacy@northstar.example'};
+  configuration.businessProfile={...configuration.businessProfile,confirmed:true};
+  configuration.dataModel={mode:'blank',templateKey:'simple-crm',appliedTemplateKey:''};
   configuration.security={...configuration.security,backupConfigured:true,backupEncryptionConfirmed:true,recoveryPlanConfirmed:true,restoreRehearsed:true,retentionPolicyReviewed:true,requireHttps:true};
   return configuration;
 }
@@ -39,6 +41,24 @@ describe('WI12 instance onboarding and deployment profiles',()=>{
     const onboarding=repository();const incomplete=structuredClone(DEFAULT_ONBOARDING_CONFIGURATION);incomplete.identity.displayName='Draft company';const saved=onboarding.saveDraft(incomplete,LOCAL_OWNER_USER_ID);expect(saved.draft.configuration.identity.displayName).toBe('Draft company');expect(saved.readiness.publishable).toBe(false);
     expect(saved.readiness.checks.find((check)=>check.id==='identity.complete')?.evidence).toMatchObject({displayName:true,email:false,phone:false,address:false});
     expect(()=>onboarding.saveDraft({...incomplete,apiToken:'not-allowed'},LOCAL_OWNER_USER_ID)).toThrow('cannot contain credentials');
+  });
+
+  it('requires the owner to confirm the business model and finish the chosen customer-record setup',()=>{
+    const onboarding=repository();
+    const configuration=validConfiguration();
+    configuration.businessProfile.confirmed=false;
+    configuration.dataModel={mode:'template',templateKey:'veterinary-practice',appliedTemplateKey:''};
+    let saved=onboarding.saveDraft(configuration,LOCAL_OWNER_USER_ID);
+    expect(saved.readiness.checks.find((check)=>check.id==='business-profile.confirmed')?.status).toBe('failed');
+    expect(saved.readiness.checks.find((check)=>check.id==='data-model.selected')?.status).toBe('failed');
+    expect(saved.readiness.publishable).toBe(false);
+
+    configuration.businessProfile.confirmed=true;
+    configuration.dataModel={mode:'blank',templateKey:'simple-crm',appliedTemplateKey:''};
+    saved=onboarding.saveDraft(configuration,LOCAL_OWNER_USER_ID,saved.draft.checksum);
+    expect(saved.readiness.checks.find((check)=>check.id==='business-profile.confirmed')?.status).toBe('passed');
+    expect(saved.readiness.checks.find((check)=>check.id==='data-model.selected')?.status).toBe('passed');
+    expect(saved.readiness.publishable).toBe(true);
   });
 
   it('rejects stale draft saves and publication attempts',async()=>{
