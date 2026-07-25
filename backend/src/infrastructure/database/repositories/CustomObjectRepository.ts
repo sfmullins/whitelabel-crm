@@ -50,6 +50,14 @@ export class CustomObjectRepository implements ICustomObjectRepository {
     db.delete(customObjectsDefinition).where(eq(customObjectsDefinition.id, id)).run();
   }
 
+  async updateDefinition(id:string,input:{name:string;pluralName:string;description?:string}):Promise<CustomObjectDefinition>{
+    assertResourceNotExtensionOwned(sqlite,'custom_entity',id);
+    db.update(customObjectsDefinition).set(input).where(eq(customObjectsDefinition.id,id)).run();
+    const row=db.select().from(customObjectsDefinition).where(eq(customObjectsDefinition.id,id)).get();
+    if(!row)throw new Error('Custom object definition was not found');
+    return this.mapDefRow(row);
+  }
+
   async createRecord(record: Omit<CustomObjectRecord, 'values'>): Promise<CustomObjectRecord> {
     if(!isExtensionResourceEnabled(sqlite,'custom_entity',record.objectDefinitionId))throw new Error('Custom object definition is disabled');
     const id = record.id || randomUUID();
