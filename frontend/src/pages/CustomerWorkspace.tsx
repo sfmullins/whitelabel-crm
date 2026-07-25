@@ -10,6 +10,8 @@ import {
   Layers, PlusCircle, Edit2, X, type LucideIcon
 } from 'lucide-react';
 import { Customer, Booking, Service, Invoice, CustomFieldDefinition, CustomObjectDefinition, CustomObjectRecord, Activity, ActivityType } from 'shared';
+import { useWorkspaceModel } from '../hooks/useWorkspaceModel';
+import { workspaceExperience } from '../lib/workspaceModel';
 
 type TimelineItem = {
   id?: string;
@@ -27,6 +29,10 @@ export default function CustomerWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const workspaceModel=useWorkspaceModel();
+  const experience=workspaceExperience(workspaceModel.data);
+  const customerSingular=workspaceModel.data?.customerSingular??'Customer';
+  const customerPlural=workspaceModel.data?.customerPlural??'Customers';
   
   const [activeTab, setActiveTab] = useState<'timeline' | 'bookings' | 'billing' | 'custom-objects'>('timeline');
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -401,7 +407,7 @@ export default function CustomerWorkspace() {
         onClick={() => navigate('/customers')}
         className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors font-medium"
       >
-        <ArrowLeft className="h-3.5 w-3.5" /> Back to Customers Directory
+        <ArrowLeft className="h-3.5 w-3.5" /> Back to {customerPlural}
       </button>
 
       {/* Main Grid Pane */}
@@ -557,7 +563,7 @@ export default function CustomerWorkspace() {
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              Custom Objects
+              {experience.specialist?`${experience.groupLabel} records`:'Related records'}
             </button>
           </div>
 
@@ -690,7 +696,7 @@ export default function CustomerWorkspace() {
                 <div className="border border-border/40 bg-card rounded-xl p-12 text-center shadow-sm">
                   <Calendar className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
                   <h4 className="font-bold text-sm mb-1">No appointments scheduled</h4>
-                  <p className="text-xs text-muted-foreground mb-4">Book a slot in the catalog for this customer.</p>
+                  <p className="text-xs text-muted-foreground mb-4">Book a slot in the catalogue for this {customerSingular.toLowerCase()}.</p>
                   <Button variant="outline" onClick={() => setIsNewBookingOpen(true)}>Book Slot</Button>
                 </div>
               ) : (
@@ -854,7 +860,7 @@ export default function CustomerWorkspace() {
 
                     {customObjRecords.length === 0 ? (
                       <div className="border border-dashed rounded-xl p-8 text-center text-muted-foreground text-xs">
-                        No {selectedCustomObjDef?.pluralName.toLowerCase()} records created for this customer.
+                        No {selectedCustomObjDef?.pluralName.toLowerCase()} records created for this {customerSingular.toLowerCase()}.
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -921,7 +927,7 @@ export default function CustomerWorkspace() {
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto flex flex-col">
             <div className="p-6 border-b border-border flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold">Edit Customer Profile</h2>
+                <h2 className="text-xl font-bold">Edit {customerSingular.toLowerCase()} profile</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">Modify properties and custom attributes.</p>
               </div>
               <button 

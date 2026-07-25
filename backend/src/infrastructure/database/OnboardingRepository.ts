@@ -104,6 +104,10 @@ export class OnboardingRepository {
     };
   }
 
+  getPublishedConfiguration():OnboardingConfiguration{
+    return structuredClone(this.publishedConfiguration());
+  }
+
   saveDraft(value:unknown,actorUserId:string|null,expectedChecksum?:string|null):OnboardingWorkspace{
     const configuration=asObject(value);
     if(containsSecretKey(configuration))throw new ValidationError('Onboarding configuration cannot contain credentials, passwords, tokens or private keys');

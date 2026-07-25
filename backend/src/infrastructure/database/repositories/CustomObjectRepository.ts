@@ -2,7 +2,7 @@ import { ICustomObjectRepository } from '../../../application/interfaces/IReposi
 import { CustomObjectDefinition, CustomObjectRecord } from 'shared';
 import { db,sqlite } from '../connection';
 import { customObjectsDefinition, customObjectsRecords, customObjectsValues, customFieldsDefinition } from '../schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, count } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { cleanNulls } from './utils';
 import { assertResourceNotExtensionOwned,isExtensionResourceEnabled } from '../ExtensionVisibility';
@@ -92,6 +92,13 @@ export class CustomObjectRepository implements ICustomObjectRepository {
     return result;
   }
 
+  async countRecords(definitionId:string):Promise<number>{
+    if(!isExtensionResourceEnabled(sqlite,'custom_entity',definitionId))return 0;
+    const result=db.select({value:count(customObjectsRecords.id)}).from(customObjectsRecords)
+      .where(eq(customObjectsRecords.objectDefinitionId,definitionId)).get();
+    return result?.value??0;
+  }
+
   async getRecordById(recordId: string): Promise<CustomObjectRecord | null> {
     const row = db.select().from(customObjectsRecords).where(eq(customObjectsRecords.id, recordId)).get();
     if (!row||!isExtensionResourceEnabled(sqlite,'custom_entity',row.objectDefinitionId)) return null;
@@ -109,9 +116,16 @@ export class CustomObjectRepository implements ICustomObjectRepository {
     const record=db.select().from(customObjectsRecords).where(eq(customObjectsRecords.id,recordId)).get();
     if(!record||!isExtensionResourceEnabled(sqlite,'custom_entity',record.objectDefinitionId))throw new Error('Custom object record is unavailable');
 
+    const definition=db.select().from(customObjectsDefinition)
+      .where(eq(customObjectsDefinition.id,record.objectDefinitionId)).get();
+    if(!definition)throw new Error('Custom object definition is unavailable');
+
     const fieldDefs = db.select()
       .from(customFieldsDefinition)
-      .where(inArray(customFieldsDefinition.name, names))
+      .where(and(
+        eq(customFieldsDefinition.entityType,definition.apiName),
+        inArray(customFieldsDefinition.name, names),
+      ))
       .all()
       .filter((definition)=>isExtensionResourceEnabled(sqlite,'custom_field',definition.id));
 

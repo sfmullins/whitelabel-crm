@@ -25,6 +25,7 @@ import Invoices from '../pages/Invoices';
 import Services from '../pages/Services';
 import SettingsPage from '../pages/Settings';
 import Onboarding from '../pages/Onboarding';
+import ModelRecords from '../pages/ModelRecords';
 
 export const router=createBrowserRouter([{
   path:'/',element:<MainLayout/>,children:[
@@ -49,6 +50,7 @@ export const router=createBrowserRouter([{
     {path:'operations-health',element:<OperationsHealth/>},
     {path:'customers',element:<Customers/>},
     {path:'customers/:id',element:<CustomerWorkspace/>},
+    {path:'records/:apiName',element:<ModelRecords/>},
     {path:'bookings',element:<Bookings/>},
     {path:'invoices',element:<Invoices/>},
     {path:'services',element:<Services/>},

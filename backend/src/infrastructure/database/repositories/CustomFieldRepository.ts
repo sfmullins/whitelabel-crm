@@ -66,7 +66,10 @@ export class CustomFieldRepository implements ICustomFieldRepository {
 
     const fieldDefs = db.select()
       .from(customFieldsDefinition)
-      .where(inArray(customFieldsDefinition.name, names))
+      .where(and(
+        eq(customFieldsDefinition.entityType,'customer'),
+        inArray(customFieldsDefinition.name, names),
+      ))
       .all()
       .filter((definition)=>isExtensionResourceEnabled(sqlite,'custom_field',definition.id));
 
