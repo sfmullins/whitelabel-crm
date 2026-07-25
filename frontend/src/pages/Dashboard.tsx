@@ -14,11 +14,12 @@ export default function Dashboard() {
     refetchInterval: 30_000,
   });
   if (metrics.isLoading||model.isLoading) return <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted"/>)}</div>;
+  if (model.isError || !model.data) return <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-destructive">{(model.error as Error)?.message || 'The active CRM model could not be loaded. Restart the local client so its database upgrade can complete.'}</div>;
   if (metrics.isError || !metrics.data) return <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-destructive">{(metrics.error as Error)?.message || 'Dashboard could not be loaded'}</div>;
   const data = metrics.data;
   const money = (cents: number) => new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
   const experience=workspaceExperience(model.data);
-  if(experience.specialist&&model.data)return <SpecialistDashboard data={data} model={model.data} money={money}/>;
+  if(experience.specialist)return <SpecialistDashboard data={data} model={model.data} money={money}/>;
   return <div className="space-y-7">
     <div><h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1><p className="mt-1 text-sm text-muted-foreground">Operational signals from persisted CRM and financial records.</p></div>
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

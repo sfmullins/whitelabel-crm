@@ -5,7 +5,7 @@ import { customFieldsDefinition, customFieldsValues } from '../schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { cleanNulls } from './utils';
-import { assertResourceNotExtensionOwned,isExtensionResourceEnabled } from '../ExtensionVisibility';
+import { assertResourceNotExtensionOwned,isExtensionResourceEnabled,releaseLegacyResourceBinding } from '../ExtensionVisibility';
 
 export class CustomFieldRepository implements ICustomFieldRepository {
   private mapDefRow(row: any): CustomFieldDefinition {
@@ -49,7 +49,10 @@ export class CustomFieldRepository implements ICustomFieldRepository {
 
   async deleteDefinition(id: string): Promise<void> {
     assertResourceNotExtensionOwned(sqlite,'custom_field',id);
-    db.delete(customFieldsDefinition).where(eq(customFieldsDefinition.id, id)).run();
+    sqlite.transaction(()=>{
+      releaseLegacyResourceBinding(sqlite,'custom_field',id);
+      db.delete(customFieldsDefinition).where(eq(customFieldsDefinition.id, id)).run();
+    })();
   }
 
   async updateDefinition(id:string,input:{label:string}):Promise<CustomFieldDefinition>{

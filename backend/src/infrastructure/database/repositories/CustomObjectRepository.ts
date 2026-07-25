@@ -5,7 +5,7 @@ import { customObjectsDefinition, customObjectsRecords, customObjectsValues, cus
 import { eq, and, inArray, count } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { cleanNulls } from './utils';
-import { assertResourceNotExtensionOwned,isExtensionResourceEnabled } from '../ExtensionVisibility';
+import { assertResourceNotExtensionOwned,getExtensionResourceOwner,isExtensionResourceEnabled,LEGACY_CUSTOMISATIONS_PACKAGE_KEY,releaseLegacyResourceBinding } from '../ExtensionVisibility';
 
 export class CustomObjectRepository implements ICustomObjectRepository {
   private mapDefRow(row: any): CustomObjectDefinition {
@@ -48,7 +48,7 @@ export class CustomObjectRepository implements ICustomObjectRepository {
 
   async getDefinitionImpact(id:string):Promise<{
     id:string;name:string;apiName:string;recordCount:number;fieldCount:number;
-    relationshipCount:number;linkedRecordCount:number;
+    relationshipCount:number;linkedRecordCount:number;managedByExtension:string|null;
   }|null>{
     const definition=sqlite.prepare(`
       SELECT id,name,api_name AS apiName FROM custom_objects_definition WHERE id=?
@@ -65,14 +65,24 @@ export class CustomObjectRepository implements ICustomObjectRepository {
       JOIN custom_object_relationships r ON r.id=rr.relationship_id
       WHERE r.source_definition_id=? OR r.target_definition_id=?
     `).get(id,id) as {count:number}).count;
-    return {...definition,recordCount,fieldCount,relationshipCount,linkedRecordCount};
+    const fieldIds=(sqlite.prepare(`SELECT id FROM custom_fields_definition WHERE entity_type=?`).all(definition.apiName) as Array<{id:string}>).map((row)=>row.id);
+    const owners=[
+      getExtensionResourceOwner(sqlite,'custom_entity',id),
+      ...fieldIds.map((fieldId)=>getExtensionResourceOwner(sqlite,'custom_field',fieldId)),
+    ];
+    const managedByExtension=owners.find((owner)=>owner&&owner.packageKey!==LEGACY_CUSTOMISATIONS_PACKAGE_KEY)?.packageKey??null;
+    return {...definition,recordCount,fieldCount,relationshipCount,linkedRecordCount,managedByExtension};
   }
 
   async deleteDefinition(id: string): Promise<void> {
-    assertResourceNotExtensionOwned(sqlite,'custom_entity',id);
     const impact=await this.getDefinitionImpact(id);
     if(!impact)throw new Error('Custom object definition was not found');
+    assertResourceNotExtensionOwned(sqlite,'custom_entity',id);
+    const fieldIds=(sqlite.prepare(`SELECT id FROM custom_fields_definition WHERE entity_type=?`).all(impact.apiName) as Array<{id:string}>).map((row)=>row.id);
+    for(const fieldId of fieldIds)assertResourceNotExtensionOwned(sqlite,'custom_field',fieldId);
     sqlite.transaction(()=>{
+      releaseLegacyResourceBinding(sqlite,'custom_entity',id);
+      for(const fieldId of fieldIds)releaseLegacyResourceBinding(sqlite,'custom_field',fieldId);
       sqlite.prepare(`DELETE FROM custom_fields_definition WHERE entity_type=?`).run(impact.apiName);
       sqlite.prepare(`DELETE FROM custom_objects_definition WHERE id=?`).run(id);
     })();

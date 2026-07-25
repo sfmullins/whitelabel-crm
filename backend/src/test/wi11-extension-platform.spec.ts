@@ -9,6 +9,7 @@ import { ExtensionRepository } from '../infrastructure/database/ExtensionReposit
 import { ExtensionRuntimeRepository } from '../infrastructure/database/ExtensionRuntimeRepository';
 import { ensureWi11ExtensionSchema } from '../infrastructure/database/wi11ExtensionSchema';
 import { CustomFieldRepository } from '../infrastructure/database/repositories/CustomFieldRepository';
+import { CustomObjectRepository } from '../infrastructure/database/repositories/CustomObjectRepository';
 import { LOCAL_OWNER_USER_ID } from '../infrastructure/database/wi8Wi9Schema';
 import { canonicalJson } from '../application/extensions/ExtensionManifest';
 import { startServer,type RunningServer } from '../server';
@@ -48,6 +49,15 @@ describe('WI11 extension platform',()=>{
     repository.setEnabled(installed.id,false);expect((await new CustomFieldRepository().getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(false);repository.setEnabled(installed.id,true);expect((await new CustomFieldRepository().getDefinitions('organisation')).some((definition)=>definition.id===field.id)).toBe(true);
     const upgraded=await repository.install(extensionPackage('1.1.0','Case number'),{actorUserId:owner.id,approvedCapabilities:approved}) as any;expect(upgraded.currentVersion).toBe('1.1.0');expect(upgraded.releases).toHaveLength(2);expect(upgraded.releases.filter((release:any)=>release.status==='active')).toHaveLength(1);expect((getSqliteConnection().prepare(`SELECT label FROM custom_fields_definition WHERE id=?`).get(field.id) as {label:string}).label).toBe('Case number');
     const attempts=getSqliteConnection().prepare(`SELECT status FROM extension_install_attempts WHERE package_key='good-order.case-management'`).all() as Array<{status:string}>;expect(attempts).toHaveLength(2);expect(attempts.every((attempt)=>attempt.status==='succeeded')).toBe(true);
+    const objectRepository=new CustomObjectRepository();
+    const impact=await objectRepository.getDefinitionImpact(entity.id);
+    expect(impact?.managedByExtension).toBe('good-order.case-management');
+    await expect(objectRepository.deleteDefinition(entity.id)).rejects.toMatchObject({
+      statusCode:409,
+      code:'EXTENSION_RESOURCE_MANAGED',
+      details:{packageKey:'good-order.case-management',managePath:'/extensions'},
+    });
+    expect(getSqliteConnection().prepare(`SELECT 1 FROM custom_objects_definition WHERE id=?`).get(entity.id)).toBeTruthy();
   });
 
   it('resolves runtime metadata, executes reports, instantiates disabled workflows and verifies stored assets',async()=>{
@@ -67,6 +77,6 @@ describe('WI11 extension platform',()=>{
 
   it('enforces runtime, read and manage permissions over the extension API',async()=>{
     const security=new SecurityRepository();const owner=security.resolveLocalUser(LOCAL_OWNER_USER_ID)!;const ownerSession=security.createSession(owner.id);const manager=security.createUser({email:'wi11-manager@example.test',displayName:'WI11 Manager',roleKeys:['manager'],password:'manager password long enough'});const managerSession=security.createSession(manager.id);const viewer=security.createUser({email:'wi11-viewer@example.test',displayName:'WI11 Viewer',roleKeys:['viewer'],password:'viewer password long enough'});const viewerSession=security.createSession(viewer.id);let server:RunningServer|null=null;
-    try{server=await startServer({host:'127.0.0.1',port:0});expect((await fetch(`${server.url}/api/extensions/runtime`,{headers:bearer(viewerSession.token)})).status).toBe(200);expect((await fetch(`${server.url}/api/extensions`,{headers:bearer(viewerSession.token)})).status).toBe(403);expect((await fetch(`${server.url}/api/extensions`,{headers:bearer(managerSession.token)})).status).toBe(200);expect((await fetch(`${server.url}/api/extensions/validate`,{method:'POST',headers:bearer(managerSession.token),body:JSON.stringify({package:extensionPackage(),approvedCapabilities:approved})})).status).toBe(403);const installed=await fetch(`${server.url}/api/extensions/install`,{method:'POST',headers:bearer(ownerSession.token),body:JSON.stringify({package:extensionPackage(),approvedCapabilities:approved})});expect(installed.status).toBe(201);const body=await installed.json() as any;expect(body.packageKey).toBe('good-order.case-management');const event=getSqliteConnection().prepare(`SELECT event_type,aggregate_id FROM platform_events WHERE event_type='extension.installed.v1'`).get() as {event_type:string;aggregate_id:string};expect(event.aggregate_id).toBe(body.id);}finally{await server?.close();}
+    try{server=await startServer({host:'127.0.0.1',port:0});expect((await fetch(`${server.url}/api/extensions/runtime`,{headers:bearer(viewerSession.token)})).status).toBe(200);expect((await fetch(`${server.url}/api/extensions`,{headers:bearer(viewerSession.token)})).status).toBe(403);expect((await fetch(`${server.url}/api/extensions`,{headers:bearer(managerSession.token)})).status).toBe(200);expect((await fetch(`${server.url}/api/extensions/validate`,{method:'POST',headers:bearer(managerSession.token),body:JSON.stringify({package:extensionPackage(),approvedCapabilities:approved})})).status).toBe(403);const installed=await fetch(`${server.url}/api/extensions/install`,{method:'POST',headers:bearer(ownerSession.token),body:JSON.stringify({package:extensionPackage(),approvedCapabilities:approved})});expect(installed.status).toBe(201);const body=await installed.json() as any;expect(body.packageKey).toBe('good-order.case-management');const entity=getSqliteConnection().prepare(`SELECT id,name FROM custom_objects_definition WHERE api_name='good_order_case_management__case_file'`).get() as {id:string;name:string};const blocked=await fetch(`${server.url}/api/custom-objects/definitions/${entity.id}`,{method:'DELETE',headers:bearer(ownerSession.token),body:JSON.stringify({permanent:true,confirmation:entity.name})});expect(blocked.status).toBe(409);expect(await blocked.json()).toMatchObject({error:'EXTENSION_RESOURCE_MANAGED',details:{packageKey:'good-order.case-management',managePath:'/extensions'}});const event=getSqliteConnection().prepare(`SELECT event_type,aggregate_id FROM platform_events WHERE event_type='extension.installed.v1'`).get() as {event_type:string;aggregate_id:string};expect(event.aggregate_id).toBe(body.id);}finally{await server?.close();}
   });
 });
