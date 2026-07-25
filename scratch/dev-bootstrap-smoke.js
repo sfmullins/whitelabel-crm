@@ -8,6 +8,7 @@ const root=path.resolve(__dirname,'..');
 const rootPackage=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
 assert.equal(rootPackage.scripts.predev,'npm run dev:prepare','The root dev command must prepare runtime workspace artifacts first');
 assert.match(rootPackage.scripts['dev:prepare']||'',/build -w shared/,'dev:prepare must build the shared runtime package');
+assert.match(rootPackage.scripts['dev:prepare']||'',/db:migrate/,'dev:prepare must upgrade an existing local database before either application process starts');
 
 const onboarding=require(path.join(root,'shared','dist','cjs','onboarding.js'));
 assert.ok(onboarding.OnboardingStatusSchema,'OnboardingStatusSchema must exist in the built CommonJS runtime');

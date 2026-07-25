@@ -38,14 +38,31 @@ if(!definition){
   database.close();
   process.exit(0);
 }
-const hasTable=(name)=>Boolean(database.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name=?`).get(name));
+const hasTable=(connection,name)=>Boolean(connection.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name=?`).get(name));
 const count=(sql,...values)=>database.prepare(sql).get(...values).count;
 const impact={
   records:count(`SELECT count(*) AS count FROM custom_objects_records WHERE object_definition_id=?`,definition.id),
   fields:count(`SELECT count(*) AS count FROM custom_fields_definition WHERE entity_type=?`,apiName),
-  relationships:hasTable('custom_object_relationships')
+  relationships:hasTable(database,'custom_object_relationships')
     ?count(`SELECT count(*) AS count FROM custom_object_relationships WHERE source_definition_id=? OR target_definition_id=?`,definition.id,definition.id):0,
 };
+const fieldIds=database.prepare(`SELECT id FROM custom_fields_definition WHERE entity_type=?`).all(apiName).map((row)=>row.id);
+const resources=[{type:'custom_entity',id:definition.id},...fieldIds.map((id)=>({type:'custom_field',id}))];
+if(hasTable(database,'extension_bindings')&&hasTable(database,'extensions')){
+  const owner=database.prepare(`
+    SELECT e.package_key AS packageKey
+    FROM extension_bindings b
+    JOIN extensions e ON e.id=b.extension_id
+    WHERE b.resource_type=? AND b.resource_id=?
+  `);
+  const managed=resources.map((resource)=>owner.get(resource.type,resource.id))
+    .find((row)=>row&&row.packageKey!=='legacy-customisations');
+  if(managed){
+    console.error(`Refusing deletion. This object or one of its fields is supplied by extension package ${managed.packageKey}. Manage that package from Extensions.`);
+    database.close();
+    process.exit(2);
+  }
+}
 const stamp=new Date().toISOString().replaceAll(':','-').replaceAll('.','-');
 const backupDirectory=path.join(path.dirname(databasePath),'backups');
 fs.mkdirSync(backupDirectory,{recursive:true});
@@ -57,6 +74,21 @@ fs.copyFileSync(databasePath,backupPath,fs.constants.COPYFILE_EXCL);
 const writable=new Database(databasePath);
 writable.pragma('foreign_keys = ON');
 writable.transaction(()=>{
+  if(hasTable(writable,'extension_bindings')&&hasTable(writable,'extensions')){
+    const legacyBindings=writable.prepare(`
+      SELECT b.id,b.extension_id AS extensionId,b.contribution_type AS contributionType,b.contribution_key AS contributionKey
+      FROM extension_bindings b
+      JOIN extensions e ON e.id=b.extension_id
+      WHERE b.resource_type=? AND b.resource_id=? AND e.package_key='legacy-customisations'
+    `);
+    for(const resource of resources){
+      const binding=legacyBindings.get(resource.type,resource.id);
+      if(!binding)continue;
+      writable.prepare(`DELETE FROM extension_bindings WHERE id=?`).run(binding.id);
+      writable.prepare(`DELETE FROM extension_contributions WHERE extension_id=? AND contribution_type=? AND contribution_key=?`)
+        .run(binding.extensionId,binding.contributionType,binding.contributionKey);
+    }
+  }
   writable.prepare(`DELETE FROM custom_fields_definition WHERE entity_type=?`).run(apiName);
   writable.prepare(`DELETE FROM custom_objects_definition WHERE id=?`).run(definition.id);
 })();

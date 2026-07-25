@@ -3,6 +3,7 @@ import { cleanupTempDatabase,setupTempDatabase } from './crm/helpers';
 import { runSeed } from '../infrastructure/database/seed';
 import { getSqliteConnection } from '../infrastructure/database/connection';
 import { SecurityRepository } from '../infrastructure/database/SecurityRepository';
+import { ensureWi11ExtensionSchema } from '../infrastructure/database/wi11ExtensionSchema';
 import { startServer,type RunningServer } from '../server';
 
 describe('workspace design, navigation and bulk import',()=>{
@@ -85,13 +86,20 @@ describe('workspace design, navigation and bulk import',()=>{
     await json('/api/workspace-design/relationships','POST',{sourceDefinitionId:source.id,targetType:'custom_object',targetDefinitionId:target.id,name:'target',label:'Target',cardinality:'many-to-one'});
     const customer=getSqliteConnection().prepare(`SELECT id FROM customers ORDER BY created_at LIMIT 1`).get() as {id:string};
     await json('/api/custom-objects/records','POST',{objectDefinitionId:source.id,customerId:customer.id,values:{value:'remove me'}});
+    ensureWi11ExtensionSchema(getSqliteConnection());
+    expect(getSqliteConnection().prepare(`
+      SELECT e.package_key FROM extension_bindings b
+      JOIN extensions e ON e.id=b.extension_id
+      WHERE b.resource_type='custom_entity' AND b.resource_id=?
+    `).get(source.id)).toMatchObject({package_key:'legacy-customisations'});
     const impact=await json(`/api/custom-objects/definitions/${source.id}/impact`);
-    expect(impact.payload).toMatchObject({name:'SDS',apiName:'sds',recordCount:1,fieldCount:1,relationshipCount:1});
+    expect(impact.payload).toMatchObject({name:'SDS',apiName:'sds',recordCount:1,fieldCount:1,relationshipCount:1,managedByExtension:null});
     expect((await json(`/api/custom-objects/definitions/${source.id}`,'DELETE',{permanent:true,confirmation:'sds'})).response.status).toBe(409);
     expect((await json(`/api/custom-objects/definitions/${source.id}`,'DELETE',{permanent:true,confirmation:'SDS'})).response.status).toBe(204);
     const connection=getSqliteConnection();
     expect(connection.prepare(`SELECT 1 FROM custom_objects_definition WHERE id=?`).get(source.id)).toBeUndefined();
     expect(connection.prepare(`SELECT 1 FROM custom_fields_definition WHERE entity_type='sds'`).get()).toBeUndefined();
+    expect(connection.prepare(`SELECT 1 FROM extension_bindings WHERE resource_id=?`).get(source.id)).toBeUndefined();
     expect(connection.pragma('integrity_check',{simple:true})).toBe('ok');
   });
 });

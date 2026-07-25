@@ -15,7 +15,7 @@
   "scripts": {
     "install:all": "npm ci",
     "predev": "npm run dev:prepare",
-    "dev:prepare": "npm run build -w shared && node scratch/dev-bootstrap-smoke.js",
+    "dev:prepare": "npm run build -w shared && npm run db:migrate && node scratch/dev-bootstrap-smoke.js",
     "dev": "concurrently --kill-others \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build -w shared && npm run build -w backend && npm run build -w frontend && npm run build -w desktop && node scratch/generate-licenses.js",
     "check:npm-hygiene": "node scratch/npm-hygiene.js && node scratch/npm-hygiene-self-test.js && node scratch/workflow-hygiene.js && npm ls --all",
