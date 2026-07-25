@@ -183,6 +183,18 @@ export const OnboardingConfigurationSchema = z.object({
 
 export type OnboardingConfiguration = z.infer<typeof OnboardingConfigurationSchema>;
 
+export const DATA_MODEL_LABELS: Record<string, string> = {
+  'b2b-services': 'Business services',
+  'b2c-services': 'Consumer services',
+  ecommerce: 'Online retail',
+  'physical-retail': 'Shop or physical retail',
+  'after-school-childcare': 'After-school childcare',
+  'pet-behaviour': 'Pet behaviour practice',
+  'veterinary-practice': 'Veterinary practice',
+  'pet-grooming': 'Pet grooming',
+  'simple-crm': 'Simple CRM',
+};
+
 export const DEFAULT_ONBOARDING_CONFIGURATION: OnboardingConfiguration = {
   schemaVersion: 1,
   deployment: { mode: 'managed', instanceSlug: 'my-business', instanceUrl: '', expectedUsers: 10, locations: ['Primary location'], minimumClientVersion: '1.0.0', distributionMethod: 'managed-installer' },
