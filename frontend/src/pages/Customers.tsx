@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -9,10 +9,13 @@ import {
   ChevronRight, Settings as SettingsIcon, AlertCircle
 } from 'lucide-react';
 import { Customer, CustomFieldDefinition } from 'shared';
+import { useWorkspaceModel } from '../hooks/useWorkspaceModel';
+import { workspaceExperience } from '../lib/workspaceModel';
 
 export default function Customers() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams,setSearchParams]=useSearchParams();
   const [search, setSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -29,11 +32,21 @@ export default function Customers() {
   const [tagInput, setTagInput] = useState('');
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [errorMsg, setErrorMsg] = useState('');
+  const workspaceModel=useWorkspaceModel();
+  const experience=workspaceExperience(workspaceModel.data);
+  const customerSingular=workspaceModel.data?.customerSingular??'Customer';
+  const customerPlural=workspaceModel.data?.customerPlural??'Customers';
+
+  React.useEffect(()=>{
+    if(searchParams.get('action')!=='create')return;
+    setIsModalOpen(true);
+    const next=new URLSearchParams(searchParams);next.delete('action');setSearchParams(next,{replace:true});
+  },[searchParams,setSearchParams]);
 
   // Queries
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
     queryKey: ['customers', search],
-    queryFn: () => api.get(`/api/customers?search=${search}`),
+    queryFn: () => api.get(`/api/customers?search=${encodeURIComponent(search)}`),
   });
 
   const { data: customFieldDefs = [] } = useQuery<CustomFieldDefinition[]>({
@@ -78,8 +91,12 @@ export default function Customers() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
-      setErrorMsg('First Name, Last Name, and Email are required.');
+    if (!firstName.trim() || !lastName.trim()) {
+      setErrorMsg('First name and last name are required.');
+      return;
+    }
+    if(!email.trim()&&!phone.trim()&&!mobile.trim()){
+      setErrorMsg('Add at least one way to contact this person: email, phone or mobile.');
       return;
     }
 
@@ -135,16 +152,17 @@ export default function Customers() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Customers</h1>
+          <p className="text-xs font-bold uppercase tracking-wider text-primary">{workspaceModel.data?.templateName} model active</p>
+          <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{customerPlural}</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your client directory, review histories, and update properties.
+            {experience.specialist?`Manage the people connected to your ${experience.groupLabel.toLowerCase()} records.`:'Manage your customer directory, review histories and update details.'}
           </p>
         </div>
         <Button 
           onClick={() => setIsModalOpen(true)}
           className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 self-start sm:self-center"
         >
-          <Plus className="h-4 w-4" /> Add Customer
+          <Plus className="h-4 w-4" /> Add {customerSingular.toLowerCase()}
         </Button>
       </div>
 
@@ -153,7 +171,7 @@ export default function Customers() {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search customers by name, company, email..."
+            placeholder={`Search ${customerPlural.toLowerCase()} by name, email or phone…`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 bg-background border-border/80"
@@ -213,11 +231,11 @@ export default function Customers() {
       ) : filteredCustomers.length === 0 ? (
         <div className="border border-border/40 bg-card rounded-xl p-12 text-center max-w-lg mx-auto shadow-sm">
           <User className="h-12 w-12 text-muted-foreground/60 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-1">No customers found</h3>
+          <h3 className="text-lg font-semibold mb-1">No {customerPlural.toLowerCase()} found</h3>
           <p className="text-muted-foreground text-sm mb-6">
             {search || selectedTag 
-              ? "We couldn't find any clients matching your filter criteria." 
-              : "Let's build your client list! Add your first customer profile to get started."}
+              ? `We couldn't find any ${customerPlural.toLowerCase()} matching those filters.`
+              : `Add your first ${customerSingular.toLowerCase()} to start using the ${workspaceModel.data?.templateName??'CRM'} model.`}
           </p>
           {(search || selectedTag) && (
             <Button variant="outline" onClick={() => { setSearch(''); setSelectedTag(null); }}>
@@ -297,7 +315,7 @@ export default function Customers() {
         </div>
       )}
 
-      {/* Create Customer Dialog Modal */}
+      {/* Create customer/contact dialog */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto flex flex-col">
@@ -305,8 +323,8 @@ export default function Customers() {
             {/* Header */}
             <div className="p-6 border-b border-border flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-bold">Add New Customer</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Register a new client profile in your local database.</p>
+                <h2 className="text-xl font-bold">Add {customerSingular.toLowerCase()}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">This person can then be connected to {workspaceModel.data?.definitions.map((item)=>item.pluralName.toLowerCase()).join(', ')||'the records you use'}.</p>
               </div>
               <button 
                 onClick={() => { setIsModalOpen(false); resetForm(); }}
@@ -349,7 +367,7 @@ export default function Customers() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold">Email *</label>
+                    <label className="text-xs font-semibold">Email</label>
                     <Input 
                       type="email"
                       value={email} 
@@ -358,11 +376,11 @@ export default function Customers() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold">Company</label>
+                    <label className="text-xs font-semibold">{experience.specialist?'Household or organisation (optional)':'Company'}</label>
                     <Input 
                       value={company} 
                       onChange={(e) => setCompany(e.target.value)}
-                      placeholder="e.g. Acme Corp"
+                      placeholder={experience.specialist?'e.g. Murphy family':'e.g. Acme Corp'}
                     />
                   </div>
                 </div>
