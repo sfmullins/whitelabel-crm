@@ -33,6 +33,16 @@ export default function SettingsPage() {
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<Settings>({
     resolver: zodResolver(SettingsSchema),
   });
+  const selectedTimezone = watch('timezone');
+  const commonTimezones = new Set([
+    'Europe/Dublin',
+    'Europe/London',
+    'America/Los_Angeles',
+    'America/Denver',
+    'America/Chicago',
+    'America/New_York',
+    'UTC',
+  ]);
 
   useEffect(() => {
     if (settings) {
@@ -419,6 +429,8 @@ export default function SettingsPage() {
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground">Timezone</label>
                     <select {...register('timezone')} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      {selectedTimezone && !commonTimezones.has(selectedTimezone) && <option value={selectedTimezone}>{selectedTimezone} (saved setting)</option>}
+                      <option value="Europe/Dublin">Dublin (Ireland)</option>
                       <option value="America/Los_Angeles">Pacific Time (PT)</option>
                       <option value="America/Denver">Mountain Time (MT)</option>
                       <option value="America/Chicago">Central Time (CT)</option>

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type Database from 'better-sqlite3';
+import { isSupportedTimeZone } from 'shared';
 import {
   DeploymentProfileSchema,
   OnboardingConfigurationSchema,
@@ -136,6 +137,9 @@ export class OnboardingRepository {
     const dataModel=configuration.dataModel;
     const dataModelReady=dataModel?.mode==='blank'||Boolean(dataModel?.templateKey&&dataModel?.appliedTemplateKey===dataModel.templateKey);
     add({id:'data-model.selected',category:'business-model',status:dataModelReady?'passed':'failed',severity:'required',title:'Customer record model',explanation:dataModelReady?(dataModel?.mode==='blank'?'A blank customer model was explicitly selected.':'The selected customer-record template has been applied.'):'Choose a blank model or apply the selected customer-record template.',remediation:'Choose and apply a recommended template, or explicitly start with a blank model.',section:'data-model',evidence:{mode:dataModel?.mode??null,templateKey:dataModel?.templateKey??null,appliedTemplateKey:dataModel?.appliedTemplateKey??null}});
+    const timezone=configuration.locale?.timezone;
+    const timezoneSupported=Boolean(timezone&&isSupportedTimeZone(timezone));
+    add({id:'locale.timezone',category:'locale',status:timezoneSupported?'passed':'failed',severity:'required',title:'Regional time zone',explanation:timezoneSupported?'The selected regional time zone is supported.':'The time zone is not recognised and would prevent date-based workspace views from loading.',remediation:'Select a supported regional time zone.',section:'locale',evidence:{timezone:timezone??null}});
     const deployment=configuration.deployment;const managed=deployment?.mode==='managed';let deploymentStatus:ReadinessCheck['status']='passed';let deploymentExplanation='Standalone deployment is explicitly selected.';
     if(managed){try{const url=new URL(deployment?.instanceUrl||'');deploymentStatus=(configuration.security?.requireHttps!==false&&url.protocol!=='https:')?'failed':'passed';deploymentExplanation=deploymentStatus==='passed'?'The managed instance URL is valid.':'Managed deployments require HTTPS.';}catch{deploymentStatus='failed';deploymentExplanation='Managed deployments require a valid absolute instance URL.';}}
     add({id:'deployment.topology',category:'deployment',status:deploymentStatus,severity:'required',title:'Deployment topology',explanation:deploymentExplanation,remediation:'Choose the intended topology and provide the managed instance URL.',section:'deployment',evidence:{mode:deployment?.mode??null,instanceUrl:deployment?.instanceUrl??null}});

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type Database from 'better-sqlite3';
+import { normalizeLegacyTimeZone } from 'shared';
 import { DEFAULT_ONBOARDING_CONFIGURATION,OnboardingConfigurationSchema,type OnboardingConfiguration } from 'shared/onboarding';
 import { LOCAL_OWNER_USER_ID } from './wi8Wi9Schema';
 import { CredentialVault } from '../security/CredentialVault';
@@ -34,7 +35,19 @@ function normalizeEditableConfiguration(value:unknown):unknown{
     ...clone(DEFAULT_ONBOARDING_CONFIGURATION.dataModel),
     ...(dataModel&&typeof dataModel==='object'&&!Array.isArray(dataModel)?dataModel:{}),
   };
+  const locale=configuration.locale;
+  if(locale&&typeof locale==='object'&&!Array.isArray(locale)){
+    const editableLocale=clone(locale as Record<string,unknown>);
+    editableLocale.timezone=normalizeLegacyTimeZone(editableLocale.timezone,'Europe/Dublin');
+    configuration.locale=editableLocale;
+  }
   return configuration;
+}
+function normalizeLegacySettingsTimezone(connection:Database.Database):void{
+  const row=connection.prepare(`SELECT timezone FROM settings WHERE id='default'`).get() as {timezone?:string}|undefined;
+  if(!row)return;
+  const timezone=normalizeLegacyTimeZone(row.timezone,'Europe/Dublin');
+  if(timezone!==row.timezone)connection.prepare(`UPDATE settings SET timezone=?,updated_at=? WHERE id='default'`).run(timezone,now());
 }
 function normalizeLegacyDrafts(connection:Database.Database):void{
   const rows=connection.prepare(`SELECT id,configuration_json FROM instance_configuration_revisions WHERE state='draft'`).all() as Array<{id:string;configuration_json:string}>;
@@ -67,7 +80,7 @@ function legacyConfiguration(connection:Database.Database):OnboardingConfigurati
   configuration.branding.secondaryColor=String(row.secondary_color||'#3b82f6');
   configuration.branding.accentColor=String(row.accent_color||'#10b981');
   configuration.locale.currency=String(row.currency||'EUR').toUpperCase();
-  configuration.locale.timezone=String(row.timezone||'Europe/Dublin');
+  configuration.locale.timezone=normalizeLegacyTimeZone(row.timezone,'Europe/Dublin');
   const dateFormat=String(row.date_format||'DD/MM/YYYY');
   configuration.locale.dateFormat=(['DD/MM/YYYY','MM/DD/YYYY','YYYY-MM-DD'].includes(dateFormat)?dateFormat:'DD/MM/YYYY') as OnboardingConfiguration['locale']['dateFormat'];
   configuration.financial.invoiceFooter=String(row.invoice_footer||'Thank you for your business.');
@@ -190,6 +203,7 @@ export function ensureWi12OnboardingSchema(connection:Database.Database,options:
   const rolePermissionStatement=connection.prepare(`INSERT OR IGNORE INTO role_permissions(role_id,permission_key,created_at) VALUES(?,?,?)`);
   for(const role of roleRows)for(const permission of WI12_PERMISSIONS)rolePermissionStatement.run(role.id,permission[0],timestamp);
 
+  normalizeLegacySettingsTimezone(connection);
   const existing=connection.prepare(`SELECT id FROM crm_instances LIMIT 1`).get() as {id:string}|undefined;
   if(existing){normalizeLegacyDrafts(connection);return;}
   const initial=options.initialConfiguration?clone(options.initialConfiguration):(legacyConfiguration(connection)??clone(DEFAULT_ONBOARDING_CONFIGURATION));
