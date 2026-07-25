@@ -26,6 +26,8 @@ import Services from '../pages/Services';
 import SettingsPage from '../pages/Settings';
 import Onboarding from '../pages/Onboarding';
 import ModelRecords from '../pages/ModelRecords';
+import WorkspaceDesign from '../pages/WorkspaceDesign';
+import BulkImport from '../pages/BulkImport';
 
 export const router=createBrowserRouter([{
   path:'/',element:<MainLayout/>,children:[
@@ -51,6 +53,8 @@ export const router=createBrowserRouter([{
     {path:'customers',element:<Customers/>},
     {path:'customers/:id',element:<CustomerWorkspace/>},
     {path:'records/:apiName',element:<ModelRecords/>},
+    {path:'workspace-design',element:<WorkspaceDesign/>},
+    {path:'bulk-import',element:<BulkImport/>},
     {path:'bookings',element:<Bookings/>},
     {path:'invoices',element:<Invoices/>},
     {path:'services',element:<Services/>},

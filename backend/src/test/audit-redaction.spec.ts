@@ -21,4 +21,10 @@ describe('audit metadata redaction',()=>{
       safe:'retained',
     });
   });
+  it('does not duplicate bulk-import source rows into audit snapshots',()=>{
+    const personal='Aisling,Byrne,aisling@example.test';
+    const redacted=redactAuditValue({csvData:`First,Last,Email\n${personal}`,previewRows:[{Email:'aisling@example.test'}],rowCount:1});
+    expect(JSON.stringify(redacted)).not.toContain('aisling@example.test');
+    expect(redacted).toEqual({csvData:'[redacted]',previewRows:'[redacted]',rowCount:1});
+  });
 });

@@ -625,8 +625,12 @@ export function useProvisioningWorkspace(
   };
   const deleteField = (id: string) =>
     run("delete-field", () => api.delete(`/api/custom-fields/definitions/${id}`), "Field removed.");
-  const deleteObject = (id: string) =>
-    run("delete-object", () => api.delete(`/api/custom-objects/definitions/${id}`), "Related record type removed.");
+  const deleteObject = (id: string, name: string) =>
+    run(
+      "delete-object",
+      () => api.deleteJson(`/api/custom-objects/definitions/${id}`, { permanent: true, confirmation: name }),
+      "Related record type removed.",
+    );
   const renameField = (id:string,label:string) =>
     run("rename-field",()=>api.patch(`/api/custom-fields/definitions/${id}`,{label}),"Field renamed.");
   const renameObject = (id:string,input:{name:string;pluralName:string;description?:string}) =>
