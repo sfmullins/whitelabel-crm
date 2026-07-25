@@ -98,6 +98,7 @@ export interface ICustomObjectRepository {
   deleteDefinition(id: string): Promise<void>;
   createRecord(record: Omit<CustomObjectRecord, 'values'>): Promise<CustomObjectRecord>;
   getRecords(definitionId: string, customerId?: string): Promise<CustomObjectRecord[]>;
+  countRecords(definitionId: string): Promise<number>;
   getRecordById(recordId: string): Promise<CustomObjectRecord | null>;
   deleteRecord(recordId: string): Promise<void>;
   saveRecordValues(recordId: string, values: Record<string, string>): Promise<void>;
