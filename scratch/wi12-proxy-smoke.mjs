@@ -52,10 +52,17 @@ async function publishAndVerifyRestart(port){
   try{
     const workspaceResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/workspace`,{headers:{origin:proxy.origin}}),200,'Pre-publication onboarding workspace');
     const workspace=await workspaceResponse.json();
-    const validationResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/validate`,{method:'POST',headers:{origin:proxy.origin,'content-type':'application/json'},body:JSON.stringify({expectedChecksum:workspace.draft.checksum})}),200,'Onboarding validation');
+    const configuration={
+      ...workspace.draft.configuration,
+      businessProfile:{...workspace.draft.configuration.businessProfile,confirmed:true},
+      dataModel:{mode:'blank',templateKey:'simple-crm',appliedTemplateKey:''},
+    };
+    const decisionResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/draft`,{method:'PUT',headers:{origin:proxy.origin,'content-type':'application/json'},body:JSON.stringify({configuration,expectedChecksum:workspace.draft.checksum})}),200,'Owner business-model decisions');
+    const decidedWorkspace=await decisionResponse.json();
+    const validationResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/validate`,{method:'POST',headers:{origin:proxy.origin,'content-type':'application/json'},body:JSON.stringify({expectedChecksum:decidedWorkspace.draft.checksum})}),200,'Onboarding validation');
     const validation=await validationResponse.json();
     if(!validation.publishable)throw new Error(`Demo onboarding fixture is not publishable: ${JSON.stringify(validation.checks?.filter((check)=>check.status==='failed')??[])}`);
-    await expectStatus(await fetch(`${proxy.origin}/api/onboarding/publish`,{method:'POST',headers:{origin:proxy.origin,'content-type':'application/json'},body:JSON.stringify({expectedChecksum:workspace.draft.checksum})}),200,'Onboarding publication');
+    await expectStatus(await fetch(`${proxy.origin}/api/onboarding/publish`,{method:'POST',headers:{origin:proxy.origin,'content-type':'application/json'},body:JSON.stringify({expectedChecksum:decidedWorkspace.draft.checksum})}),200,'Onboarding publication');
     const activeStatusResponse=await expectStatus(await fetch(`${proxy.origin}/api/onboarding/status`,{headers:{origin:proxy.origin}}),200,'Active lifecycle status');
     const activeStatus=await activeStatusResponse.json();
     if(!activeStatus.canAccessWorkspace||activeStatus.status!=='active'||!activeStatus.hasPublishedRevision)throw new Error(`Published lifecycle is inconsistent: ${JSON.stringify(activeStatus)}`);
