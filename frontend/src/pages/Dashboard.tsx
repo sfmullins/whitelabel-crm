@@ -1,19 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, BriefcaseBusiness, Building2, CalendarClock, CircleDollarSign, MessageSquare, WalletCards } from 'lucide-react';
-import type { DashboardOperationalSummary } from 'shared';
+import { AlertTriangle, BriefcaseBusiness, Building2, CalendarClock, CheckCircle2, CircleDollarSign, Layers, MessageSquare, Settings, Users, WalletCards } from 'lucide-react';
+import type { DashboardOperationalSummary,WorkspaceModel } from 'shared';
 import { api } from '../lib/api';
+import { useWorkspaceModel } from '../hooks/useWorkspaceModel';
+import { definitionRoute,workspaceExperience } from '../lib/workspaceModel';
 
 export default function Dashboard() {
+  const model=useWorkspaceModel();
   const metrics = useQuery<DashboardOperationalSummary>({
     queryKey: ['workspace-dashboard'],
     queryFn: () => api.get('/api/workspace/dashboard'),
     refetchInterval: 30_000,
   });
-  if (metrics.isLoading) return <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted"/>)}</div>;
+  if (metrics.isLoading||model.isLoading) return <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted"/>)}</div>;
   if (metrics.isError || !metrics.data) return <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-destructive">{(metrics.error as Error)?.message || 'Dashboard could not be loaded'}</div>;
   const data = metrics.data;
   const money = (cents: number) => new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+  const experience=workspaceExperience(model.data);
+  if(experience.specialist&&model.data)return <SpecialistDashboard data={data} model={model.data} money={money}/>;
   return <div className="space-y-7">
     <div><h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1><p className="mt-1 text-sm text-muted-foreground">Operational signals from persisted CRM and financial records.</p></div>
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -26,5 +31,21 @@ export default function Dashboard() {
     <section className="rounded-xl border bg-card p-6 shadow-sm"><div><h2 className="font-bold">Recent CRM activity</h2><p className="text-xs text-muted-foreground">Canonical activities only; no simulated trend data.</p></div>{data.recentActivities.length === 0 ? <div className="mt-5 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">No activity recorded.</div> : <div className="mt-4 divide-y">{data.recentActivities.map((activity) => <Link key={activity.id} to={`/organisations/${activity.organisationId}?tab=timeline&activityId=${activity.id}`} className="flex gap-3 py-4 hover:bg-muted/30"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><MessageSquare className="h-4 w-4"/></div><div className="min-w-0"><p className="text-sm font-bold">{activity.organisationName} · <span className="capitalize">{activity.type}</span></p><p className="truncate text-xs text-muted-foreground">{activity.body}</p><p className="mt-1 text-[10px] text-muted-foreground">{activity.author} · {new Date(activity.occurredAt).toLocaleString()}</p></div></Link>)}</div>}</section>
   </div>;
 }
+function SpecialistDashboard({data,model,money}:{data:DashboardOperationalSummary;model:WorkspaceModel;money:(cents:number)=>string}){
+  const experience=workspaceExperience(model);
+  return <div className="space-y-7">
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-primary">{model.templateName} model active</p><h1 className="mt-1 text-3xl font-extrabold tracking-tight">{experience.dashboardTitle}</h1><p className="mt-1 text-sm text-muted-foreground">{experience.dashboardDescription}</p></div><Link to="/onboarding" className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-xs font-bold shadow-sm hover:bg-muted"><Settings className="h-4 w-4"/>Customise this setup</Link></div>
+    <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700"/><div><h2 className="font-bold">Your {model.templateName.toLowerCase()} setup is applied</h2><p className="mt-1 text-xs text-emerald-800">The workspace below is built from your selected model. Its record types remain yours to rename, add to or remove.</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-bold shadow-sm">{model.definitions.length} record types active</span></section>
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <LinkCard label={model.customerPlural} value={model.customerCount} route="/customers" icon={Users}/>
+      {model.definitions.map((definition)=><LinkCard key={definition.id} label={definition.pluralName} value={definition.recordCount} route={definitionRoute(definition)} icon={Layers}/>)}
+    </div>
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <Card label="Overdue follow-ups" value={data.overdueFollowUps} icon={AlertTriangle} danger/><Card label="Due today" value={data.dueTodayFollowUps} icon={CalendarClock}/><Card label="Collected this month" value={money(data.collectedRevenueCents)} icon={CircleDollarSign}/><Card label="Outstanding invoices" value={money(data.outstandingCents)} icon={WalletCards}/>
+    </div>
+    <section className="rounded-xl border bg-card p-6 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-bold">Next actions</h2><p className="mt-1 text-xs text-muted-foreground">Start with a person, then connect the specialist records you need.</p></div><Link to="/follow-ups" className="text-xs font-semibold text-primary">Open follow-up queue</Link></div><div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3"><Link to="/customers?action=create" className="rounded-lg border p-4 hover:bg-muted/40"><p className="font-bold">Add {model.customerSingular.toLowerCase()}</p><p className="mt-1 text-xs text-muted-foreground">Create the main contact record.</p></Link>{model.definitions.map((definition)=><Link key={definition.id} to={definitionRoute(definition)} className="rounded-lg border p-4 hover:bg-muted/40"><p className="font-bold">Add {definition.name.toLowerCase()}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{definition.description||`Open ${definition.pluralName.toLowerCase()}.`}</p></Link>)}</div></section>
+  </div>;
+}
+function LinkCard({label,value,route,icon:Icon}:{label:string;value:number;route:string;icon:React.ComponentType<{className?:string}>}){return <Link to={route} className="flex items-center justify-between rounded-xl border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-black">{value}</p><p className="mt-1 text-[10px] font-semibold text-primary">Open {label.toLowerCase()}</p></div><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5"/></div></Link>;}
 function Card({ label, value, icon: Icon, danger = false }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; danger?: boolean }) { return <div className="flex items-center justify-between rounded-xl border bg-card p-5 shadow-sm"><div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-2 text-2xl font-black ${danger && Number(value) > 0 ? 'text-red-700' : ''}`}>{value}</p></div><div className={`flex h-11 w-11 items-center justify-center rounded-xl ${danger ? 'bg-red-100 text-red-700' : 'bg-primary/10 text-primary'}`}><Icon className="h-5 w-5"/></div></div>; }
 function Attention({ title, empty, items }: { title: string; empty: string; items: Array<{ id: string; title: string; detail: string; route: string }> }) { return <div><h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{title}</h3><div className="mt-3 space-y-2">{items.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">{empty}</p> : items.slice(0,5).map((item) => <Link key={item.id} to={item.route} className="block rounded-lg border p-3 hover:bg-muted/40"><p className="text-sm font-bold">{item.title}</p><p className="text-xs text-muted-foreground">{item.detail}</p></Link>)}</div></div>; }
