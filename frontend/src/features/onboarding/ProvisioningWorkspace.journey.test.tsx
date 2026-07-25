@@ -12,20 +12,15 @@ vi.mock("./useProvisioningWorkspace", () => ({
 }));
 
 const sections = [
-  ["Readiness", "Required"],
-  ["Deployment", "Required"],
-  ["Business identity", "Required"],
-  ["Brand studio", "Required"],
-  ["Locale", "Required"],
-  ["Terminology", "Optional"],
-  ["People & access", "Required"],
-  ["CRM model", "Optional"],
-  ["Data import", "Optional"],
-  ["Communications", "Optional"],
-  ["Extensions", "Optional"],
-  ["Security & recovery", "Required"],
-  ["Employee rollout", "Conditional"],
-  ["Review & publish", "Required"],
+  ["Your business", "Part of initial setup"],
+  ["How you do business", "Part of initial setup"],
+  ["Your customer records", "Part of initial setup"],
+  ["How people connect", "Part of initial setup"],
+  ["Look & feel", "Part of initial setup"],
+  ["Business defaults", "Part of initial setup"],
+  ["Your team", "Part of initial setup"],
+  ["Keep your data safe", "Part of initial setup"],
+  ["Check & finish", "Part of initial setup"],
 ] as const;
 
 function nodeText(node: ReactTestInstance | string | number): string {
@@ -138,6 +133,11 @@ function studioFixture() {
     createUser: vi.fn(),
     createField: vi.fn(),
     createObject: vi.fn(),
+    applyDataModelTemplate: vi.fn(),
+    deleteField: vi.fn(),
+    deleteObject: vi.fn(),
+    renameField: vi.fn(),
+    renameObject: vi.fn(),
     testAccount: vi.fn(),
     toggleExtension: vi.fn(),
     createEnrolment: vi.fn(),
@@ -164,7 +164,7 @@ function studioFixture() {
 describe("provisioning workspace user journey", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("navigates every section, labels its requirement and publishes from the final review", async () => {
+  it("guides an owner through nine plain-language steps and finishes setup", async () => {
     const studio = studioFixture();
     vi.mocked(useProvisioningWorkspace).mockReturnValue(studio as never);
     const renderer = create(<ProvisioningWorkspace />);
@@ -181,14 +181,13 @@ describe("provisioning workspace user journey", () => {
         renderer.root
           .findAllByType("span")
           .some(
-            (badge) =>
-              nodeText(badge) === `${requirement} for publication`,
+            (badge) => nodeText(badge) === requirement,
           ),
       ).toBe(true);
       expect(
         renderer.root
           .findAllByType("p")
-          .some((paragraph) => nodeText(paragraph) === "Completion guidance"),
+          .some((paragraph) => nodeText(paragraph) === "Before you continue"),
       ).toBe(true);
     }
 
@@ -199,7 +198,7 @@ describe("provisioning workspace user journey", () => {
     await act(async () => {
       approval[0].props.onChange({ target: { checked: true } });
     });
-    const publish = button(renderer.root, "Publish profile");
+    const publish = button(renderer.root, "Finish setup");
     expect(publish.props.disabled).toBe(false);
     await act(async () => {
       publish.props.onClick();
@@ -207,13 +206,16 @@ describe("provisioning workspace user journey", () => {
     expect(studio.publish).toHaveBeenCalledOnce();
   });
 
-  it("keeps extensions optional and provides an in-flow route to security and recovery", async () => {
+  it("keeps add-ons behind optional and advanced setup", async () => {
     vi.mocked(useProvisioningWorkspace).mockReturnValue(
       studioFixture() as never,
     );
     const renderer = create(<ProvisioningWorkspace />);
     await act(async () => {
-      navigationButton(renderer.root, "Extensions").props.onClick();
+      navigationButton(renderer.root, "Optional & advanced setup").props.onClick();
+    });
+    await act(async () => {
+      navigationButton(renderer.root, "Add-ons").props.onClick();
     });
 
     const rendered = nodeText(renderer.root);
@@ -221,8 +223,23 @@ describe("provisioning workspace user journey", () => {
     expect(rendered).toContain(
       "package installation becomes available after the initial instance is published",
     );
-    expect(rendered).toContain("Continue to Security & recovery");
     expect(rendered).not.toContain("Manage packages");
+  });
+
+  it("uses the owner's sector choice to drive specialist template recommendations", async () => {
+    const studio = studioFixture();
+    vi.mocked(useProvisioningWorkspace).mockReturnValue(studio as never);
+    const renderer = create(<ProvisioningWorkspace />);
+    await act(async () => {
+      navigationButton(renderer.root, "How you do business").props.onClick();
+    });
+    await act(async () => {
+      button(renderer.root, "Veterinary practice").props.onClick();
+    });
+
+    expect(studio.patch).toHaveBeenCalledWith("businessProfile", {
+      sector: "veterinary",
+    });
   });
 
   it("renders custom entities whose API response omitted embedded fields", async () => {
@@ -231,10 +248,49 @@ describe("provisioning workspace user journey", () => {
     );
     const renderer = create(<ProvisioningWorkspace />);
     await act(async () => {
-      navigationButton(renderer.root, "CRM model").props.onClick();
+      navigationButton(renderer.root, "Your customer records").props.onClick();
+    });
+    await act(async () => {
+      button(renderer.root, "Customise fields and records").props.onClick();
     });
 
     expect(nodeText(renderer.root)).toContain("Property");
     expect(nodeText(renderer.root)).toContain("0 fields");
+  });
+
+  it("names every missing business answer before publication", () => {
+    const studio = studioFixture();
+    studio.state.workspace.readiness.checks = [
+      {
+        id: "identity.complete",
+        category: "identity",
+        status: "failed",
+        severity: "required",
+        title: "Business identity",
+        explanation: "Incomplete",
+        remediation: "Complete the Business identity section.",
+        section: "identity",
+        evidence: {
+          displayName: false,
+          email: true,
+          phone: false,
+          address: false,
+        },
+      },
+    ];
+    studio.state.workspace.readiness.publishable = false;
+    vi.mocked(useProvisioningWorkspace).mockReturnValue(studio as never);
+    const renderer = create(<ProvisioningWorkspace />);
+
+    const rendered = nodeText(renderer.root);
+    expect(rendered).toContain("1 item needed before you can finish");
+    expect(rendered).toContain(
+      "Add: business name, phone number, business address.",
+    );
+    expect(
+      renderer.root
+        .findAllByType("span")
+        .filter((span) => nodeText(span) === "Needed to publish"),
+    ).toHaveLength(4);
   });
 });
